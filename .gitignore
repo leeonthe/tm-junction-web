@@ -1,0 +1,46 @@
+# ---- dependencies / build artifacts (never commit) ----
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# ---- Python ----
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- secrets / local env ----
+.env
+.env.local
+.env.*.local
+**/.env
+
+# ---- logs / coverage ----
+*.log
+npm-debug.log*
+coverage/
+
+# ---- OS / editor ----
+.DS_Store
+.cursor/
+.idea/
+.vscode/
+
+# ---- project-local, not part of the deployable app (kept out of the repo) ----
+# (.gitignore does not support inline comments — keep each pattern on its own line)
+# Obsidian design & decision docs (local planning)
+tm-junction-web-obsidian/
+# static design reference
+design-mocks/
+# original loader asset (derived dna-blue*.svg live in web/public)
+DNA WHITE.svg
+
+# NOTE: we intentionally DO commit —
+#   web/  engine/ (source; their deps are ignored above)
+#   engine/data/ (nm_index.json + cached fixtures — needed to run/demo)
+#   README.md  .gitattributes

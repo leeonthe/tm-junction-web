@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+# keep seeded demo fixtures; ignore anything the live client writes beyond them
