@@ -1,0 +1,22 @@
+# Render Blueprint — deploys the TmJunction Python engine (FastAPI).
+# Use: render.com → New + → Blueprint → connect this repo. Render reads this file.
+# primer3-py installs from a prebuilt wheel, so no compiler/Docker is needed.
+services:
+  - type: web
+    name: tmjunction-engine
+    runtime: python
+    rootDir: engine
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # No cookies/auth, so "*" is safe. Set to your Vercel URL to restrict if you prefer.
+      - key: TMJ_CORS_ORIGINS
+        value: "*"
+      # Optional but recommended (raises NCBI rate limit). Set the value in the dashboard.
+      - key: NCBI_API_KEY
+        sync: false
