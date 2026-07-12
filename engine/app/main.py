@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import ncbi
-from .analyze import AnalysisError, analyze
+from .analyze import AnalysisError, analyze, analyze_events
 from .models import AnalyzeResponse
 
 app = FastAPI(title="TmJunction Engine", version="0.1.0")
@@ -57,6 +58,28 @@ def analyze_endpoint(req: AnalyzeRequest):
         return analyze(req.accession, k=req.k)
     except AnalysisError as e:
         return JSONResponse(status_code=400, content={"error": e.code, "message": e.message})
+
+
+@app.get("/analyze/stream")
+def analyze_stream(accession: str, k: int = 20):
+    """Server-Sent Events: real progress (`progress`) then the full result (`result`).
+    Analysis errors are sent as a `failed` event (named so it doesn't clash with the
+    browser EventSource's built-in `error`)."""
+    def gen():
+        try:
+            for ev in analyze_events(accession, k):
+                if ev.get("type") == "result":
+                    yield f"event: result\ndata: {json.dumps(ev['result'].model_dump())}\n\n"
+                else:
+                    yield ("event: progress\n"
+                           f"data: {json.dumps({'pct': ev['pct'], 'detail': ev['detail']})}\n\n")
+        except AnalysisError as e:
+            yield f"event: failed\ndata: {json.dumps({'error': e.code, 'message': e.message})}\n\n"
+        except Exception as e:  # pragma: no cover - upstream/network failure
+            yield f"event: failed\ndata: {json.dumps({'error': 'UPSTREAM_ERROR', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.get("/analyze/{accession}", response_model=AnalyzeResponse)

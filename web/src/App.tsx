@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { analyze, AnalyzeError } from "./lib/api";
+import { analyzeStream, AnalyzeError, type Progress } from "./lib/api";
 import type { AnalyzeResponse } from "./lib/types";
 import Nav from "./components/Nav";
 import Hero from "./components/Hero";
@@ -8,7 +8,7 @@ import PrimerCard from "./components/PrimerCard";
 import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
 import Summary from "./components/Summary";
-import DnaLoader from "./components/DnaLoader";
+import LoadingState from "./components/LoadingState";
 import { ArrowRight } from "./components/icons";
 
 type Tab = "summary" | "amplify" | "gene";
@@ -27,14 +27,16 @@ export default function App() {
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [tab, setTab] = useState<Tab>("summary");
   const [history, setHistory] = useState<string[]>(loadHistory);
+  const [progress, setProgress] = useState<Progress>({ pct: 0, detail: "Starting…" });
 
   async function run(accession: string, opts: RunOpts = {}) {
     const { keepTab = false, soft = false, silent = false } = opts;
     if (!accession) return;
+    if (!soft) setProgress({ pct: 0, detail: "Starting…" });
     soft ? setBusy(true) : setLoading(true);
     setError(null);
     try {
-      const r = await analyze(accession);
+      const r = await analyzeStream(accession, (p) => { if (!soft) setProgress(p); });
       setResult(r);
       if (!keepTab) setTab("summary");   // a fresh search lands on the everything view
       // recent searches (persisted, ≤3) — not for the initial demo or isoform re-targets
@@ -67,7 +69,7 @@ export default function App() {
       <Nav onExample={(acc) => run(acc)} />
       <Hero onSearch={(acc) => run(acc)} loading={loading} history={history} />
       <main className="wrap">
-        {loading && <div className="state"><DnaLoader horizontal size={120} label="Analyzing…" /></div>}
+        {loading && <LoadingState pct={progress.pct} detail={progress.detail} />}
         {!loading && error && <div className="error-box"><b>{error.code}.</b> {error.message}</div>}
         {!loading && result && (
           <Result result={result} tab={tab} setTab={setTab} busy={busy}

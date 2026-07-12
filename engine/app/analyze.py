@@ -87,10 +87,27 @@ def _primer_out(p) -> PrimerOut | None:
 
 
 def analyze(accession: str, k: int = 20) -> AnalyzeResponse:
+    """Run the full analysis and return the response (non-streaming wrapper)."""
+    result: AnalyzeResponse | None = None
+    for ev in analyze_events(accession, k):
+        if ev.get("type") == "result":
+            result = ev["result"]
+    assert result is not None
+    return result
+
+
+def analyze_events(accession: str, k: int = 20):
+    """Generator yielding real progress events, then the result.
+
+    Events: {"type":"progress","pct":int,"detail":str} … {"type":"result","result":AnalyzeResponse}.
+    The sequence fetches (one per NM isoform) are the bulk of the wall-clock on a cold cache,
+    so progress is driven mostly by those. Raises AnalysisError for bad input / not-found.
+    """
     accession = accession.strip().upper()   # RefSeq accessions are uppercase
     if not ncbi.is_valid_nm(accession):
         raise AnalysisError("NOT_NM", "Enter a curated NM RefSeq accession, e.g. NM_002046.7.")
 
+    yield {"type": "progress", "pct": 3, "detail": "Resolving gene…"}
     try:
         symbol, _gid = ncbi.resolve_accession(accession)
         report = ncbi.get_product_report(symbol)
@@ -99,7 +116,6 @@ def analyze(accession: str, k: int = 20) -> AnalyzeResponse:
         raise AnalysisError("NOT_FOUND", str(e))
 
     accs = {t["accession"]: t for t in transcripts}
-    # normalize input to the versioned accession actually present, if possible
     target_acc = accession
     if target_acc not in accs:
         base = accession.split(".")[0]
@@ -109,12 +125,20 @@ def analyze(accession: str, k: int = 20) -> AnalyzeResponse:
     if target_acc not in accs:
         raise AnalysisError("NOT_FOUND", f"{accession} is not an NM transcript of {symbol}.")
 
-    # fetch sequences (cache-first)
-    seqs = {a: ncbi.get_sequence(a) for a in accs}
+    n = len(accs)
+    yield {"type": "progress", "pct": 10, "detail": f"{symbol}: {n} NM isoform{'s' if n != 1 else ''}"}
+
+    # fetch sequences (cache-first) — the main cost; emit progress per transcript
+    seqs: dict[str, str] = {}
+    for i, a in enumerate(accs):
+        seqs[a] = ncbi.get_sequence(a)
+        yield {"type": "progress", "pct": 10 + round(68 * (i + 1) / n),
+               "detail": f"Fetching mRNA sequences {i + 1}/{n}"}
+
     exons_by_acc = {a: t["exons"] for a, t in accs.items()}
 
+    yield {"type": "progress", "pct": 82, "detail": "Classifying isoforms…"}
     verdicts: list[TranscriptVerdict] = []
-    from_cache = True
     for a, t in accs.items():
         sibs = {o: seqs[o] for o in accs if o != a}
         amp = analyze_amplifiability(t["exons"], seqs[a], list(sibs.values()), k=k)
@@ -123,7 +147,7 @@ def analyze(accession: str, k: int = 20) -> AnalyzeResponse:
         verdicts.append(_amp_to_verdict(a, t["is_mane"], t["exons"], seqs[a],
                                         t.get("cds"), amp, coord_nu))
 
-    # target primer design
+    yield {"type": "progress", "pct": 94, "detail": "Designing Tm-guided primers…"}
     tgt = accs[target_acc]
     tgt_sibs = {o: seqs[o] for o in accs if o != target_acc}
     tgt_amp = analyze_amplifiability(tgt["exons"], seqs[target_acc], list(tgt_sibs.values()), k=k)
@@ -137,11 +161,9 @@ def analyze(accession: str, k: int = 20) -> AnalyzeResponse:
         hard_case_count=sum(v.tier == "NO_SINGLE_UNIQUE_JUNCTION" for v in verdicts),
         coord_non_unique_count=sum(v.coord_non_unique for v in verdicts),
     )
-
-    # order: target first, then MANE, then by accession
     verdicts.sort(key=lambda v: (v.accession != target_acc, not v.is_mane, v.accession))
 
-    return AnalyzeResponse(
+    response = AnalyzeResponse(
         target_accession=target_acc,
         gene=GeneInfo(gene_id=gene_id, symbol=symbol, description=description),
         target_verdict=tgt_verdict,
@@ -155,5 +177,7 @@ def analyze(accession: str, k: int = 20) -> AnalyzeResponse:
         ),
         transcripts=verdicts,
         summary=summary,
-        meta={"assembly": "GRCh38", "k": k, "from_cache": from_cache},
+        meta={"assembly": "GRCh38", "k": k},
     )
+    yield {"type": "progress", "pct": 100, "detail": "Done"}
+    yield {"type": "result", "result": response}

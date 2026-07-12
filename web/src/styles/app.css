@@ -244,6 +244,7 @@ footer{border-top:1px solid var(--border);padding:24px 0;color:var(--muted);font
 .dna-loader{display:flex;flex-direction:column;align-items:center;gap:16px}
 .dna-svg{display:block;border:0;background:transparent;pointer-events:none}
 .dna-label{font-size:14px;font-weight:500;color:var(--muted);letter-spacing:-.01em}
+.dna-label .pct{color:var(--brand);font-weight:600;font-variant-numeric:tabular-nums}
 
 /* cDNA sequence view */
 .cdna{margin-top:18px;padding-top:18px;border-top:1px solid var(--divider)}
