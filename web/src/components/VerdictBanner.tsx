@@ -9,7 +9,7 @@ export default function VerdictBanner({ v }: { v: TranscriptVerdict }) {
   const icon = v.tier === "CONVENTIONAL" ? <Check />
     : v.tier === "NEEDS_EEJ" ? <Split /> : <Alert />;
 
-  const heading = v.tier === "CONVENTIONAL" ? "No junction trick needed."
+  const heading = v.tier === "CONVENTIONAL" ? "No Exon-Exon-Junction(EEJ) primer needed."
     : v.tier === "NEEDS_EEJ" ? "Amplifiable — with an exon–exon junction primer."
     : "Not amplifiable by a single primer pair.";
 
