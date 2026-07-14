@@ -1,6 +1,6 @@
 import { Moon } from "./icons";
 
-export default function Nav({ onExample }: { onExample: (acc: string) => void }) {
+export default function Nav({ onHome, onExample }: { onHome: () => void; onExample: (acc: string) => void }) {
   function toggleTheme() {
     const r = document.documentElement;
     const dark = r.getAttribute("data-theme") === "dark" ||
@@ -10,7 +10,9 @@ export default function Nav({ onExample }: { onExample: (acc: string) => void })
   return (
     <nav>
       <div className="wrap nav-in">
-        <div className="brand"><span className="dot" />TmJunction</div>
+        <button className="brand" type="button" onClick={onHome} aria-label="Back to start">
+          <span className="dot" />TmJunction
+        </button>
         <div className="nav-links">
           <a href="#" className="keep-hide">How it works</a>
           <a href="#">Method</a>

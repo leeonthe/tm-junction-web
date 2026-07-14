@@ -57,7 +57,8 @@ button{font-family:inherit}
 nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);
   backdrop-filter:saturate(180%) blur(10px);border-bottom:1px solid var(--border)}
 .nav-in{display:flex;align-items:center;justify-content:space-between;height:64px}
-.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:16px;letter-spacing:-.03em}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:16px;letter-spacing:-.03em;
+  background:none;border:0;padding:0;margin:0;color:inherit;font-family:inherit;cursor:pointer}
 .brand .dot{width:26px;height:26px;border-radius:8px;background:var(--brand);position:relative;flex:none}
 .brand .dot::after{content:"";position:absolute;inset:7px 6px;border-radius:2px;
   background:repeating-linear-gradient(90deg,#fff 0 3px,transparent 3px 6px);opacity:.9}

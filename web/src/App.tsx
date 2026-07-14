@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { analyzeStream, AnalyzeError, type Progress } from "./lib/api";
 import type { AnalyzeResponse } from "./lib/types";
 import Nav from "./components/Nav";
@@ -28,6 +28,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("summary");
   const [history, setHistory] = useState<string[]>(loadHistory);
   const [progress, setProgress] = useState<Progress>({ pct: 0, detail: "Starting…" });
+  const [resetKey, setResetKey] = useState(0);   // bump to remount Hero (clears its input)
 
   async function run(accession: string, opts: RunOpts = {}) {
     const { keepTab = false, soft = false, silent = false } = opts;
@@ -61,13 +62,21 @@ export default function App() {
   // From the Gene tab: re-target and hand off to the Amplifiability tab to show its primers.
   const inspectIsoform = (accession: string) => { run(accession, { keepTab: true, soft: true }); setTab("amplify"); };
 
-  // Load the GAPDH demo on first paint so the page is never empty (not recorded in history).
-  useEffect(() => { run("NM_001256799.3", { silent: true }); }, []);
+  // Return to the empty landing state (logo / brand click).
+  function reset() {
+    setResult(null);
+    setError(null);
+    setLoading(false);
+    setBusy(false);
+    setTab("summary");
+    setResetKey((k) => k + 1);   // remount Hero so its input clears
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
     <>
-      <Nav onExample={(acc) => run(acc)} />
-      <Hero onSearch={(acc) => run(acc)} loading={loading} history={history} />
+      <Nav onHome={reset} onExample={(acc) => run(acc)} />
+      <Hero key={resetKey} onSearch={(acc) => run(acc)} loading={loading} history={history} />
       <main className="wrap">
         {loading && <LoadingState pct={progress.pct} detail={progress.detail} />}
         {!loading && error && <div className="error-box"><b>{error.code}.</b> {error.message}</div>}
