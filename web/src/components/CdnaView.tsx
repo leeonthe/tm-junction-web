@@ -40,7 +40,9 @@ export default function CdnaView({
   const junctionIdx = useMemo(() => {
     if (!junction) return -1;
     const donor = exons.find((e) => e.order === junction.donor_order);
-    return donor ? donor.tx_end : -1;  // 1-based end == 0-based index of the next base
+    // the marker is a left-border on the FIRST acceptor base (donor.tx_end + 1, 1-based),
+    // so the red line sits exactly between the two exons (…GG|C…, not …G|GC…).
+    return donor ? donor.tx_end + 1 : -1;
   }, [junction, exons]);
 
   const bases = [];
