@@ -83,6 +83,7 @@ class GeneInfo(BaseModel):
     symbol: str
     description: str
     assembly: str = "GRCh38"
+    chromosome: str = ""      # e.g. "12", "X"
 
 
 class AnalyzeResponse(BaseModel):

@@ -273,7 +273,13 @@ footer{border-top:1px solid var(--border);padding:24px 0;color:var(--muted);font
 
 /* exon hover card */
 .exon-tip{background:var(--surface);border:1px solid var(--border-2);border-radius:12px;
-  box-shadow:var(--shadow-card);padding:12px 14px;max-width:250px;font-size:12.5px;line-height:1.5}
+  box-shadow:var(--shadow-card);padding:12px 14px;max-width:320px;font-size:12.5px;line-height:1.5}
+.et-coord{display:flex;align-items:baseline;gap:7px;white-space:nowrap}
+.et-chr{color:var(--muted);font-weight:600}
+.et-c1{color:var(--exon-0);font-weight:600}
+.et-c2{color:var(--exon-2);font-weight:600}
+.et-dash{color:var(--faint)}
+.et-line .et-num{color:var(--ink);font-weight:600}
 .et-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .et-head b{font-size:14px;color:var(--ink);letter-spacing:-.01em}
 .et-badge{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--surface-3);

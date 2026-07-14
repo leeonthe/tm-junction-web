@@ -129,8 +129,27 @@ def grch38_exons(transcript: dict) -> list[Interval] | None:
     return None
 
 
-def nm_transcripts(product_report: dict) -> tuple[str, str, str, list[dict]]:
-    """Return (gene_id, symbol, description, [ {accession, is_mane, exons} ... ]) for NM only."""
+def _chromosome_from_acc(gav: str) -> str:
+    """GRCh38 genomic accession -> chromosome label. NC_000012 -> '12', 23 -> 'X', 24 -> 'Y'."""
+    m = re.match(r"NC_0*(\d+)", gav or "")
+    if not m:
+        return ""
+    n = int(m.group(1))
+    if 1 <= n <= 22:
+        return str(n)
+    return {23: "X", 24: "Y", 12920: "MT"}.get(n, "")
+
+
+def _grch38_chromosome(transcript: dict) -> str:
+    for loc in transcript.get("genomic_locations") or []:
+        gav = str(loc.get("genomic_accession_version", ""))
+        if gav.startswith(GRCH38_PREFIX):
+            return _chromosome_from_acc(gav)
+    return ""
+
+
+def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, list[dict]]:
+    """Return (gene_id, symbol, description, chromosome, [ {accession, is_mane, exons} ... ]) for NM only."""
     reports = product_report.get("reports") or []
     if not reports:
         raise NotFound("Empty product report")
@@ -138,6 +157,7 @@ def nm_transcripts(product_report: dict) -> tuple[str, str, str, list[dict]]:
     gene_id = str(product.get("gene_id", ""))
     symbol = str(product.get("symbol", ""))
     description = str(product.get("description", ""))
+    chromosome = ""
     out: list[dict] = []
     for t in product.get("transcripts") or []:
         acc = (t.get("accession_version") or "").strip()
@@ -146,13 +166,15 @@ def nm_transcripts(product_report: dict) -> tuple[str, str, str, list[dict]]:
         exons = grch38_exons(t)
         if not exons:
             continue
+        if not chromosome:
+            chromosome = _grch38_chromosome(t)
         out.append({
             "accession": acc,
             "is_mane": t.get("select_category") == "MANE_SELECT",
             "exons": exons,
             "cds": _cds_range(t),   # (begin, end) in 1-based transcript coords, or None
         })
-    return gene_id, symbol, description, out
+    return gene_id, symbol, description, chromosome, out
 
 
 def _cds_range(transcript: dict) -> tuple[int, int] | None:

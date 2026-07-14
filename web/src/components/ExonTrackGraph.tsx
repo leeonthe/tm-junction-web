@@ -17,11 +17,12 @@ const CDS_LABEL: Record<Exon["cds"], string> = {
  * Hovering an exon / caret shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
-  transcripts, targetAccession, primerExon,
+  transcripts, targetAccession, primerExon, chromosome = "",
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
   primerExon?: number | null;
+  chromosome?: string;
 }) {
   const [tip, setTip] = useState<Tip>(null);
 
@@ -156,12 +157,12 @@ export default function ExonTrackGraph({
           </g>
         ))}
       </svg>
-      {tip && !dragging && <Tooltip tip={tip} />}
+      {tip && !dragging && <Tooltip tip={tip} chromosome={chromosome} />}
     </div>
   );
 }
 
-function Tooltip({ tip }: { tip: NonNullable<Tip> }) {
+function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: string }) {
   const style: React.CSSProperties = {
     position: "fixed", left: Math.min(tip.x + 14, window.innerWidth - 260),
     top: tip.y + 16, zIndex: 50, pointerEvents: "none",
@@ -184,8 +185,16 @@ function Tooltip({ tip }: { tip: NonNullable<Tip> }) {
         <span className="et-badge">{CDS_LABEL[e.cds]}</span>
         <span className="et-tier"><span className="d" style={{ background: tierColorVar[t.tier] }} />{tierLabel[t.tier]}</span>
       </div>
-      <div className="et-line mono">chr:{e.begin.toLocaleString()}–{e.end.toLocaleString()} · {e.length} nt</div>
-      <div className="et-line mono">mRNA {e.tx_begin}–{e.tx_end} · GC {e.gc}%</div>
+      <div className="et-line mono et-coord">
+        <span className="et-chr">chr{chromosome || "?"}</span>
+        <span className="et-c1">{e.begin.toLocaleString()}</span>
+        <span className="et-dash">–</span>
+        <span className="et-c2">{e.end.toLocaleString()}</span>
+      </div>
+      <div className="et-line mono">
+        <b className="et-num">{e.length}</b>&nbsp;nt&nbsp;&nbsp;·&nbsp;&nbsp;GC&nbsp;<b className="et-num">{e.gc}%</b>
+        &nbsp;&nbsp;·&nbsp;&nbsp;mRNA&nbsp;{e.tx_begin}–{e.tx_end}
+      </div>
       <div className="et-div" />
       {e.unique_sites > 0
         ? <div className="et-line et-good">{e.unique_sites} primer sites unique to {isTarget ? "this isoform" : t.accession}</div>

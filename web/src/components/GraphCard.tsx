@@ -23,7 +23,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           <span className="lg"><span className="sw" style={{ background: "var(--hard)" }} />Hard case</span>
         </div>
       </div>
-      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} />
+      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} />
       <p className="g-note">▾ marks the recommended exon–exon junction primer. Window size k={String(meta.k ?? 20)}.</p>
     </section>
   );

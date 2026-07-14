@@ -111,7 +111,7 @@ def analyze_events(accession: str, k: int = 20):
     try:
         symbol, _gid = ncbi.resolve_accession(accession)
         report = ncbi.get_product_report(symbol)
-        gene_id, symbol, description, transcripts = ncbi.nm_transcripts(report)
+        gene_id, symbol, description, chromosome, transcripts = ncbi.nm_transcripts(report)
     except ncbi.NotFound as e:
         raise AnalysisError("NOT_FOUND", str(e))
 
@@ -165,7 +165,7 @@ def analyze_events(accession: str, k: int = 20):
 
     response = AnalyzeResponse(
         target_accession=target_acc,
-        gene=GeneInfo(gene_id=gene_id, symbol=symbol, description=description),
+        gene=GeneInfo(gene_id=gene_id, symbol=symbol, description=description, chromosome=chromosome),
         target_verdict=tgt_verdict,
         target_mrna=seqs[target_acc],
         primer_design=PrimerDesignOut(

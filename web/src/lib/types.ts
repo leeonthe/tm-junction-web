@@ -30,7 +30,7 @@ export interface TranscriptVerdict {
   recommended_junction: Junction | null; coord_non_unique: boolean;
   exons: Exon[];
 }
-export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string }
+export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string }
 export interface GeneSummary {
   nm_count: number; conventional_count: number; needs_eej_count: number;
   hard_case_count: number; coord_non_unique_count: number;
