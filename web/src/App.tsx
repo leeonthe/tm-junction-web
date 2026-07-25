@@ -5,6 +5,7 @@ import Nav from "./components/Nav";
 import Hero from "./components/Hero";
 import VerdictBanner from "./components/VerdictBanner";
 import PrimerCard from "./components/PrimerCard";
+import JunctionDesigner from "./components/JunctionDesigner";
 import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
 import Summary from "./components/Summary";
@@ -119,6 +120,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect }: {
         <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <VerdictBanner v={target_verdict} />
           <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
+          <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} />
           <TargetTrackCard result={result} onExplore={() => setTab("gene")} onSelect={onSelect} />
         </div>
       )}
