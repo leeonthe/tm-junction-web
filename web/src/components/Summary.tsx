@@ -1,6 +1,7 @@
 import type { AnalyzeResponse } from "../lib/types";
 import VerdictBanner from "./VerdictBanner";
 import PrimerCard from "./PrimerCard";
+import JunctionDesigner from "./JunctionDesigner";
 import GeneOverview from "./GeneOverview";
 import GraphCard from "./GraphCard";
 import VerdictTable from "./VerdictTable";
@@ -17,6 +18,7 @@ export default function Summary({
     <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <VerdictBanner v={result.target_verdict} />
       <PrimerCard design={result.primer_design} mrna={result.target_mrna} verdict={result.target_verdict} />
+      <JunctionDesigner mrna={result.target_mrna} verdict={result.target_verdict} />
       <GeneOverview result={result} />
       <GraphCard result={result} />
       <section className="card">
