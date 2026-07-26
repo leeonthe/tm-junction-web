@@ -104,7 +104,7 @@ export function evalWindow(
   const rightPass = rightSeq.length >= MIN_ARM && rightTm <= armCap;
 
   const reasons: string[] = [];
-  if (!spans) reasons.push("Selection must span the junction (needs ≥3 bases on each exon).");
+  if (!spans) reasons.push("Selection must span the junction (needs ≥4 bases on each exon).");
   if (!wholePass)
     reasons.push(`Whole-primer Tm ${wholeTm.toFixed(1)} °C is outside ${tmMin}–${tmMax} °C.`);
   if (spans && !leftPass)
