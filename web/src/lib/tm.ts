@@ -126,21 +126,46 @@ export function evalWindow(
 export interface AutoPick {
   best: WindowEval | null;   // best fully-valid window, or best-effort if none valid
   anyValid: boolean;
-  warm: Set<number>;         // mRNA indices covered by any window with whole Tm in range
+  warm: Set<number>;         // the selectable design region (see warmRegion)
+}
+
+/**
+ * The warm zone = the selectable design region. Each arm is extended outward
+ * from the junction as far as it stays ≤ the arm cap (tmMax − ARM_GAP — the
+ * loosest cap, reached when the whole primer sits at its max). Beyond this
+ * edge an arm alone would melt hot enough to prime, breaking specificity. Any
+ * selection inside the region therefore has both arms under that ceiling; the
+ * stricter per-selection cap (whole Tm − ARM_GAP) and the whole-Tm range then
+ * decide which sub-windows are actually valid.
+ */
+function warmRegion(
+  mrna: string, jx: number, leftBound: number, rightBound: number, cap: number,
+): Set<number> {
+  const armMax = LEN_MAX - MIN_ARM;
+  let lo = jx, hi = jx;
+  for (let L = MIN_ARM; L <= armMax && jx - L >= leftBound; L++) {
+    if (tm(mrna.slice(jx - L, jx)) <= cap) lo = jx - L; else break;
+  }
+  for (let L = MIN_ARM; L <= armMax && jx + L <= rightBound; L++) {
+    if (tm(mrna.slice(jx, jx + L)) <= cap) hi = jx + L; else break;
+  }
+  const warm = new Set<number>();
+  for (let i = lo; i < hi; i++) warm.add(i);
+  return warm;
 }
 
 /**
  * Sweep every junction-spanning window (arms kept inside the donor/acceptor
- * exons) and return: the warm zone (columns where a whole-primer Tm lands in
- * range) and the single best window. "Best" prefers fully-valid candidates,
- * ranking by whole-Tm centered in range, then balanced/cool arms, then a 3′
- * G/C clamp. Falls back to the closest-to-valid window if none qualify.
+ * exons) and return the warm zone (see warmRegion) plus the single best
+ * window. "Best" prefers fully-valid candidates, ranking by whole-Tm centered
+ * in range, then balanced/cool arms, then a 3′ G/C clamp. Falls back to the
+ * closest-to-valid window if none qualify.
  */
 export function autoPick(
   mrna: string, jx: number, leftBound: number, rightBound: number,
   tmMin: number, tmMax: number,
 ): AutoPick {
-  const warm = new Set<number>();
+  const warm = warmRegion(mrna, jx, leftBound, rightBound, tmMax - ARM_GAP);
   const mid = (tmMin + tmMax) / 2;
 
   let best: WindowEval | null = null;
@@ -155,7 +180,6 @@ export function autoPick(
     for (let e = eLo; e <= eHi; e++) {
       if (e - s < LEN_MIN) continue;
       const ev = evalWindow(mrna, jx, s, e, tmMin, tmMax);
-      if (ev.whole.pass) for (let i = s; i < e; i++) warm.add(i);
 
       // Validity dominates. Among valid windows, prefer: whole Tm centered; the
       // WORST arm comfortably below the cap (strong discrimination — neither arm

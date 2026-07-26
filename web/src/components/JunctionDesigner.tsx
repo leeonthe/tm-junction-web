@@ -181,7 +181,7 @@ export default function JunctionDesigner({ mrna, verdict }: {
       </div>
 
       <div className="jd-legend">
-        <span className="lg"><span className="sw warm" />whole-primer Tm in range (warm zone)</span>
+        <span className="lg"><span className="sw warm" />selectable region (each arm ≤ cap)</span>
         <span className="lg"><span className="sw sel-ok" />selected — valid</span>
         <span className="lg"><span className="sw sel-bad" />selected — invalid</span>
         <span className="lg"><span className="jx-mark" />exon–exon junction</span>
