@@ -77,7 +77,7 @@ export interface WindowEval {
 function qualityNotes(w: WindowEval["whole"]): string[] {
   const notes: string[] = [];
   if (w.len < SHORT_PRIMER)
-    notes.push(`Short primer (${w.len} nt) — this junction only reaches the Tm range with few bases (GC-rich).`);
+    notes.push(`Short primer (${w.len} nt) — this junction only reaches the Tm range with few bases.`);
   return notes;
 }
 
