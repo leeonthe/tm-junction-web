@@ -23,6 +23,11 @@ export default function JunctionDesigner({ mrna, verdict }: {
 
   const [tmMin, setTmMin] = useState(60);
   const [tmMax, setTmMax] = useState(65);
+  // Raw input text, so a mid-edit value (empty, single digit) isn't clamped on every
+  // keystroke — we only reconcile against the other bound on blur/Enter. The numeric
+  // tmMin/tmMax update live while what's typed is already a valid, in-range number.
+  const [minStr, setMinStr] = useState("60");
+  const [maxStr, setMaxStr] = useState("65");
   const [sel, setSel] = useState<{ s: number; e: number } | null>(null);
   const dragging = useRef(false);
   const anchor = useRef(0);
@@ -97,6 +102,31 @@ export default function JunctionDesigner({ mrna, verdict }: {
     setSel({ s: Math.min(a, i), e: Math.max(a, i) + 1 });
   }
 
+  // Tm range inputs: type freely; live-update only when the value is already valid,
+  // and reconcile against the other bound + hard limits [30,95] on blur/Enter.
+  function editMin(raw: string) {
+    setMinStr(raw);
+    const v = parseInt(raw, 10);
+    if (!Number.isNaN(v) && v >= 30 && v < tmMax) setTmMin(v);
+  }
+  function commitMin() {
+    const v = parseInt(minStr, 10);
+    const c = Number.isNaN(v) ? tmMin : Math.max(30, Math.min(v, tmMax - 1));
+    setTmMin(c);
+    setMinStr(String(c));
+  }
+  function editMax(raw: string) {
+    setMaxStr(raw);
+    const v = parseInt(raw, 10);
+    if (!Number.isNaN(v) && v > tmMin && v <= 95) setTmMax(v);
+  }
+  function commitMax() {
+    const v = parseInt(maxStr, 10);
+    const c = Number.isNaN(v) ? tmMax : Math.min(95, Math.max(v, tmMin + 1));
+    setTmMax(c);
+    setMaxStr(String(c));
+  }
+
   const bases = [];
   for (let i = winStart; i < winEnd; i++) {
     const ex = exonAt[i];
@@ -126,11 +156,13 @@ export default function JunctionDesigner({ mrna, verdict }: {
         </div>
         <div className="jd-range">
           <label>Whole-primer Tm
-            <input type="number" value={tmMin} min={30} max={tmMax - 1}
-              onChange={(e) => setTmMin(Math.min(Number(e.target.value), tmMax - 1))} />
+            <input type="number" value={minStr} min={30} max={tmMax - 1} inputMode="numeric"
+              onChange={(e) => editMin(e.target.value)} onBlur={commitMin}
+              onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
             <span className="dash">–</span>
-            <input type="number" value={tmMax} min={tmMin + 1} max={95}
-              onChange={(e) => setTmMax(Math.max(Number(e.target.value), tmMin + 1))} />
+            <input type="number" value={maxStr} min={tmMin + 1} max={95} inputMode="numeric"
+              onChange={(e) => editMax(e.target.value)} onBlur={commitMax}
+              onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
             <span className="unit">°C</span>
           </label>
           <span className="jd-cap">each arm ≤ <b>{armCap} °C</b> (max − {ARM_GAP})</span>
