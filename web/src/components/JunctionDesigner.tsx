@@ -82,7 +82,6 @@ export default function JunctionDesigner({ mrna, verdict }: {
   }
 
   const { jx, donor, acceptor } = geom;
-  const armCap = tmMax - ARM_GAP;
 
   const ev: WindowEval | null = sel ? evalWindow(mrna, jx, sel.s, sel.e, tmMin, tmMax) : null;
 
@@ -165,7 +164,7 @@ export default function JunctionDesigner({ mrna, verdict }: {
               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
             <span className="unit">°C</span>
           </label>
-          <span className="jd-cap">each arm ≤ <b>{armCap} °C</b> (max − {ARM_GAP})</span>
+          <span className="jd-cap">each arm ≤ <b>whole-primer Tm − {ARM_GAP} °C</b></span>
         </div>
       </div>
 
@@ -193,15 +192,17 @@ export default function JunctionDesigner({ mrna, verdict }: {
         )}
       </div>
 
-      {ev && <Readout ev={ev} tmMin={tmMin} tmMax={tmMax} armCap={armCap} />}
+      {ev && <Readout ev={ev} tmMin={tmMin} tmMax={tmMax} />}
     </section>
   );
 }
 
-function Readout({ ev, tmMin, tmMax, armCap }: {
-  ev: WindowEval; tmMin: number; tmMax: number; armCap: number;
+function Readout({ ev, tmMin, tmMax }: {
+  ev: WindowEval; tmMin: number; tmMax: number;
 }) {
   function copy() { navigator.clipboard?.writeText(ev.whole.seq); }
+  // cap tracks the selection's actual whole-primer Tm (ev.armCap = whole Tm − ARM_GAP)
+  const cap = ev.armCap.toFixed(1);
   return (
     <div className="jd-readout">
       <div className={`jd-verdict ${ev.valid ? "ok" : "bad"}`}>
@@ -222,9 +223,9 @@ function Readout({ ev, tmMin, tmMax, armCap }: {
           note={`target ${tmMin}–${tmMax} °C · GC ${ev.whole.gc.toFixed(0)}% · ${ev.whole.len} nt`}
           pass={ev.whole.pass} />
         <Metric label="5′ arm (donor)" seq={ev.left.seq} tmv={ev.left.tm}
-          note={`cap ≤ ${armCap} °C · ${ev.left.len} nt`} pass={ev.left.pass} />
+          note={`cap ≤ ${cap} °C · ${ev.left.len} nt`} pass={ev.left.pass} />
         <Metric label="3′ arm (acceptor)" seq={ev.right.seq} tmv={ev.right.tm}
-          note={`cap ≤ ${armCap} °C · ${ev.right.len} nt`} pass={ev.right.pass} />
+          note={`cap ≤ ${cap} °C · ${ev.right.len} nt`} pass={ev.right.pass} />
       </div>
 
       <div className="jd-foot">

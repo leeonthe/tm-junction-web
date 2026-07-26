@@ -66,6 +66,7 @@ export interface WindowEval {
   whole: ArmStat & { gc: number };
   left: ArmStat;      // donor-exon arm (5′ side)
   right: ArmStat;     // acceptor-exon arm (3′ side)
+  armCap: number;     // each arm must melt ≤ this: whole-primer Tm − ARM_GAP
   valid: boolean;
   reasons: string[];  // why it fails, if it does
   notes: string[];    // quality advisories (non-fatal) even when valid
@@ -85,12 +86,12 @@ function qualityNotes(w: WindowEval["whole"]): string[] {
  * Evaluate one candidate window [s, e) against the Tm rule.
  * `jx` is the 0-based index of the first acceptor-exon base (the junction cut
  * sits between jx-1 and jx). The whole primer must melt in [tmMin, tmMax];
- * each arm must melt at ≤ tmMax − ARM_GAP.
+ * each arm must melt at ≤ (this primer's own whole Tm) − ARM_GAP — the gap is
+ * measured from the actual primer Tm, not the user's max bound.
  */
 export function evalWindow(
   mrna: string, jx: number, s: number, e: number, tmMin: number, tmMax: number,
 ): WindowEval {
-  const armCap = tmMax - ARM_GAP;
   const wholeSeq = mrna.slice(s, e).toUpperCase();
   const leftSeq = mrna.slice(s, Math.min(e, jx)).toUpperCase();
   const rightSeq = mrna.slice(Math.max(s, jx), e).toUpperCase();
@@ -99,6 +100,9 @@ export function evalWindow(
   const wholeTm = tm(wholeSeq);
   const leftTm = tm(leftSeq);
   const rightTm = tm(rightSeq);
+  // Cap tracks the ACTUAL primer Tm: each arm must melt ≥ ARM_GAP below the whole primer.
+  const armCap = wholeTm - ARM_GAP;
+  const capStr = armCap.toFixed(1);
   const wholePass = wholeTm >= tmMin && wholeTm <= tmMax;
   const leftPass = leftSeq.length >= MIN_ARM && leftTm <= armCap;
   const rightPass = rightSeq.length >= MIN_ARM && rightTm <= armCap;
@@ -108,15 +112,15 @@ export function evalWindow(
   if (!wholePass)
     reasons.push(`Whole-primer Tm ${wholeTm.toFixed(1)} °C is outside ${tmMin}–${tmMax} °C.`);
   if (spans && !leftPass)
-    reasons.push(`5′ arm Tm ${leftTm.toFixed(1)} °C exceeds the ${armCap} °C cap.`);
+    reasons.push(`5′ arm Tm ${leftTm.toFixed(1)} °C exceeds the ${capStr} °C cap (whole Tm − ${ARM_GAP}).`);
   if (spans && !rightPass)
-    reasons.push(`3′ arm Tm ${rightTm.toFixed(1)} °C exceeds the ${armCap} °C cap.`);
+    reasons.push(`3′ arm Tm ${rightTm.toFixed(1)} °C exceeds the ${capStr} °C cap (whole Tm − ${ARM_GAP}).`);
 
   const whole = { seq: wholeSeq, tm: wholeTm, len: wholeSeq.length, gc: gcPercent(wholeSeq), pass: wholePass };
   const left = { seq: leftSeq, tm: leftTm, len: leftSeq.length, pass: leftPass };
   const right = { seq: rightSeq, tm: rightTm, len: rightSeq.length, pass: rightPass };
   const valid = spans && wholePass && leftPass && rightPass;
-  return { s, e, spans, whole, left, right, valid, reasons, notes: valid ? qualityNotes(whole) : [] };
+  return { s, e, spans, whole, left, right, armCap, valid, reasons, notes: valid ? qualityNotes(whole) : [] };
 }
 
 export interface AutoPick {
@@ -158,8 +162,8 @@ export function autoPick(
       // primes alone); balanced arm lengths; a slightly longer primer; a 3′ G/C
       // clamp. Rewarding the worst-arm margin (not raw coldness) avoids both the
       // degenerate short arm and the near-cap arm that barely discriminates.
-      const armCap = tmMax - ARM_GAP;
-      const worstMargin = armCap - Math.max(ev.left.tm, ev.right.tm);
+      // The cap is per-window (ev.armCap = this primer's whole Tm − ARM_GAP).
+      const worstMargin = ev.armCap - Math.max(ev.left.tm, ev.right.tm);
       const clamp = "GC".includes(mrna[e - 1]?.toUpperCase() ?? "") ? 1 : 0;
       const score = (ev.valid ? 1000 : 0)
         - Math.abs(ev.whole.tm - mid) * 3
