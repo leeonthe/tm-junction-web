@@ -71,13 +71,13 @@ export interface WindowEval {
   notes: string[];    // quality advisories (non-fatal) even when valid
 }
 
-/** Non-fatal quality flags — the Tm rule can pass while the primer is still hard to make. */
-function qualityNotes(w: WindowEval["whole"], left: ArmStat, right: ArmStat): string[] {
+/** Non-fatal quality flags — the Tm rule can pass while the primer is still hard to make.
+ * NB: a short *arm* is intentionally not flagged — weak single-arm annealing is the design
+ * (the Tm cap requires it), not a defect; a 4-nt arm still blocks off-target extension. */
+function qualityNotes(w: WindowEval["whole"]): string[] {
   const notes: string[] = [];
   if (w.len < SHORT_PRIMER)
     notes.push(`Short primer (${w.len} nt) — this junction only reaches the Tm range with few bases (GC-rich).`);
-  if (Math.min(left.len, right.len) < 5)
-    notes.push(`One arm is only ${Math.min(left.len, right.len)} nt — little annealing on that exon.`);
   return notes;
 }
 
@@ -116,7 +116,7 @@ export function evalWindow(
   const left = { seq: leftSeq, tm: leftTm, len: leftSeq.length, pass: leftPass };
   const right = { seq: rightSeq, tm: rightTm, len: rightSeq.length, pass: rightPass };
   const valid = spans && wholePass && leftPass && rightPass;
-  return { s, e, spans, whole, left, right, valid, reasons, notes: valid ? qualityNotes(whole, left, right) : [] };
+  return { s, e, spans, whole, left, right, valid, reasons, notes: valid ? qualityNotes(whole) : [] };
 }
 
 export interface AutoPick {
