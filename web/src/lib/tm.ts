@@ -27,9 +27,8 @@ export const MIN_ARM = 4;
 /** Candidate whole-primer length window swept by the auto-picker. */
 export const LEN_MIN = 12;
 export const LEN_MAX = 36;
-/** Below this whole-primer length / above this GC%, flag the primer as hard. */
+/** Below this whole-primer length, flag the primer as hard (few bases → GC-rich). */
 const SHORT_PRIMER = 15;
-const HIGH_GC = 65;
 
 const CLEAN = /^[ACGT]+$/;
 
@@ -77,8 +76,6 @@ function qualityNotes(w: WindowEval["whole"], left: ArmStat, right: ArmStat): st
   const notes: string[] = [];
   if (w.len < SHORT_PRIMER)
     notes.push(`Short primer (${w.len} nt) — this junction only reaches the Tm range with few bases (GC-rich).`);
-  if (w.gc > HIGH_GC)
-    notes.push(`GC-rich (${w.gc.toFixed(0)}%) — validate empirically; consider widening the Tm range.`);
   if (Math.min(left.len, right.len) < 5)
     notes.push(`One arm is only ${Math.min(left.len, right.len)} nt — little annealing on that exon.`);
   return notes;
