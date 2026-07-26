@@ -164,7 +164,7 @@ export default function JunctionDesigner({ mrna, verdict }: {
               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
             <span className="unit">°C</span>
           </label>
-          <span className="jd-cap">each arm ≤ <b>whole-primer Tm − {ARM_GAP} °C</b></span>
+          <span className="jd-cap">each arm Tm ≤ <b>whole-primer Tm − {ARM_GAP} °C</b></span>
         </div>
       </div>
 
