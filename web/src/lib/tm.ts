@@ -27,6 +27,8 @@ export const MIN_ARM = 4;
 /** Candidate whole-primer length window swept by the auto-picker. */
 export const LEN_MIN = 12;
 export const LEN_MAX = 36;
+/** Below this whole-primer length, flag the primer as hard (few bases → GC-rich). */
+const SHORT_PRIMER = 15;
 
 const CLEAN = /^[ACGT]+$/;
 
@@ -67,6 +69,17 @@ export interface WindowEval {
   armCap: number;     // each arm must melt ≤ this: whole-primer Tm − ARM_GAP
   valid: boolean;
   reasons: string[];  // why it fails, if it does
+  notes: string[];    // quality advisories (non-fatal) even when valid
+}
+
+/** Non-fatal quality flags — the Tm rule can pass while the primer is still hard to make.
+ * NB: a short *arm* is intentionally not flagged — weak single-arm annealing is the design
+ * (the Tm cap requires it), not a defect; a 4-nt arm still blocks off-target extension. */
+function qualityNotes(w: WindowEval["whole"]): string[] {
+  const notes: string[] = [];
+  if (w.len < SHORT_PRIMER)
+    notes.push(`Short primer (${w.len} nt) — this junction only reaches the Tm range with few bases.`);
+  return notes;
 }
 
 /**
@@ -107,7 +120,7 @@ export function evalWindow(
   const left = { seq: leftSeq, tm: leftTm, len: leftSeq.length, pass: leftPass };
   const right = { seq: rightSeq, tm: rightTm, len: rightSeq.length, pass: rightPass };
   const valid = spans && wholePass && leftPass && rightPass;
-  return { s, e, spans, whole, left, right, armCap, valid, reasons };
+  return { s, e, spans, whole, left, right, armCap, valid, reasons, notes: valid ? qualityNotes(whole) : [] };
 }
 
 export interface AutoPick {

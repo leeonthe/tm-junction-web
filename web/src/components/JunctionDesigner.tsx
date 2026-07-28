@@ -212,6 +212,12 @@ function Readout({ ev, tmMin, tmMax }: {
           : <div><b>✗ Not valid yet</b><ul>{ev.reasons.map((r) => <li key={r}>{r}</li>)}</ul></div>}
       </div>
 
+      {ev.valid && ev.notes.length > 0 && (
+        <div className="jd-notes">
+          {ev.notes.map((n) => <div key={n} className="jd-note-line">⚠ {n}</div>)}
+        </div>
+      )}
+
       <div className="jd-metrics">
         <Metric label="Whole primer" seq={ev.whole.seq} tmv={ev.whole.tm}
           note={`target ${tmMin}–${tmMax} °C · GC ${ev.whole.gc.toFixed(0)}% · ${ev.whole.len} nt`}
