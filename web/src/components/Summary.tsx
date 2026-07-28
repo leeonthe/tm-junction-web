@@ -17,7 +17,10 @@ export default function Summary({
   return (
     <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <VerdictBanner v={result.target_verdict} />
-      <PrimerCard design={result.primer_design} mrna={result.target_mrna} verdict={result.target_verdict} />
+      {/* EEJ variants use the interactive Tm designer instead of the DESIGNED PRIMERS card */}
+      {!result.target_verdict.recommended_junction && (
+        <PrimerCard design={result.primer_design} mrna={result.target_mrna} verdict={result.target_verdict} />
+      )}
       <JunctionDesigner mrna={result.target_mrna} verdict={result.target_verdict} />
       <GeneOverview result={result} />
       <GraphCard result={result} />

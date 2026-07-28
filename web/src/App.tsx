@@ -119,7 +119,10 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect }: {
       {tab === "amplify" && (
         <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <VerdictBanner v={target_verdict} />
-          <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
+          {/* EEJ variants use the interactive Tm designer instead of the DESIGNED PRIMERS card */}
+          {!target_verdict.recommended_junction && (
+            <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
+          )}
           <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} />
           <TargetTrackCard result={result} onExplore={() => setTab("gene")} onSelect={onSelect} />
         </div>
