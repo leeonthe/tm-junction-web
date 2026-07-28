@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import { ARM_GAP, autoPick, evalWindow, type WindowEval } from "../lib/tm";
 import { Copy } from "./icons";
@@ -29,8 +29,10 @@ export default function JunctionDesigner({ mrna, verdict }: {
   const [minStr, setMinStr] = useState("60");
   const [maxStr, setMaxStr] = useState("65");
   const [sel, setSel] = useState<{ s: number; e: number } | null>(null);
+  const [copied, setCopied] = useState(false);
   const dragging = useRef(false);
   const anchor = useRef(0);
+  const seqRef = useRef<HTMLDivElement>(null);
 
   const geom = useMemo(() => {
     if (!junction) return null;
@@ -94,11 +96,26 @@ export default function JunctionDesigner({ mrna, verdict }: {
     dragging.current = true;
     anchor.current = i;
     setSel({ s: i, e: i + 1 });
+    seqRef.current?.focus();   // preventDefault on the span blocks auto-focus, so focus here
   }
   function onEnter(i: number) {
     if (!dragging.current) return;
     const a = anchor.current;
     setSel({ s: Math.min(a, i), e: Math.max(a, i) + 1 });
+  }
+  // Copy the selected primer (5′→3′) on ⌘C / Ctrl+C while the sequence box is focused —
+  // the box has user-select:none (so dragging designs a primer), so native copy won't work.
+  function copySelected() {
+    if (!ev) return;
+    navigator.clipboard?.writeText(ev.whole.seq);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  }
+  function onSeqKeyDown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C")) {
+      e.preventDefault();
+      copySelected();
+    }
   }
 
   // Tm range inputs: type freely; live-update only when the value is already valid,
@@ -174,10 +191,18 @@ export default function JunctionDesigner({ mrna, verdict }: {
         neither arm alone is stable enough to prime — so it fires only on this exact splice.
       </p>
 
-      <div className={`jd-seq mono ${valid ? "valid" : "invalid"}`} onMouseLeave={() => { dragging.current = false; }}>
+      <div ref={seqRef} tabIndex={0} role="textbox" aria-label="Drag to select a primer; press Cmd or Ctrl + C to copy"
+        className={`jd-seq mono ${valid ? "valid" : "invalid"}`}
+        onKeyDown={onSeqKeyDown} onMouseLeave={() => { dragging.current = false; }}>
         {winStart > 0 && <span className="cdna-ellipsis">…{winStart} nt </span>}
         {bases}
         {winEnd < mrna.length && <span className="cdna-ellipsis"> {mrna.length - winEnd} nt…</span>}
+      </div>
+
+      <div className="jd-copyhint">
+        {copied
+          ? <span className="ok">✓ Copied primer to clipboard</span>
+          : <>Drag to select · press <kbd>⌘C</kbd> / <kbd>Ctrl+C</kbd> to copy the selected primer</>}
       </div>
 
       <div className="jd-legend">
