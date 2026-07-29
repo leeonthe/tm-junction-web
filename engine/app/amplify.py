@@ -113,9 +113,11 @@ def discriminating_exon_pair(
     """For a 7c transcript (unique exon combination but no single unique window), find the
     exon PAIR to put a conventional primer pair in: 1-based (forward_exon, reverse_exon),
     forward upstream of reverse, such that NO single sibling contains BOTH exons — so no
-    sibling can produce that amplicon and the pair is transcript-specific. Returns None if
-    no 2-exon pair suffices (would need a 3+-exon combination). Prefers the most robust pair
-    (fewest siblings sharing either exon), then the smallest exon span."""
+    sibling can produce that amplicon and the pair is transcript-specific. A conventional
+    primer pair IS two primer sites (two exons); there is no 3+-exon single pair. Returns
+    None if no 2-exon pair isolates the transcript — then it is not amplifiable by a single
+    conventional primer pair. Prefers the most robust pair (fewest siblings sharing either
+    exon), then the smallest exon span."""
     t_ex = _exon_seqs(target_exons, target_seq)
     sib_ex = [_exon_seqs(se, ss) for (se, ss) in siblings]
 
@@ -155,8 +157,9 @@ def analyze_amplifiability(
       - else **CONVENTIONAL** if the target is NOT an exon-subset of any sibling (rule 7c)
         **and** a discriminating 2-exon pair exists (no sibling carries both), so a
         conventional primer pair isolates it despite no single unique window,
-      - else **NO_SINGLE_UNIQUE_JUNCTION** (includes not-a-subset transcripts whose unique
-        combination needs 3+ exons / a junction combination — a hard case, not Blue).
+      - else **NO_SINGLE_UNIQUE_JUNCTION** — including a not-a-subset transcript with no
+        isolating 2-exon pair: it is not amplifiable by a single conventional primer pair
+        (a 3+-exon combination is not one PCR), so it is a hard case, not Blue.
     Without `sibling_exons` (legacy) it falls back to the window-only tiering.
     """
     seq = target_seq.upper()
@@ -210,8 +213,9 @@ def analyze_amplifiability(
         tier = "NEEDS_EEJ"
     elif not_subset:
         # 7c: it has a unique exon combination, but it is only CONVENTIONAL if a *2-exon*
-        # pair actually isolates it (no sibling carries both). If no such pair exists it
-        # needs a 3+-exon / junction combination — that is a hard case, NOT Blue.
+        # pair actually isolates it (no sibling carries both). A conventional primer pair is
+        # two primer sites — a 3+-exon combination is not a single PCR, so if no 2-exon pair
+        # exists the transcript is NOT conventionally/singly amplifiable → hard case, NOT Blue.
         exon_pair = discriminating_exon_pair(target_exons, seq, siblings)
         tier = "CONVENTIONAL" if exon_pair else "NO_SINGLE_UNIQUE_JUNCTION"
     else:

@@ -56,14 +56,6 @@ function Explanation({ v, region, junc }: {
       </p>
     );
   }
-  if (v.tier === "CONVENTIONAL") {
-    return (
-      <p>
-        <span className="mono">{v.accession}</span> has a unique exon combination but no single
-        two-exon pair isolates it — it needs a multi-exon (nested) combination to amplify specifically.
-      </p>
-    );
-  }
   if (v.tier === "NEEDS_EEJ" && junc) {
     return (
       <p>
