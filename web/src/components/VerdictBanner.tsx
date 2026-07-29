@@ -45,6 +45,25 @@ function Explanation({ v, region, junc }: {
       </p>
     );
   }
+  if (v.tier === "CONVENTIONAL" && v.amplify_exon_pair) {
+    const [f, r] = v.amplify_exon_pair;
+    return (
+      <p>
+        No single exon region is unique to <span className="mono">{v.accession}</span>, but its
+        exon <i>combination</i> is. Target a conventional primer pair in <b>exon {f}</b> (forward)
+        and <b>exon {r}</b> (reverse) — no other isoform carries both exons, so the product forms
+        only for this transcript.
+      </p>
+    );
+  }
+  if (v.tier === "CONVENTIONAL") {
+    return (
+      <p>
+        <span className="mono">{v.accession}</span> has a unique exon combination but no single
+        two-exon pair isolates it — it needs a multi-exon (nested) combination to amplify specifically.
+      </p>
+    );
+  }
   if (v.tier === "NEEDS_EEJ" && junc) {
     return (
       <p>

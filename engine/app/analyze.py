@@ -75,6 +75,7 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         recommended_junction=recommended,
         coord_non_unique=coord_non_unique,
         exons=_exons_out(exons, seq, cds, amp),
+        amplify_exon_pair=list(amp.exon_pair) if amp.exon_pair else None,
     )
 
 
@@ -140,17 +141,22 @@ def analyze_events(accession: str, k: int = 20):
     yield {"type": "progress", "pct": 82, "detail": "Classifying isoforms…"}
     verdicts: list[TranscriptVerdict] = []
     for a, t in accs.items():
-        sibs = {o: seqs[o] for o in accs if o != a}
-        amp = analyze_amplifiability(t["exons"], seqs[a], list(sibs.values()), k=k)
-        sib_exons = {o: exons_by_acc[o] for o in accs if o != a}
+        sib_accs = [o for o in accs if o != a]
+        amp = analyze_amplifiability(
+            t["exons"], seqs[a], [seqs[o] for o in sib_accs], k=k,
+            sibling_exons=[exons_by_acc[o] for o in sib_accs])
+        sib_exons = {o: exons_by_acc[o] for o in sib_accs}
         coord_nu = bool(overlap.non_unique_partners(t["exons"], sib_exons))
         verdicts.append(_amp_to_verdict(a, t["is_mane"], t["exons"], seqs[a],
                                         t.get("cds"), amp, coord_nu))
 
     yield {"type": "progress", "pct": 94, "detail": "Designing Tm-guided primers…"}
     tgt = accs[target_acc]
-    tgt_sibs = {o: seqs[o] for o in accs if o != target_acc}
-    tgt_amp = analyze_amplifiability(tgt["exons"], seqs[target_acc], list(tgt_sibs.values()), k=k)
+    tgt_sib_accs = [o for o in accs if o != target_acc]
+    tgt_sibs = {o: seqs[o] for o in tgt_sib_accs}
+    tgt_amp = analyze_amplifiability(
+        tgt["exons"], seqs[target_acc], [seqs[o] for o in tgt_sib_accs], k=k,
+        sibling_exons=[exons_by_acc[o] for o in tgt_sib_accs])
     design = primers.design(tgt["exons"], seqs[target_acc], tgt_sibs, tgt_amp)
     tgt_verdict = next(v for v in verdicts if v.accession == target_acc)
 

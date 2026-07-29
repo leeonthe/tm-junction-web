@@ -29,6 +29,7 @@ export interface TranscriptVerdict {
   unique_regions: UniqueRegion[]; unique_junctions: Junction[];
   recommended_junction: Junction | null; coord_non_unique: boolean;
   exons: Exon[];
+  amplify_exon_pair?: number[] | null;   // 7c-Blue: [forward_exon, reverse_exon] (1-based)
 }
 export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string }
 export interface GeneSummary {

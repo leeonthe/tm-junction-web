@@ -68,6 +68,9 @@ class TranscriptVerdict(BaseModel):
     recommended_junction: JunctionOut | None = None
     coord_non_unique: bool          # structural annotation ONLY
     exons: list[Exon] = []
+    # 7c-Blue only: [forward_exon, reverse_exon] (1-based) to target with a conventional
+    # primer pair — no sibling carries both, so the amplicon is transcript-specific.
+    amplify_exon_pair: list[int] | None = None
 
 
 class GeneSummary(BaseModel):

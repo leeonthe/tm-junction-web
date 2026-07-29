@@ -119,8 +119,10 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect }: {
       {tab === "amplify" && (
         <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <VerdictBanner v={target_verdict} />
-          {/* EEJ variants use the interactive Tm designer instead of the DESIGNED PRIMERS card */}
-          {!target_verdict.recommended_junction && (
+          {/* Hide DESIGNED PRIMERS for EEJ variants (use the Tm designer) and for 7c-Blue
+              transcripts with no designable single primer (the verdict shows the exon pair). */}
+          {!target_verdict.recommended_junction &&
+            !(target_verdict.tier === "CONVENTIONAL" && !primer_design.forward) && (
             <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
           )}
           <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} />

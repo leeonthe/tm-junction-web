@@ -253,6 +253,19 @@ def design(target_exons: list[Interval], target_seq: str,
             flags=["NO_SINGLE_UNIQUE_JUNCTION"],
         )
 
+    # Conventional by structure (rule 7c: not a trimmed copy of any sibling) but with no
+    # single unique exon window — a single primer can't be placed. Its unique *exon
+    # combination* is amplifiable by a conventional primer PAIR spanning it; designing that
+    # pair is a follow-up. Report honestly rather than crash.
+    if amp.tier == "CONVENTIONAL" and not amp.unique_regions:
+        return PrimerDesign(
+            tier=amp.tier,
+            mechanism="Structurally unique (not a trimmed copy of any sibling), but no single "
+                      "unique exon window — amplifiable by a conventional primer pair spanning "
+                      "its unique exon combination (pair design is a follow-up).",
+            flags=["NO_UNIQUE_WINDOW"],
+        )
+
     flags: list[str] = []
 
     if amp.tier == "CONVENTIONAL":
