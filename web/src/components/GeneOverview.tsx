@@ -5,6 +5,7 @@ import { Alert } from "./icons";
 export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
   const { gene, summary } = result;
   const hasHard = summary.hard_case_count > 0;
+  const maneHard = result.transcripts.some((t) => t.is_mane && t.tier === "NO_SINGLE_UNIQUE_JUNCTION");
   return (
     <>
       <div className="stat-row">
@@ -23,7 +24,7 @@ export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
               These transcripts share every exon region <i>and</i> every splice junction with
               another isoform, so neither a conventional nor a single junction primer can isolate
               them. Detecting them specifically needs a <b>junction-combination</b> (dual-junction)
-              strategy — planned, not yet automated. In {gene.symbol} this is the MANE transcript.
+              strategy — planned, not yet automated.{maneHard && ` In ${gene.symbol} this is the MANE transcript.`}
             </p>
           </div>
         </section>

@@ -129,11 +129,14 @@ export default function ExonTrackGraph({
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, k) => {
                 const unique = isTarget && e.unique_sites > 0;
+                // 7c-Blue: exons a conventional primer pair should target (shown orange)
+                const isPair = !!t.amplify_exon_pair?.includes(e.order);
                 return (
                   <rect key={k} x={x(e.begin)} y={cy - exH / 2}
                     width={Math.max(2.5, x(e.end) - x(e.begin))} height={exH} rx={2.5}
-                    fill={color} style={{ cursor: "inherit" }}
-                    stroke={unique ? "var(--ink)" : "none"} strokeWidth={unique ? 1.4 : 0}
+                    fill={isPair ? "var(--amp-pair)" : color} style={{ cursor: "inherit" }}
+                    stroke={isPair ? "var(--amp-pair)" : unique ? "var(--ink)" : "none"}
+                    strokeWidth={isPair ? 1.6 : unique ? 1.4 : 0}
                     onMouseMove={(ev) => { if (drag.current.active) return; setTip({
                       kind: "exon", x: ev.clientX, y: ev.clientY, exon: e, t, isTarget,
                       primerExon: primerExon ?? null,
@@ -178,6 +181,8 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
   }
   const { exon: e, t, isTarget, primerExon } = tip;
   const primerHere = isTarget && primerExon === e.order;
+  const pair = t.amplify_exon_pair;
+  const pairRole = pair?.[0] === e.order ? "Forward" : pair?.[1] === e.order ? "Reverse" : null;
   return (
     <div className="exon-tip" style={style}>
       <div className="et-head">
@@ -200,6 +205,7 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
         ? <div className="et-line et-good">{e.unique_sites} primer sites unique to {isTarget ? "this isoform" : t.accession}</div>
         : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
+      {pairRole && <div className="et-line et-pair">★ Target exon — {pairRole} primer of the specific pair</div>}
     </div>
   );
 }
