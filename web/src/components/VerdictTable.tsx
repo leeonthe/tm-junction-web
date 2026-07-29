@@ -55,7 +55,9 @@ export default function VerdictTable({
 function mechanism(t: TranscriptVerdict): string {
   if (t.tier === "CONVENTIONAL") {
     const r = t.unique_regions[0];
-    return r ? `Unique region · exon ${r.exon_order} (${r.window_count} sites)` : "Unique region";
+    if (r) return `Unique region · exon ${r.exon_order} (${r.window_count} sites)`;
+    const p = t.amplify_exon_pair;
+    return p ? `Exon pair · exon ${p[0]} + exon ${p[1]}` : "Conventional";
   }
   if (t.tier === "NEEDS_EEJ") return "Junction-spanning primer";
   return "No single unique feature";

@@ -152,10 +152,11 @@ def analyze_amplifiability(
       - **CONVENTIONAL** if it has a unique exon-internal window (original rule),
       - else **NEEDS_EEJ** if it has a junction-spanning unique window (a real unique
         junction always keeps EEJ — a junction primer is the right tool),
-      - else **CONVENTIONAL** if the target is NOT an exon-subset of any sibling (rule 7c:
-        no single sibling carries all its exons, so a conventional primer *pair* spanning
-        its unique exon combination is specific even with no single unique window),
-      - else **NO_SINGLE_UNIQUE_JUNCTION**.
+      - else **CONVENTIONAL** if the target is NOT an exon-subset of any sibling (rule 7c)
+        **and** a discriminating 2-exon pair exists (no sibling carries both), so a
+        conventional primer pair isolates it despite no single unique window,
+      - else **NO_SINGLE_UNIQUE_JUNCTION** (includes not-a-subset transcripts whose unique
+        combination needs 3+ exons / a junction combination — a hard case, not Blue).
     Without `sibling_exons` (legacy) it falls back to the window-only tiering.
     """
     seq = target_seq.upper()
@@ -208,10 +209,11 @@ def analyze_amplifiability(
     elif unique_junctions:
         tier = "NEEDS_EEJ"
     elif not_subset:
-        tier = "CONVENTIONAL"
-        # 7c-Blue: no single unique window, so point at the exon pair a conventional
-        # primer pair should target (no sibling carries both -> transcript-specific).
+        # 7c: it has a unique exon combination, but it is only CONVENTIONAL if a *2-exon*
+        # pair actually isolates it (no sibling carries both). If no such pair exists it
+        # needs a 3+-exon / junction combination — that is a hard case, NOT Blue.
         exon_pair = discriminating_exon_pair(target_exons, seq, siblings)
+        tier = "CONVENTIONAL" if exon_pair else "NO_SINGLE_UNIQUE_JUNCTION"
     else:
         tier = "NO_SINGLE_UNIQUE_JUNCTION"
 
