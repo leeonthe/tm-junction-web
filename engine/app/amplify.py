@@ -49,6 +49,13 @@ class AmplifyResult:
     # for a 7c-Blue transcript (unique exon combination, no single unique window): the
     # exon pair (1-based forward, reverse) to target with a conventional primer pair.
     exon_pair: tuple[int, int] | None = None
+    # combination rescues for would-be hard cases (no unique region/junction, no exon pair):
+    # combo_je = (donor, acceptor, exon) — an EEJ across that junction + a conventional primer
+    #   in that exon isolate the transcript (no sibling has both). NEEDS_EEJ.
+    combo_je: tuple[int, int, int] | None = None
+    # combo_jj = ((d1,a1),(d2,a2)) — two EEJs that together isolate it (no sibling has both).
+    #   NEEDS_EEJ; the two junctions are the discriminating pair (shown magenta).
+    combo_jj: tuple[tuple[int, int], tuple[int, int]] | None = None
 
 
 def cumulative_exon_ends(exons: list[Interval]) -> list[int]:
@@ -140,6 +147,81 @@ def discriminating_exon_pair(
     return (best[1], best[2]) if best else None
 
 
+def _exon_holders(target_exons: list[Interval], target_seq: str,
+                  siblings: list[tuple[list[Interval], str]]) -> list[set[int]]:
+    """holders[exon_index] = sibling indices whose sequence contains that exon (genomic
+    overlap + sequence containment)."""
+    t_ex = _exon_seqs(target_exons, target_seq)
+    sib_ex = [_exon_seqs(se, ss) for (se, ss) in siblings]
+    out = []
+    for (tb, te, tseq) in t_ex:
+        out.append({si for si, s_ex in enumerate(sib_ex)
+                    if any(_genomic_overlap((tb, te), (sb, se)) and tseq in sseq
+                           for (sb, se, sseq) in s_ex)})
+    return out
+
+
+def _junction_holders(target_exons: list[Interval], target_seq: str,
+                      sibling_seqs: list[str], k: int) -> dict[tuple[int, int], set[int]]:
+    """holders[(donor,acceptor)] = sibling indices whose mRNA contains the junction-spanning
+    k-mer (centered on the boundary) — i.e. siblings that share that exact splice."""
+    cum = cumulative_exon_ends(target_exons)
+    others = [s.upper() for s in sibling_seqs]
+    out: dict[tuple[int, int], set[int]] = {}
+    for i in range(len(target_exons) - 1):
+        b = cum[i]                                   # 0-based first base of exon i+2
+        w = target_seq[b - k // 2:b - k // 2 + k]
+        if len(w) < k:
+            continue
+        out[(i + 1, i + 2)] = {si for si, o in enumerate(others) if w in o}
+    return out
+
+
+def discriminating_junction_exon(
+    target_exons: list[Interval], target_seq: str,
+    siblings: list[tuple[list[Interval], str]], k: int = DEFAULT_K,
+) -> tuple[int, int, int] | None:
+    """Rescue a would-be hard case with a junction + exon combination: an EEJ across junction
+    (donor,acceptor) plus a conventional primer in exon E, where NO single sibling has BOTH
+    the junction and the exon — so the amplicon forms only in this transcript. Returns
+    (donor, acceptor, exon_order) or None. Prefers the most discriminating, compact combo."""
+    seq = target_seq.upper()
+    e_hold = _exon_holders(target_exons, seq, siblings)
+    j_hold = _junction_holders(target_exons, seq, [s for (_, s) in siblings], k)
+    best: tuple[tuple[int, int], int, int, int] | None = None
+    for (d, a), hj in sorted(j_hold.items(), key=lambda kv: len(kv[1])):
+        for ei in range(len(e_hold)):
+            eo = ei + 1
+            if eo in (d, a) or (hj & e_hold[ei]):
+                continue
+            score = (len(hj) + len(e_hold[ei]), abs(eo - a))
+            if best is None or score < best[0]:
+                best = (score, d, a, eo)
+    return (best[1], best[2], best[3]) if best else None
+
+
+def discriminating_two_junctions(
+    target_exons: list[Interval], target_seq: str,
+    siblings: list[tuple[list[Interval], str]], k: int = DEFAULT_K,
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """Rescue a would-be hard case with two EEJs: junctions J1 (upstream) and J2 (downstream)
+    where NO single sibling has BOTH — so an amplicon spanning J1..J2 forms only in this
+    transcript. Returns ((d1,a1),(d2,a2)) or None. Most discriminating, compact first."""
+    j_hold = _junction_holders(target_exons, target_seq.upper(),
+                               [s for (_, s) in siblings], k)
+    items = sorted(j_hold.items())
+    best: tuple[tuple[int, int], tuple[int, int], tuple[int, int]] | None = None
+    for x in range(len(items)):
+        for y in range(x + 1, len(items)):
+            (j1, h1), (j2, h2) = items[x], items[y]
+            if h1 & h2:
+                continue
+            score = (len(h1) + len(h2), j2[0] - j1[1])
+            if best is None or score < best[0]:
+                best = (score, j1, j2)
+    return (best[1], best[2]) if best else None
+
+
 def analyze_amplifiability(
     target_exons: list[Interval],
     target_seq: str,
@@ -207,17 +289,22 @@ def analyze_amplifiability(
     # transcript with no unique window at all that still isn't a trimmed copy of any
     # sibling, so a conventional primer *pair* spanning its unique exon combination works.
     exon_pair: tuple[int, int] | None = None
+    combo_je: tuple[int, int, int] | None = None
+    combo_jj: tuple[tuple[int, int], tuple[int, int]] | None = None
+    have_sibs = sibling_exons is not None
     if unique_regions:
         tier = "CONVENTIONAL"
     elif unique_junctions:
         tier = "NEEDS_EEJ"
-    elif not_subset:
-        # 7c: it has a unique exon combination, but it is only CONVENTIONAL if a *2-exon*
-        # pair actually isolates it (no sibling carries both). A conventional primer pair is
-        # two primer sites — a 3+-exon combination is not a single PCR, so if no 2-exon pair
-        # exists the transcript is NOT conventionally/singly amplifiable → hard case, NOT Blue.
-        exon_pair = discriminating_exon_pair(target_exons, seq, siblings)
-        tier = "CONVENTIONAL" if exon_pair else "NO_SINGLE_UNIQUE_JUNCTION"
+    elif not_subset and (exon_pair := discriminating_exon_pair(target_exons, seq, siblings)):
+        # 7c: a 2-exon conventional pair isolates it (no sibling carries both). CONVENTIONAL.
+        tier = "CONVENTIONAL"
+    elif have_sibs and (combo_je := discriminating_junction_exon(target_exons, seq, siblings, k)):
+        # rescue: an EEJ + a conventional exon primer isolate it. NEEDS_EEJ.
+        tier = "NEEDS_EEJ"
+    elif have_sibs and (combo_jj := discriminating_two_junctions(target_exons, seq, siblings, k)):
+        # rescue: two EEJs together isolate it. NEEDS_EEJ (the two junctions shown magenta).
+        tier = "NEEDS_EEJ"
     else:
         tier = "NO_SINGLE_UNIQUE_JUNCTION"
 
@@ -232,4 +319,6 @@ def analyze_amplifiability(
         internal_starts=internal,
         junction_starts=junction,
         exon_pair=exon_pair,
+        combo_je=combo_je,
+        combo_jj=combo_jj,
     )

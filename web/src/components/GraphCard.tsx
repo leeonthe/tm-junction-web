@@ -22,6 +22,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           <span className="lg"><span className="sw" style={{ background: "var(--eej)" }} />Needs EEJ</span>
           <span className="lg"><span className="sw" style={{ background: "var(--hard)" }} />Hard case</span>
           <span className="lg"><span className="sw" style={{ background: "var(--amp-pair)" }} />Target site</span>
+          <span className="lg"><span className="sw" style={{ background: "var(--eej-combo)" }} />EEJ pair</span>
         </div>
       </div>
       <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} />

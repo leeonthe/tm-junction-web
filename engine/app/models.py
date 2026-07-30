@@ -70,9 +70,12 @@ class TranscriptVerdict(BaseModel):
     recommended_junction: JunctionOut | None = None
     coord_non_unique: bool          # structural annotation ONLY
     exons: list[Exon] = []
-    # 7c-Blue only: [forward_exon, reverse_exon] (1-based) to target with a conventional
-    # primer pair — no sibling carries both, so the amplicon is transcript-specific.
+    # Orange target exons (1-based): a 7c conventional pair [forward, reverse], or the single
+    # conventional exon of a junction+exon combo. No sibling carries the whole combination.
     amplify_exon_pair: list[int] | None = None
+    # Two-junction combo: the two EEJ locations [[d1,a1],[d2,a2]] that together isolate the
+    # transcript (shown magenta). Present only for that rescue case.
+    combo_junctions: list[list[int]] | None = None
 
 
 class GeneSummary(BaseModel):

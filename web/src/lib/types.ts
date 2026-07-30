@@ -30,6 +30,7 @@ export interface TranscriptVerdict {
   recommended_junction: Junction | null; coord_non_unique: boolean;
   exons: Exon[];
   amplify_exon_pair?: number[] | null;   // 7c-Blue: [forward_exon, reverse_exon] (1-based)
+  combo_junctions?: number[][] | null;   // two-junction combo EEJ locations [[d1,a1],[d2,a2]]
 }
 export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string }
 export interface GeneSummary {

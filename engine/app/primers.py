@@ -266,6 +266,21 @@ def design(target_exons: list[Interval], target_seq: str,
             flags=["NO_UNIQUE_WINDOW"],
         )
 
+    # NEEDS_EEJ via a combination (junction+exon or two junctions) — no single unique junction,
+    # so the single-EEJ designer below doesn't apply. Report the combination honestly.
+    if amp.tier == "NEEDS_EEJ" and not amp.unique_junctions:
+        if amp.combo_je:
+            d, a, e = amp.combo_je
+            mech = (f"Amplifiable by a combination: an EEJ primer across exon {d}–exon {a} plus a "
+                    f"conventional primer in exon {e} — no other isoform has both (combo design is a follow-up).")
+        elif amp.combo_jj:
+            (d1, a1), (d2, a2) = amp.combo_jj
+            mech = (f"Amplifiable by two EEJ primers — across exon {d1}–exon {a1} and exon {d2}–exon {a2} — "
+                    f"which together isolate this isoform (combo design is a follow-up).")
+        else:
+            mech = "Amplifiable only by a junction combination (combo design is a follow-up)."
+        return PrimerDesign(tier=amp.tier, mechanism=mech, flags=["COMBO_EEJ"])
+
     flags: list[str] = []
 
     if amp.tier == "CONVENTIONAL":

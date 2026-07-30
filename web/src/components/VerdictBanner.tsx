@@ -56,6 +56,25 @@ function Explanation({ v, region, junc }: {
       </p>
     );
   }
+  if (v.tier === "NEEDS_EEJ" && v.combo_junctions) {
+    const [[d1, a1], [d2, a2]] = v.combo_junctions;
+    return (
+      <p>
+        No unique region or single junction distinguishes <span className="mono">{v.accession}</span>,
+        but a <b>two-junction combination</b> does: EEJ primers across <b>exon {d1}–exon {a1}</b> and{" "}
+        <b>exon {d2}–exon {a2}</b> — no other isoform has both, so the product forms only for this transcript.
+      </p>
+    );
+  }
+  if (v.tier === "NEEDS_EEJ" && v.amplify_exon_pair && junc) {
+    return (
+      <p>
+        No unique region or single unique junction, but a <b>junction + exon combination</b> isolates{" "}
+        <span className="mono">{v.accession}</span>: an EEJ primer across the <b>{junc.label}</b> junction
+        plus a conventional primer in <b>exon {v.amplify_exon_pair[0]}</b> — no other isoform has both.
+      </p>
+    );
+  }
   if (v.tier === "NEEDS_EEJ" && junc) {
     return (
       <p>

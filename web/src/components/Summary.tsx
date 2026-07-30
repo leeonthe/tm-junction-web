@@ -17,10 +17,10 @@ export default function Summary({
   return (
     <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       <VerdictBanner v={result.target_verdict} />
-      {/* Hide DESIGNED PRIMERS for EEJ variants and for 7c-Blue transcripts with no
-          designable single primer (the verdict banner shows the exon pair instead). */}
+      {/* Show DESIGNED PRIMERS only for a real conventional design, or the hard-case note.
+          EEJ variants use the Tm designer; combo/7c cases show their info in the verdict. */}
       {!result.target_verdict.recommended_junction &&
-        !(result.target_verdict.tier === "CONVENTIONAL" && !result.primer_design.forward) && (
+        (result.primer_design.forward || result.target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION") && (
         <PrimerCard design={result.primer_design} mrna={result.target_mrna} verdict={result.target_verdict} />
       )}
       <JunctionDesigner mrna={result.target_mrna} verdict={result.target_verdict} />

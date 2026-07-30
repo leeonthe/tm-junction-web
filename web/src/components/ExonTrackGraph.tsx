@@ -108,11 +108,20 @@ export default function ExonTrackGraph({
           // Orange target exons are shown for EVERY amplifiable isoform (each row shows the
           // exon(s) to target for that transcript), not only the analyzed target.
           const uniqByExon = new Map(t.unique_regions.map((r) => [r.exon_order, r]));
-          let caretX: number | null = null;
+          // EEJ carets: the recommended junction (red), plus a two-junction combo (magenta).
+          const junctionCx = (d: number, a: number): number | null => {
+            const donor = t.exons[d - 1], acceptor = t.exons[a - 1];
+            return donor && acceptor ? (x(donor.end) + x(acceptor.begin)) / 2 : null;
+          };
+          const carets: { cx: number; magenta: boolean; label: string }[] = [];
           const rj = t.recommended_junction;
           if (rj) {
-            const donor = t.exons[rj.donor_order - 1], acceptor = t.exons[rj.acceptor_order - 1];
-            if (donor && acceptor) caretX = (x(donor.end) + x(acceptor.begin)) / 2;
+            const cx = junctionCx(rj.donor_order, rj.acceptor_order);
+            if (cx != null) carets.push({ cx, magenta: false, label: rj.label });
+          }
+          for (const [d, a] of t.combo_junctions ?? []) {
+            const cx = junctionCx(d, a);
+            if (cx != null) carets.push({ cx, magenta: true, label: `exon ${d}–exon ${a}` });
           }
           return (
             <g key={t.accession}>
@@ -165,11 +174,12 @@ export default function ExonTrackGraph({
                   </g>
                 );
               })}
-              {caretX != null && (
-                <path d={`M${caretX - 5} ${cy - exH / 2 - 8} L${caretX + 5} ${cy - exH / 2 - 8} L${caretX} ${cy - exH / 2 - 1} Z`}
-                  fill="var(--eej)" style={{ cursor: "inherit" }}
-                  onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "junction", x: ev.clientX, y: ev.clientY, label: rj!.label, t }); }} />
-              )}
+              {carets.map((c, ci) => (
+                <path key={ci}
+                  d={`M${c.cx - 5} ${cy - exH / 2 - 8} L${c.cx + 5} ${cy - exH / 2 - 8} L${c.cx} ${cy - exH / 2 - 1} Z`}
+                  fill={c.magenta ? "var(--eej-combo)" : "var(--eej)"} style={{ cursor: "inherit" }}
+                  onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "junction", x: ev.clientX, y: ev.clientY, label: c.label, t }); }} />
+              ))}
             </g>
           );
         })}

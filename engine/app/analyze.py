@@ -76,7 +76,21 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                     label=_junction_label(j.donor_order, j.acceptor_order))
         for j in amp.unique_junctions
     ]
+    # Recommended EEJ + orange exons depend on how the transcript is amplifiable:
+    #   - single unique junction: recommended = that junction (red caret).
+    #   - junction+exon combo:    recommended = the junction (red caret), orange = the exon.
+    #   - two-junction combo:     no single recommended; the two junctions are magenta.
+    #   - 7c conventional pair:   orange = the exon pair, no junction.
     recommended = junctions[0] if (amp.needs_eej and junctions) else None
+    exon_pair_out = list(amp.exon_pair) if amp.exon_pair else None
+    combo_junctions = None
+    if amp.combo_je:
+        d, a, e = amp.combo_je
+        recommended = JunctionOut(donor_order=d, acceptor_order=a, label=_junction_label(d, a))
+        exon_pair_out = [e]
+    elif amp.combo_jj:
+        (d1, a1), (d2, a2) = amp.combo_jj
+        combo_junctions = [[d1, a1], [d2, a2]]
     uniq_out = []
     for r in amp.unique_regions:
         gb, ge = _uniq_genomic(exons, r.tx_start, r.tx_end, r.exon_order)
@@ -93,7 +107,8 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         recommended_junction=recommended,
         coord_non_unique=coord_non_unique,
         exons=_exons_out(exons, seq, cds, amp),
-        amplify_exon_pair=list(amp.exon_pair) if amp.exon_pair else None,
+        amplify_exon_pair=exon_pair_out,
+        combo_junctions=combo_junctions,
     )
 
 

@@ -29,7 +29,8 @@ def test_gapdh_full_matrix():
     assert v["NM_001289745.3"].tier == "NEEDS_EEJ"
     assert v["NM_001289746.2"].tier == "CONVENTIONAL"      # red by coords, blue by sequence
     assert v["NM_001357943.2"].tier == "NEEDS_EEJ"
-    assert v["NM_002046.7"].tier == "NO_SINGLE_UNIQUE_JUNCTION"
+    # MANE has no unique region/junction, but a junction+exon combination isolates it -> EEJ
+    assert v["NM_002046.7"].tier == "NEEDS_EEJ"
 
 
 def test_gapdh_junction_locations():
@@ -49,20 +50,24 @@ def test_gapdh_t3_coord_vs_sequence_divergence():
     assert v.coord_non_unique is True          # structural flag disagrees, sequence wins
 
 
-def test_gapdh_mane_hard_case():
+def test_gapdh_mane_combo():
+    """MANE has no unique region and no unique single junction, but a junction+exon
+    combination isolates it: an EEJ across a junction + a conventional primer in an exon
+    no sibling pairs with it. It is therefore NEEDS_EEJ via the combo, not a hard case."""
     r = analyze("NM_002046.7")
     v = _by_acc(r)["NM_002046.7"]
-    assert v.tier == "NO_SINGLE_UNIQUE_JUNCTION"
-    assert r.primer_design.tier == "NO_SINGLE_UNIQUE_JUNCTION"
-    assert "NO_SINGLE_UNIQUE_JUNCTION" in r.primer_design.flags
+    assert v.tier == "NEEDS_EEJ"
+    assert v.recommended_junction is not None            # the EEJ location
+    assert v.amplify_exon_pair is not None                # the conventional exon (orange)
+    assert "COMBO_EEJ" in r.primer_design.flags
 
 
 def test_gapdh_summary():
     r = analyze("NM_002046.7")
     assert r.summary.nm_count == 5
     assert r.summary.conventional_count == 2
-    assert r.summary.needs_eej_count == 2
-    assert r.summary.hard_case_count == 1
+    assert r.summary.needs_eej_count == 3     # 745, 943, and MANE (via junction+exon combo)
+    assert r.summary.hard_case_count == 0
     assert r.summary.coord_non_unique_count == 4
 
 
