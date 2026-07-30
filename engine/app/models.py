@@ -21,6 +21,8 @@ class UniqueRegionOut(BaseModel):
     exon_order: int
     window_count: int
     side: str
+    begin: int | None = None   # genomic start of the unique-window span within the exon
+    end: int | None = None     # genomic end (so the graph can highlight only the unique part)
 
 
 class JunctionOut(BaseModel):

@@ -54,6 +54,20 @@ def _junction_label(donor: int, acceptor: int) -> str:
     return f"exon {donor}–exon {acceptor}"
 
 
+def _uniq_genomic(exons: list[tuple[int, int]], tx_start: int, tx_end: int,
+                  exon_order: int) -> tuple[int, int]:
+    """Map a unique window span [tx_start, tx_end] (0-based mRNA) to its genomic (begin,end)
+    within its exon, honoring strand (inferred from transcript vs genomic exon order)."""
+    cum = cumulative_exon_ends(exons)                 # 0-based exclusive mRNA ends
+    ei = exon_order - 1
+    gb, ge = exons[ei]                                # genomic begin <= end
+    exon_tx0 = cum[ei - 1] if ei else 0               # 0-based mRNA start of the exon
+    off_s, off_e = tx_start - exon_tx0, tx_end - exon_tx0
+    plus = len(exons) < 2 or exons[0][0] <= exons[-1][0]
+    b, e = (gb + off_s, gb + off_e) if plus else (ge - off_e, ge - off_s)
+    return (min(b, e), max(b, e))
+
+
 def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                     seq: str, cds: tuple[int, int] | None,
                     amp: AmplifyResult, coord_non_unique: bool) -> TranscriptVerdict:
@@ -63,14 +77,18 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         for j in amp.unique_junctions
     ]
     recommended = junctions[0] if (amp.needs_eej and junctions) else None
+    uniq_out = []
+    for r in amp.unique_regions:
+        gb, ge = _uniq_genomic(exons, r.tx_start, r.tx_end, r.exon_order)
+        uniq_out.append(UniqueRegionOut(exon_order=r.exon_order, window_count=r.window_count,
+                                        side=r.side, begin=gb, end=ge))
     return TranscriptVerdict(
         accession=acc,
         is_mane=is_mane,
         tier=amp.tier,
         amplifiable=amp.amplifiable,
         needs_eej=amp.needs_eej,
-        unique_regions=[UniqueRegionOut(exon_order=r.exon_order, window_count=r.window_count,
-                                        side=r.side) for r in amp.unique_regions],
+        unique_regions=uniq_out,
         unique_junctions=junctions,
         recommended_junction=recommended,
         coord_non_unique=coord_non_unique,

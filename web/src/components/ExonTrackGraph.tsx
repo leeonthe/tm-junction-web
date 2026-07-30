@@ -104,6 +104,8 @@ export default function ExonTrackGraph({
           const isTarget = t.accession === targetAccession;
           const color = tierColorVar[t.tier];
           const first = t.exons[0], last = t.exons[t.exons.length - 1];
+          // target only: unique region per exon (for the orange sub-span overlay)
+          const uniqByExon = new Map(isTarget ? t.unique_regions.map((r) => [r.exon_order, r]) : []);
           let caretX: number | null = null;
           const rj = t.recommended_junction;
           if (rj) {
@@ -128,20 +130,28 @@ export default function ExonTrackGraph({
               )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, k) => {
-                // Orange = the exon(s) to target FOR THE ANALYZED TARGET: a unique exonic
-                // region (conventional primer, rule 7a) OR a discriminating exon pair (7c).
-                // Only the target — siblings stay tier-colored (this is "your target").
-                const isPair = !!t.amplify_exon_pair?.includes(e.order);
-                const isTargetExon = isTarget && (isPair || e.unique_sites > 0);
+                // Orange = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored).
+                // 7c exon pair → whole exon orange. 7a unique region → the exon keeps its
+                // tier color and only the actual unique sub-span is overlaid orange.
+                const isPair = isTarget && !!t.amplify_exon_pair?.includes(e.order);
+                const ur = uniqByExon.get(e.order);
+                const hasSpan = ur?.begin != null && ur?.end != null;
                 return (
-                  <rect key={k} x={x(e.begin)} y={cy - exH / 2}
-                    width={Math.max(2.5, x(e.end) - x(e.begin))} height={exH} rx={2.5}
-                    fill={isTargetExon ? "var(--amp-pair)" : color} style={{ cursor: "inherit" }}
-                    stroke={isTargetExon ? "var(--amp-pair)" : "none"} strokeWidth={isTargetExon ? 1.6 : 0}
-                    onMouseMove={(ev) => { if (drag.current.active) return; setTip({
-                      kind: "exon", x: ev.clientX, y: ev.clientY, exon: e, t, isTarget,
-                      primerExon: primerExon ?? null,
-                    }); }} />
+                  <g key={k}>
+                    <rect x={x(e.begin)} y={cy - exH / 2}
+                      width={Math.max(2.5, x(e.end) - x(e.begin))} height={exH} rx={2.5}
+                      fill={isPair ? "var(--amp-pair)" : color} style={{ cursor: "inherit" }}
+                      stroke={isPair ? "var(--amp-pair)" : "none"} strokeWidth={isPair ? 1.6 : 0}
+                      onMouseMove={(ev) => { if (drag.current.active) return; setTip({
+                        kind: "exon", x: ev.clientX, y: ev.clientY, exon: e, t, isTarget,
+                        primerExon: primerExon ?? null,
+                      }); }} />
+                    {hasSpan && (
+                      <rect x={x(ur!.begin!)} y={cy - exH / 2}
+                        width={Math.max(2, x(ur!.end!) - x(ur!.begin!))} height={exH} rx={2}
+                        fill="var(--amp-pair)" pointerEvents="none" />
+                    )}
+                  </g>
                 );
               })}
               {caretX != null && (
