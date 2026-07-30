@@ -1,15 +1,30 @@
 // Client-side Tm engine for the interactive EEJ junction designer.
 //
-// Uses the simplified nearest-neighbor formula the project standardized on
-// (see vault 01 Science/Primer Design Strategy):
+// Nearest-neighbor melting temperature (SantaLucia 1998 unified stacking
+// parameters) with the two reaction conditions the user can tune in the
+// designer — monovalent salt and primer concentration:
 //
-//     Tm = ΔH / (ΔS − 32.22) − 273.15
+//     Tm = ΔH_total / (ΔS_total + R·ln(C_T/4)) + ΔT_salt − 273.15
 //
-// ΔH/ΔS are SantaLucia (1998) unified stacking params plus a lumped initiation
-// term; the −32.22 folds R·ln(C_T/4) at fixed salt (50 mM Na⁺) and primer
-// (200 nM). Ported verbatim from engine/app/primers.py::_nn_tm so the browser
-// and the engine agree. Runs a few degrees hotter than primer3 (no salt term),
-// which is fine: the user's Tm range is calibrated to THIS formula.
+// ΔH_total (cal/mol) and ΔS_total (cal/(mol·K)) are the summed adjacent-doublet
+// terms plus a lumped initiation term; R = 1.987 cal/(K·mol); C_T is the total
+// primer concentration (mol/L); ΔT_salt = 16.6·log10[Na⁺] is the monovalent-salt
+// correction.
+//
+// Both condition-dependent terms are anchored at this project's calibration
+// point (200 nM primer, 50 mM monovalent salt), where the concentration term
+// equals the −32.22 constant the project standardized on (see vault 01 Science/
+// Primer Design Strategy) and the salt correction is zero. So DEFAULT_CONDITIONS
+// reproduces exactly what the designer computed before conditions were editable
+// — the user's Tm range and the ARM_GAP rule stay calibrated to it — while
+// changing either condition shifts Tm by the standard amount: R·ln(C_T/C_T⁰) on
+// the entropy term, +16.6 °C per 10× salt.
+//
+// NB this runs hotter than the engine: for CTGCGGGCCGAG the designer says 63.6,
+// primer3 (engine, when installed) 51.1, and primers.py::_nn_tm 42.8 — the
+// engine's fallback applies both terms in absolute form. The designer is
+// internally consistent and is what the Tm range here is tuned against; don't
+// compare its numbers with the primer cards.
 
 const NN_H: Record<string, number> = {
   AA: -7.9, TT: -7.9, AT: -7.2, TA: -7.2, CA: -8.5, TG: -8.5, GT: -8.4, AC: -8.4,
@@ -32,10 +47,88 @@ const SHORT_PRIMER = 15;
 
 const CLEAN = /^[ACGT]+$/;
 
-/** Melting temperature (°C) of an oligo via the simplified NN formula. */
-export function tm(seq: string): number {
+/** Ideal gas constant, cal/(K·mol). */
+export const R_GAS = 1.987;
+/** Kelvin → Celsius. */
+export const ZERO_C = 273.15;
+/** °C per 10-fold change in monovalent salt (Schildkraut–Lifson). */
+export const SALT_COEF = 16.6;
+
+/** Reaction conditions, in the units the user types them in. */
+export interface TmConditions {
+  /** Monovalent cations [Na⁺] + [K⁺], in mM. */
+  saltMM: number;
+  /** Total primer concentration C_T, in µM. */
+  primerUM: number;
+}
+
+/** The calibration point: the conditions the design rules and Tm range are tuned to. */
+export const DEFAULT_CONDITIONS: TmConditions = { saltMM: 50, primerUM: 0.2 };
+/** Accepted input bounds — generous PCR/qPCR ranges. */
+export const SALT_MIN = 1, SALT_MAX = 1000;      // mM
+export const PRIMER_MIN = 0.01, PRIMER_MAX = 20; // µM
+
+/** R·ln(C_T/4) at DEFAULT_CONDITIONS.primerUM (this project's folded constant). */
+const ENTROPY_TERM_REF = -32.22;
+
+export function clampConditions(c: TmConditions): TmConditions {
+  const salt = Number.isFinite(c.saltMM) ? c.saltMM : DEFAULT_CONDITIONS.saltMM;
+  const primer = Number.isFinite(c.primerUM) ? c.primerUM : DEFAULT_CONDITIONS.primerUM;
+  return {
+    saltMM: Math.min(SALT_MAX, Math.max(SALT_MIN, salt)),
+    primerUM: Math.min(PRIMER_MAX, Math.max(PRIMER_MIN, primer)),
+  };
+}
+
+export function isDefaultConditions(c: TmConditions): boolean {
+  return c.saltMM === DEFAULT_CONDITIONS.saltMM && c.primerUM === DEFAULT_CONDITIONS.primerUM;
+}
+
+/** µM → mol/L (1 µM = 10⁻⁶ M). */
+export const primerMolar = (primerUM: number) => primerUM * 1e-6;
+/** mM → mol/L (1 mM = 10⁻³ M). */
+export const saltMolar = (saltMM: number) => saltMM * 1e-3;
+
+/**
+ * The R·ln(C_T/4) entropy term, cal/(mol·K), referenced to the calibration
+ * primer concentration so the default reproduces the folded −32.22 constant.
+ */
+export function entropyTerm(primerUM: number): number {
+  const c = primerMolar(Math.max(primerUM, PRIMER_MIN));
+  const c0 = primerMolar(DEFAULT_CONDITIONS.primerUM);
+  return ENTROPY_TERM_REF + R_GAS * Math.log(c / c0);
+}
+
+/**
+ * ΔT_salt (°C) = 16.6·log10[Na⁺], referenced to the calibration salt so the
+ * default contributes nothing and a 10× change moves Tm by 16.6 °C.
+ */
+export function saltShift(saltMM: number): number {
+  const na = saltMolar(Math.max(saltMM, SALT_MIN));
+  const na0 = saltMolar(DEFAULT_CONDITIONS.saltMM);
+  return SALT_COEF * Math.log10(na / na0);
+}
+
+/** Every term of the Tm calculation, for the live formula readout. */
+export interface TmParts {
+  seq: string;
+  /** kcal/mol — summed doublet enthalpies + initiation. */
+  dh: number;
+  /** cal/(mol·K) — summed doublet entropies + initiation. */
+  ds: number;
+  /** R·ln(C_T/4), cal/(mol·K). */
+  dsTerm: number;
+  /** ΔT_salt, °C. */
+  saltShift: number;
+  /** ΔS_total + R·ln(C_T/4). */
+  denom: number;
+  tm: number;
+}
+
+/** Nearest-neighbor thermodynamics + the full Tm for one oligo, or null if unusable. */
+export function tmParts(seq: string, cond: TmConditions = DEFAULT_CONDITIONS): TmParts | null {
   const p = seq.toUpperCase();
-  if (p.length < 2 || !CLEAN.test(p)) return 0;
+  if (p.length < 2 || !CLEAN.test(p)) return null;
   let dh = 0.2;
   let ds = -5.7;
   for (let i = 0; i < p.length - 1; i++) {
@@ -43,7 +136,15 @@ export function tm(seq: string): number {
     dh += NN_H[step];
     ds += NN_S[step];
   }
-  return (dh * 1000) / (ds - 32.22) - 273.15;
+  const dsTerm = entropyTerm(cond.primerUM);
+  const shift = saltShift(cond.saltMM);
+  const denom = ds + dsTerm;
+  return { seq: p, dh, ds, dsTerm, saltShift: shift, denom, tm: (dh * 1000) / denom + shift - ZERO_C };
+}
+
+/** Melting temperature (°C) of an oligo under the given reaction conditions. */
+export function tm(seq: string, cond: TmConditions = DEFAULT_CONDITIONS): number {
+  return tmParts(seq, cond)?.tm ?? 0;
 }
 
 export function gcPercent(seq: string): number {
@@ -91,15 +192,16 @@ function qualityNotes(w: WindowEval["whole"]): string[] {
  */
 export function evalWindow(
   mrna: string, jx: number, s: number, e: number, tmMin: number, tmMax: number,
+  cond: TmConditions = DEFAULT_CONDITIONS,
 ): WindowEval {
   const wholeSeq = mrna.slice(s, e).toUpperCase();
   const leftSeq = mrna.slice(s, Math.min(e, jx)).toUpperCase();
   const rightSeq = mrna.slice(Math.max(s, jx), e).toUpperCase();
   const spans = s < jx && e > jx && leftSeq.length >= MIN_ARM && rightSeq.length >= MIN_ARM;
 
-  const wholeTm = tm(wholeSeq);
-  const leftTm = tm(leftSeq);
-  const rightTm = tm(rightSeq);
+  const wholeTm = tm(wholeSeq, cond);
+  const leftTm = tm(leftSeq, cond);
+  const rightTm = tm(rightSeq, cond);
   // Cap tracks the ACTUAL primer Tm: each arm must melt ≥ ARM_GAP below the whole primer.
   const armCap = wholeTm - ARM_GAP;
   const capStr = armCap.toFixed(1);
@@ -140,14 +242,15 @@ export interface AutoPick {
  */
 function warmRegion(
   mrna: string, jx: number, leftBound: number, rightBound: number, cap: number,
+  cond: TmConditions,
 ): Set<number> {
   const armMax = LEN_MAX - MIN_ARM;
   let lo = jx, hi = jx;
   for (let L = MIN_ARM; L <= armMax && jx - L >= leftBound; L++) {
-    if (tm(mrna.slice(jx - L, jx)) <= cap) lo = jx - L; else break;
+    if (tm(mrna.slice(jx - L, jx), cond) <= cap) lo = jx - L; else break;
   }
   for (let L = MIN_ARM; L <= armMax && jx + L <= rightBound; L++) {
-    if (tm(mrna.slice(jx, jx + L)) <= cap) hi = jx + L; else break;
+    if (tm(mrna.slice(jx, jx + L), cond) <= cap) hi = jx + L; else break;
   }
   const warm = new Set<number>();
   for (let i = lo; i < hi; i++) warm.add(i);
@@ -163,9 +266,9 @@ function warmRegion(
  */
 export function autoPick(
   mrna: string, jx: number, leftBound: number, rightBound: number,
-  tmMin: number, tmMax: number,
+  tmMin: number, tmMax: number, cond: TmConditions = DEFAULT_CONDITIONS,
 ): AutoPick {
-  const warm = warmRegion(mrna, jx, leftBound, rightBound, tmMax - ARM_GAP);
+  const warm = warmRegion(mrna, jx, leftBound, rightBound, tmMax - ARM_GAP, cond);
   const mid = (tmMin + tmMax) / 2;
 
   let best: WindowEval | null = null;
@@ -179,7 +282,7 @@ export function autoPick(
     const eHi = Math.min(rightBound, s + LEN_MAX);
     for (let e = eLo; e <= eHi; e++) {
       if (e - s < LEN_MIN) continue;
-      const ev = evalWindow(mrna, jx, s, e, tmMin, tmMax);
+      const ev = evalWindow(mrna, jx, s, e, tmMin, tmMax, cond);
 
       // Validity dominates. Among valid windows, prefer: whole Tm centered; the
       // WORST arm comfortably below the cap (strong discrimination — neither arm

@@ -9,6 +9,7 @@ import JunctionDesigner from "./components/JunctionDesigner";
 import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
 import Summary from "./components/Summary";
+import Method from "./components/Method";
 import LoadingState from "./components/LoadingState";
 import { ArrowRight } from "./components/icons";
 
@@ -30,6 +31,9 @@ export default function App() {
   const [history, setHistory] = useState<string[]>(loadHistory);
   const [progress, setProgress] = useState<Progress>({ pct: 0, detail: "Starting…" });
   const [resetKey, setResetKey] = useState(0);   // bump to remount Hero (clears its input)
+  // The Method page replaces the result flow; any analysis already loaded is kept in state,
+  // so leaving it returns to exactly where the user was.
+  const [showMethod, setShowMethod] = useState(false);
 
   async function run(accession: string, opts: RunOpts = {}) {
     const { keepTab = false, soft = false, silent = false } = opts;
@@ -70,29 +74,49 @@ export default function App() {
     setLoading(false);
     setBusy(false);
     setTab("summary");
+    setShowMethod(false);
     setResetKey((k) => k + 1);   // remount Hero so its input clears
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openMethod() {
+    setShowMethod(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function closeMethod() {
+    setShowMethod(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
     <>
-      <Nav onHome={reset} onExample={(acc) => run(acc)} />
-      <Hero key={resetKey} onSearch={(acc) => run(acc)} loading={loading} history={history} />
-      <main className="wrap">
-        {loading && <LoadingState pct={progress.pct} detail={progress.detail} />}
-        {!loading && error && <div className="error-box"><b>{error.code}.</b> {error.message}</div>}
-        {!loading && result && (
-          <Result result={result} tab={tab} setTab={setTab} busy={busy}
-            onSelect={selectIsoform} onInspect={inspectIsoform} />
-        )}
-      </main>
+      <Nav onHome={reset} onExample={(acc) => { setShowMethod(false); run(acc); }}
+        onMethod={openMethod} methodOn={showMethod} />
+      {showMethod ? (
+        <main className="wrap">
+          <Method onBack={closeMethod} backLabel={result ? "Back to results" : "Back to search"} />
+        </main>
+      ) : (
+        <>
+          <Hero key={resetKey} onSearch={(acc) => run(acc)} loading={loading} history={history} />
+          <main className="wrap">
+            {loading && <LoadingState pct={progress.pct} detail={progress.detail} />}
+            {!loading && error && <div className="error-box"><b>{error.code}.</b> {error.message}</div>}
+            {!loading && result && (
+              <Result result={result} tab={tab} setTab={setTab} busy={busy}
+                onSelect={selectIsoform} onInspect={inspectIsoform} onMethod={openMethod} />
+            )}
+          </main>
+        </>
+      )}
     </>
   );
 }
 
-function Result({ result, tab, setTab, busy, onSelect, onInspect }: {
+function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod }: {
   result: AnalyzeResponse; tab: Tab; setTab: (t: Tab) => void;
   busy: boolean; onSelect: (acc: string) => void; onInspect: (acc: string) => void;
+  onMethod: () => void;
 }) {
   const { gene, target_accession, target_verdict, primer_design, summary } = result;
   return (
@@ -125,7 +149,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect }: {
             !(target_verdict.tier === "CONVENTIONAL" && !primer_design.forward) && (
             <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
           )}
-          <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} />
+          <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} onMethod={onMethod} />
           <TargetTrackCard result={result} onExplore={() => setTab("gene")} onSelect={onSelect} />
         </div>
       )}

@@ -1,6 +1,9 @@
 import { Moon } from "./icons";
 
-export default function Nav({ onHome, onExample }: { onHome: () => void; onExample: (acc: string) => void }) {
+export default function Nav({ onHome, onExample, onMethod, methodOn }: {
+  onHome: () => void; onExample: (acc: string) => void;
+  onMethod: () => void; methodOn: boolean;
+}) {
   function toggleTheme() {
     const r = document.documentElement;
     const dark = r.getAttribute("data-theme") === "dark" ||
@@ -15,7 +18,8 @@ export default function Nav({ onHome, onExample }: { onHome: () => void; onExamp
         </button>
         <div className="nav-links">
           <a href="#" className="keep-hide">How it works</a>
-          <a href="#">Method</a>
+          <button type="button" className={`navlink keep ${methodOn ? "on" : ""}`}
+            aria-current={methodOn ? "page" : undefined} onClick={onMethod}>Method</button>
           <a href="#">Docs</a>
           <span className="vdiv" />
           <button className="icon-btn" aria-label="Toggle theme" onClick={toggleTheme}><Moon /></button>

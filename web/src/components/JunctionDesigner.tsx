@@ -1,6 +1,12 @@
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState,
+} from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
-import { ARM_GAP, autoPick, evalWindow, type WindowEval } from "../lib/tm";
+import {
+  ARM_GAP, DEFAULT_CONDITIONS, PRIMER_MAX, PRIMER_MIN, SALT_MAX, SALT_MIN,
+  autoPick, evalWindow, isDefaultConditions, type TmConditions, type WindowEval,
+} from "../lib/tm";
+import { numStr } from "../lib/format";
 import { Copy } from "./icons";
 
 /**
@@ -14,9 +20,10 @@ import { Copy } from "./icons";
  * exact numbers so they can see where they are. All Tm is computed client-side
  * (lib/tm.ts) — the same formula the engine uses.
  */
-export default function JunctionDesigner({ mrna, verdict }: {
+export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   mrna: string;
   verdict: TranscriptVerdict;
+  onMethod?: () => void;
 }) {
   const exons = verdict.exons;
   const junction = verdict.recommended_junction;
@@ -28,11 +35,17 @@ export default function JunctionDesigner({ mrna, verdict }: {
   // tmMin/tmMax update live while what's typed is already a valid, in-range number.
   const [minStr, setMinStr] = useState("60");
   const [maxStr, setMaxStr] = useState("65");
+  // Reaction conditions feeding the Tm formula. The defaults are the project's
+  // calibration point, so the designer opens with exactly the numbers it always had.
+  const [cond, setCond] = useState<TmConditions>(DEFAULT_CONDITIONS);
+  const [saltStr, setSaltStr] = useState(String(DEFAULT_CONDITIONS.saltMM));
+  const [primerStr, setPrimerStr] = useState(String(DEFAULT_CONDITIONS.primerUM));
   const [sel, setSel] = useState<{ s: number; e: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const dragging = useRef(false);
   const anchor = useRef(0);
   const seqRef = useRef<HTMLDivElement>(null);
+  const saltRef = useRef<HTMLInputElement>(null);
 
   const geom = useMemo(() => {
     if (!junction) return null;
@@ -49,8 +62,8 @@ export default function JunctionDesigner({ mrna, verdict }: {
 
   const pick = useMemo(() => {
     if (!geom) return null;
-    return autoPick(mrna, geom.jx, geom.leftBound, geom.rightBound, tmMin, tmMax);
-  }, [geom, mrna, tmMin, tmMax]);
+    return autoPick(mrna, geom.jx, geom.leftBound, geom.rightBound, tmMin, tmMax, cond);
+  }, [geom, mrna, tmMin, tmMax, cond]);
 
   // 0-based mRNA index → exon index, for text coloring
   const exonAt = useMemo(() => {
@@ -59,11 +72,15 @@ export default function JunctionDesigner({ mrna, verdict }: {
     return arr;
   }, [exons, mrna.length]);
 
-  // reset the selection to the auto-pick whenever the range / junction changes
+  // Re-seed the selection from the auto-pick when the target or the Tm window changes.
+  // Deliberately NOT on a conditions change: `pick` is already recomputed by then, but
+  // keeping the user's window lets them watch the same primer move as they retune salt
+  // or primer concentration.
   useEffect(() => {
     if (pick?.best) setSel({ s: pick.best.s, e: pick.best.e });
     else setSel(null);
-  }, [pick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geom, mrna, tmMin, tmMax]);
 
   useEffect(() => {
     const up = () => { dragging.current = false; };
@@ -85,7 +102,7 @@ export default function JunctionDesigner({ mrna, verdict }: {
 
   const { jx, donor, acceptor } = geom;
 
-  const ev: WindowEval | null = sel ? evalWindow(mrna, jx, sel.s, sel.e, tmMin, tmMax) : null;
+  const ev: WindowEval | null = sel ? evalWindow(mrna, jx, sel.s, sel.e, tmMin, tmMax, cond) : null;
 
   // render window centered on the junction, comfortably covering the arms
   const flank = 46;
@@ -143,6 +160,41 @@ export default function JunctionDesigner({ mrna, verdict }: {
     setMaxStr(String(c));
   }
 
+  // Reaction-condition inputs: same type-freely / clamp-on-commit contract as the Tm
+  // range. Both accept decimals (0.25 µM primer, 62.5 mM salt are all real setups).
+  function editSalt(raw: string) {
+    setSaltStr(raw);
+    const v = parseFloat(raw);
+    if (Number.isFinite(v) && v >= SALT_MIN && v <= SALT_MAX) setCond((c) => ({ ...c, saltMM: v }));
+  }
+  function commitSalt() {
+    const v = parseFloat(saltStr);
+    const c = Number.isFinite(v) ? Math.min(SALT_MAX, Math.max(SALT_MIN, v)) : cond.saltMM;
+    setCond((p) => ({ ...p, saltMM: c }));
+    setSaltStr(numStr(c));
+  }
+  function editPrimer(raw: string) {
+    setPrimerStr(raw);
+    const v = parseFloat(raw);
+    if (Number.isFinite(v) && v >= PRIMER_MIN && v <= PRIMER_MAX) setCond((c) => ({ ...c, primerUM: v }));
+  }
+  function commitPrimer() {
+    const v = parseFloat(primerStr);
+    const c = Number.isFinite(v) ? Math.min(PRIMER_MAX, Math.max(PRIMER_MIN, v)) : cond.primerUM;
+    setCond((p) => ({ ...p, primerUM: c }));
+    setPrimerStr(numStr(c));
+  }
+  function resetConditions() {
+    setCond(DEFAULT_CONDITIONS);
+    setSaltStr(String(DEFAULT_CONDITIONS.saltMM));
+    setPrimerStr(String(DEFAULT_CONDITIONS.primerUM));
+  }
+  function focusConditions() {
+    saltRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    saltRef.current?.focus();
+    saltRef.current?.select();
+  }
+
   const bases = [];
   for (let i = winStart; i < winEnd; i++) {
     const ex = exonAt[i];
@@ -182,6 +234,12 @@ export default function JunctionDesigner({ mrna, verdict }: {
             <span className="unit">°C</span>
           </label>
           <span className="jd-cap">each arm Tm ≤ <b>whole-primer Tm − {ARM_GAP} °C</b></span>
+          <button type="button" onClick={focusConditions}
+            className={`jd-cond-chip ${isDefaultConditions(cond) ? "" : "mod"}`}
+            title="Edit the salt and primer concentration used by the Tm formula">
+            <b>{numStr(cond.saltMM)}</b> mM salt · <b>{numStr(cond.primerUM)}</b> µM primer
+            {!isDefaultConditions(cond) && <span className="dotmark" aria-hidden="true" />}
+          </button>
         </div>
       </div>
 
@@ -218,7 +276,72 @@ export default function JunctionDesigner({ mrna, verdict }: {
       </div>
 
       {ev && <Readout ev={ev} tmMin={tmMin} tmMax={tmMax} />}
+
+      <Conditions
+        cond={cond} saltRef={saltRef} saltStr={saltStr} primerStr={primerStr}
+        editSalt={editSalt} commitSalt={commitSalt}
+        editPrimer={editPrimer} commitPrimer={commitPrimer}
+        reset={resetConditions} onMethod={onMethod}
+      />
     </section>
+  );
+}
+
+/**
+ * The two reaction conditions that feed the Tm formula. Editing either re-runs the whole
+ * designer — warm zone, auto-pick, arm caps, every metric above. The formula itself is
+ * documented on the Method page; this card only exposes the knobs.
+ */
+function Conditions({ cond, saltRef, saltStr, primerStr, editSalt, commitSalt, editPrimer, commitPrimer, reset, onMethod }: {
+  cond: TmConditions;
+  saltRef: RefObject<HTMLInputElement>;
+  saltStr: string; primerStr: string;
+  editSalt: (v: string) => void; commitSalt: () => void;
+  editPrimer: (v: string) => void; commitPrimer: () => void;
+  reset: () => void;
+  onMethod?: () => void;
+}) {
+  const isDefault = isDefaultConditions(cond);
+  const enterBlur = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") e.currentTarget.blur();
+  };
+
+  return (
+    <div className="jd-model">
+      <div className="jd-model-head">
+        <div>
+          <p className="card-label" style={{ margin: 0 }}>Tm formula · reaction conditions</p>
+          <p className="jd-model-sub">
+            Set your buffer and primer concentration — every Tm above is recomputed from them.
+            {onMethod && <> The formula is documented in{" "}
+              <button type="button" className="linkish" onClick={onMethod}>Method</button>.</>}
+          </p>
+        </div>
+        <div className="jd-cond">
+          <label>
+            <span className="ck">Monovalent salt <i>[Na⁺]+[K⁺]</i></span>
+            <span className="cin">
+              <input ref={saltRef} type="number" value={saltStr} inputMode="decimal"
+                min={SALT_MIN} max={SALT_MAX} step={5}
+                onChange={(e) => editSalt(e.target.value)} onBlur={commitSalt} onKeyDown={enterBlur} />
+              <span className="unit">mM</span>
+            </span>
+          </label>
+          <label>
+            <span className="ck">Primer conc. <i>C<sub>T</sub></i></span>
+            <span className="cin">
+              <input type="number" value={primerStr} inputMode="decimal"
+                min={PRIMER_MIN} max={PRIMER_MAX} step={0.05}
+                onChange={(e) => editPrimer(e.target.value)} onBlur={commitPrimer} onKeyDown={enterBlur} />
+              <span className="unit">µM</span>
+            </span>
+          </label>
+          <button className="btn btn-ghost jd-reset" onClick={reset} disabled={isDefault}>
+            Reset{isDefault ? "" : " to default"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
