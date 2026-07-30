@@ -147,8 +147,11 @@ export default function ExonTrackGraph({
                         primerExon: primerExon ?? null,
                       }); }} />
                     {hasSpan && (
-                      <rect x={x(ur!.begin!)} y={cy - exH / 2}
-                        width={Math.max(2, x(ur!.end!) - x(ur!.begin!))} height={exH} rx={2}
+                      // Inset band on the exon so it reads as a precise sub-marker (only the
+                      // unique window span) — not a chunky full-height block that visually
+                      // bleeds toward the neighbouring row.
+                      <rect x={x(ur!.begin!) + 0.5} y={cy - exH / 2 + 2.5}
+                        width={Math.max(2, x(ur!.end!) - x(ur!.begin!) - 1)} height={exH - 5} rx={1.5}
                         fill="var(--amp-pair)" pointerEvents="none" />
                     )}
                   </g>
