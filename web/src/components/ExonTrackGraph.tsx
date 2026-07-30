@@ -227,7 +227,7 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
         ? <div className="et-line et-good">{e.unique_sites} primer sites unique to {isTarget ? "this isoform" : t.accession}</div>
         : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
-      {pairRole && <div className="et-line et-pair">★ Target exon — {pairRole} primer of the specific pair</div>}
+      {pairRole && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
     </div>
   );
 }
