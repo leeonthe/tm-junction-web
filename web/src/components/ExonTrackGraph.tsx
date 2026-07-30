@@ -136,10 +136,12 @@ export default function ExonTrackGraph({
                 const isPair = isTarget && !!t.amplify_exon_pair?.includes(e.order);
                 const ur = uniqByExon.get(e.order);
                 const hasSpan = ur?.begin != null && ur?.end != null;
+                const exW = Math.max(2.5, x(e.end) - x(e.begin));
+                const clipId = `exclip-${i}-${k}`;
                 return (
                   <g key={k}>
                     <rect x={x(e.begin)} y={cy - exH / 2}
-                      width={Math.max(2.5, x(e.end) - x(e.begin))} height={exH} rx={2.5}
+                      width={exW} height={exH} rx={2.5}
                       fill={isPair ? "var(--amp-pair)" : color} style={{ cursor: "inherit" }}
                       stroke={isPair ? "var(--amp-pair)" : "none"} strokeWidth={isPair ? 1.6 : 0}
                       onMouseMove={(ev) => { if (drag.current.active) return; setTip({
@@ -147,12 +149,16 @@ export default function ExonTrackGraph({
                         primerExon: primerExon ?? null,
                       }); }} />
                     {hasSpan && (
-                      // Inset band on the exon so it reads as a precise sub-marker (only the
-                      // unique window span) — not a chunky full-height block that visually
-                      // bleeds toward the neighbouring row.
-                      <rect x={x(ur!.begin!) + 0.5} y={cy - exH / 2 + 2.5}
-                        width={Math.max(2, x(ur!.end!) - x(ur!.begin!) - 1)} height={exH - 5} rx={1.5}
-                        fill="var(--amp-pair)" pointerEvents="none" />
+                      // Full-height orange for just the unique window span, CLIPPED to the exon
+                      // rect so it can never spill past the exon's (rounded) edges sideways.
+                      <>
+                        <clipPath id={clipId}>
+                          <rect x={x(e.begin)} y={cy - exH / 2} width={exW} height={exH} rx={2.5} />
+                        </clipPath>
+                        <rect x={x(ur!.begin!)} y={cy - exH / 2}
+                          width={Math.max(2, x(ur!.end!) - x(ur!.begin!))} height={exH}
+                          fill="var(--amp-pair)" clipPath={`url(#${clipId})`} pointerEvents="none" />
+                      </>
                     )}
                   </g>
                 );
