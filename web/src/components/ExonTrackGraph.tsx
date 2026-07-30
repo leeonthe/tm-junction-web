@@ -128,15 +128,15 @@ export default function ExonTrackGraph({
               )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, k) => {
-                const unique = isTarget && e.unique_sites > 0;
-                // 7c-Blue: exons a conventional primer pair should target (shown orange)
+                // Orange = the exon(s) to target: a unique exonic region (conventional
+                // primer, rule 7a) OR a discriminating exon pair (conventional pair, 7c).
                 const isPair = !!t.amplify_exon_pair?.includes(e.order);
+                const isTargetExon = isPair || e.unique_sites > 0;
                 return (
                   <rect key={k} x={x(e.begin)} y={cy - exH / 2}
                     width={Math.max(2.5, x(e.end) - x(e.begin))} height={exH} rx={2.5}
-                    fill={isPair ? "var(--amp-pair)" : color} style={{ cursor: "inherit" }}
-                    stroke={isPair ? "var(--amp-pair)" : unique ? "var(--ink)" : "none"}
-                    strokeWidth={isPair ? 1.6 : unique ? 1.4 : 0}
+                    fill={isTargetExon ? "var(--amp-pair)" : color} style={{ cursor: "inherit" }}
+                    stroke={isTargetExon ? "var(--amp-pair)" : "none"} strokeWidth={isTargetExon ? 1.6 : 0}
                     onMouseMove={(ev) => { if (drag.current.active) return; setTip({
                       kind: "exon", x: ev.clientX, y: ev.clientY, exon: e, t, isTarget,
                       primerExon: primerExon ?? null,
