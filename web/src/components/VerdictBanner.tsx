@@ -79,7 +79,9 @@ function Explanation({ v, region, junc }: {
     return (
       <p>
         No exonic region is unique to <span className="mono">{v.accession}</span>, but the{" "}
-        <b>{junc.label}</b> junction is. A primer spanning it is specific to this isoform.
+        <b>{junc.label}</b> junction is. A primer spanning it is specific to this isoform
+        {v.partner_exon != null && <>, paired with a conventional primer in <b>exon {v.partner_exon}</b>{" "}
+        (the target site nearest the junction)</>}.
       </p>
     );
   }

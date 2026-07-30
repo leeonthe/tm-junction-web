@@ -42,6 +42,16 @@ def test_gapdh_junction_locations():
     assert (rj4.donor_order, rj4.acceptor_order) == (3, 4)
 
 
+def test_gapdh_partner_exon_targets_nearest_flank():
+    # Original single-junction EEJ transcripts get a target-site exon for the conventional
+    # partner primer — the nearest flanking exon to the junction.
+    v = _by_acc(analyze("NM_001289745.3"))
+    # junction 1|2 is terminal on the donor side -> only exon 3 is available downstream
+    assert v["NM_001289745.3"].partner_exon == 3
+    # junction 3|4 has flanks on both sides -> the closer one is chosen
+    assert v["NM_001357943.2"].partner_exon == 5
+
+
 def test_gapdh_t3_coord_vs_sequence_divergence():
     """The whole point: coord non-unique but sequence CONVENTIONAL."""
     r = analyze("NM_001289746.2")

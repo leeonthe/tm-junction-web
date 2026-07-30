@@ -76,6 +76,10 @@ class TranscriptVerdict(BaseModel):
     # Two-junction combo: the two EEJ locations [[d1,a1],[d2,a2]] that together isolate the
     # transcript (shown magenta). Present only for that rescue case.
     combo_junctions: list[list[int]] | None = None
+    # Original single-unique-junction EEJ: the nearest flanking exon (1-based) to place the
+    # conventional partner primer. The junction itself gives specificity; this exon does not —
+    # it is just the target site for the other primer. Rendered as a yellow target site.
+    partner_exon: int | None = None
 
 
 class GeneSummary(BaseModel):

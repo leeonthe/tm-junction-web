@@ -20,6 +20,10 @@
 // changing either condition shifts Tm by the standard amount: R·ln(C_T/C_T⁰) on
 // the entropy term, +16.6 °C per 10× salt.
 //
+// This applies to the WHOLE primer. Each arm is short enough that nearest-neighbour
+// stops being valid, so arms below WALLACE_MAX nt use the Wallace rule instead —
+// see armTm().
+//
 // NB this runs hotter than the engine: for CTGCGGGCCGAG the designer says 63.6,
 // primer3 (engine, when installed) 51.1, and primers.py::_nn_tm 42.8 — the
 // engine's fallback applies both terms in absolute form. The designer is
@@ -44,6 +48,8 @@ export const LEN_MIN = 12;
 export const LEN_MAX = 36;
 /** Below this whole-primer length, flag the primer as hard (few bases → GC-rich). */
 const SHORT_PRIMER = 15;
+/** Arms shorter than this use the Wallace rule instead of nearest-neighbour. */
+export const WALLACE_MAX = 14;
 
 const CLEAN = /^[ACGT]+$/;
 
@@ -147,6 +153,33 @@ export function tm(seq: string, cond: TmConditions = DEFAULT_CONDITIONS): number
   return tmParts(seq, cond)?.tm ?? 0;
 }
 
+/**
+ * Wallace rule: Tm = 2·(A+T) + 4·(G+C). No thermodynamic terms, so reaction
+ * conditions do not enter it.
+ */
+export function wallaceTm(seq: string): number {
+  const p = seq.toUpperCase();
+  if (!p || !CLEAN.test(p)) return 0;
+  let at = 0, gc = 0;
+  for (const c of p) if (c === "G" || c === "C") gc++; else at++;
+  return 2 * at + 4 * gc;
+}
+
+/**
+ * Tm of a single arm. Nearest-neighbour breaks down on short oligos — its
+ * initiation and concentration terms dominate and can drive the result absurdly
+ * low (even negative) — so arms below WALLACE_MAX nt use the Wallace rule
+ * instead. Arms only: the whole primer is always nearest-neighbour.
+ */
+export function armTm(seq: string, cond: TmConditions = DEFAULT_CONDITIONS): number {
+  return seq.length < WALLACE_MAX ? wallaceTm(seq) : tm(seq, cond);
+}
+
+/** An arm Tm below zero is not physically meaningful — show it as NA, not a number. */
+export function armTmText(t: number): string {
+  return Number.isFinite(t) && t >= 0 ? `${t.toFixed(1)} °C` : "NA";
+}
+
 export function gcPercent(seq: string): number {
   if (!seq) return 0;
   let gc = 0;
@@ -200,8 +233,8 @@ export function evalWindow(
   const spans = s < jx && e > jx && leftSeq.length >= MIN_ARM && rightSeq.length >= MIN_ARM;
 
   const wholeTm = tm(wholeSeq, cond);
-  const leftTm = tm(leftSeq, cond);
-  const rightTm = tm(rightSeq, cond);
+  const leftTm = armTm(leftSeq, cond);
+  const rightTm = armTm(rightSeq, cond);
   // Cap tracks the ACTUAL primer Tm: each arm must melt ≥ ARM_GAP below the whole primer.
   const armCap = wholeTm - ARM_GAP;
   const capStr = armCap.toFixed(1);
@@ -214,9 +247,9 @@ export function evalWindow(
   if (!wholePass)
     reasons.push(`Whole-primer Tm ${wholeTm.toFixed(1)} °C is outside ${tmMin}–${tmMax} °C.`);
   if (spans && !leftPass)
-    reasons.push(`5′ arm Tm ${leftTm.toFixed(1)} °C exceeds the ${capStr} °C cap (whole Tm − ${ARM_GAP}).`);
+    reasons.push(`5′ arm Tm ${armTmText(leftTm)} exceeds the ${capStr} °C cap (whole Tm − ${ARM_GAP}).`);
   if (spans && !rightPass)
-    reasons.push(`3′ arm Tm ${rightTm.toFixed(1)} °C exceeds the ${capStr} °C cap (whole Tm − ${ARM_GAP}).`);
+    reasons.push(`3′ arm Tm ${armTmText(rightTm)} exceeds the ${capStr} °C cap (whole Tm − ${ARM_GAP}).`);
 
   const whole = { seq: wholeSeq, tm: wholeTm, len: wholeSeq.length, gc: gcPercent(wholeSeq), pass: wholePass };
   const left = { seq: leftSeq, tm: leftTm, len: leftSeq.length, pass: leftPass };
@@ -247,10 +280,10 @@ function warmRegion(
   const armMax = LEN_MAX - MIN_ARM;
   let lo = jx, hi = jx;
   for (let L = MIN_ARM; L <= armMax && jx - L >= leftBound; L++) {
-    if (tm(mrna.slice(jx - L, jx), cond) <= cap) lo = jx - L; else break;
+    if (armTm(mrna.slice(jx - L, jx), cond) <= cap) lo = jx - L; else break;
   }
   for (let L = MIN_ARM; L <= armMax && jx + L <= rightBound; L++) {
-    if (tm(mrna.slice(jx, jx + L), cond) <= cap) hi = jx + L; else break;
+    if (armTm(mrna.slice(jx, jx + L), cond) <= cap) hi = jx + L; else break;
   }
   const warm = new Set<number>();
   for (let i = lo; i < hi; i++) warm.add(i);

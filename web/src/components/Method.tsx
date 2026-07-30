@@ -1,13 +1,16 @@
 import type { ReactNode } from "react";
 import {
   ARM_GAP, DEFAULT_CONDITIONS, LEN_MAX, LEN_MIN, MIN_ARM, PRIMER_MAX, PRIMER_MIN, R_GAS,
-  SALT_COEF, SALT_MAX, SALT_MIN, ZERO_C, primerMolar, saltMolar, tmParts,
+  SALT_COEF, SALT_MAX, SALT_MIN, WALLACE_MAX, ZERO_C, primerMolar, saltMolar, tmParts,
+  wallaceTm,
 } from "../lib/tm";
 import { fixed, molarStr, numStr, rounded, signed } from "../lib/format";
 import { ArrowRight } from "./icons";
 
 /** A short, GC-rich oligo the paper's examples put at ≈60 °C — recomputed live, never hard-coded. */
 const EXAMPLE = "GGGGGGCCCC";
+/** An arm-length oligo for the Wallace worked example — also recomputed live. */
+const ARM_EXAMPLE = "CTCGCGA";
 
 /**
  * Method page: how the verdict is reached, what the Tm-guided EEJ rule is, and the exact
@@ -17,6 +20,8 @@ const EXAMPLE = "GGGGGGCCCC";
  */
 export default function Method({ onBack, backLabel }: { onBack: () => void; backLabel: string }) {
   const ex = tmParts(EXAMPLE, DEFAULT_CONDITIONS)!;
+  const armGC = [...ARM_EXAMPLE].filter((c) => c === "G" || c === "C").length;
+  const armAT = ARM_EXAMPLE.length - armGC;
 
   return (
     <div className="mth">
@@ -175,10 +180,37 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           the ≈60 °C the paper's short GC-rich examples report.
         </p>
 
+        <h3 className="mth-h3">Short arms: the Wallace rule</h3>
+        <p>
+          Nearest-neighbour thermodynamics is not valid on very short oligos: the initiation and
+          concentration terms stop being small next to the stacking sum, so a {MIN_ARM}–8 nt arm
+          comes out implausibly cold and can even go negative. Arms are short by design here — the
+          arm cap is what makes them short — so any arm below{" "}
+          <b className="mono">{WALLACE_MAX} nt</b> is scored with the Wallace rule instead:
+        </p>
+        <div className="mth-eq-wrap">
+          <div className="mth-eq mono">
+            <span>T<sub>m</sub></span><span className="op">=</span>
+            <span>2 °C · (A + T)</span>
+            <span><span className="op">+ </span>4 °C · (G + C)</span>
+          </div>
+        </div>
+        <p className="mth-note">
+          A + T and G + C are base counts. For the arm{" "}
+          <span className="mono">{ARM_EXAMPLE}</span>: 2 · {armAT} + 4 · {armGC} ={" "}
+          <b className="mono">{wallaceTm(ARM_EXAMPLE)} °C</b>. The rule has no salt or
+          concentration term, so the reaction-condition fields do not move arm Tm below{" "}
+          {WALLACE_MAX} nt. Arms of {WALLACE_MAX} nt or longer stay on the nearest-neighbour
+          formula above, and the <b>whole primer always does</b>, whatever its length. An arm
+          value that still comes out below zero is shown as <span className="mono">NA</span>{" "}
+          rather than as a number.
+        </p>
+
         <h3 className="mth-h3">Scope of this number</h3>
         <p className="mth-note">
-          This formula is what the junction designer uses for the whole primer and for both arms,
-          so its numbers are internally consistent and are what your Tm range should be read
+          Nearest-neighbour is what the junction designer uses for every whole-primer number, with
+          the Wallace rule covering short arms, so its figures are internally consistent and are
+          what your Tm range should be read
           against. It is not the same estimator as the primer-QC figures on the conventional
           primer cards, which come from primer3 when it is available — expect the designer to run
           hotter. Divalent cations (Mg²⁺) and dNTPs are not modelled; enter their monovalent

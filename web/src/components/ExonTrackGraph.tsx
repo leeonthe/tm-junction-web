@@ -144,7 +144,9 @@ export default function ExonTrackGraph({
                 // Orange = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored).
                 // 7c exon pair → whole exon orange. 7a unique region → the exon keeps its
                 // tier color and only the actual unique sub-span is overlaid orange.
-                const isPair = !!t.amplify_exon_pair?.includes(e.order);
+                // Yellow target site: a 7c/combo specificity exon, OR the nearest partner exon
+                // for an original single-junction EEJ (where the junction alone is specific).
+                const isPair = !!t.amplify_exon_pair?.includes(e.order) || t.partner_exon === e.order;
                 const ur = uniqByExon.get(e.order);
                 const hasSpan = ur?.begin != null && ur?.end != null;
                 const exW = Math.max(2.5, x(e.end) - x(e.begin));
@@ -215,6 +217,7 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
   const primerHere = isTarget && primerExon === e.order;
   const pair = t.amplify_exon_pair;
   const pairRole = pair?.[0] === e.order ? "Forward" : pair?.[1] === e.order ? "Reverse" : null;
+  const isPartner = t.partner_exon === e.order;
   return (
     <div className="exon-tip" style={style}>
       <div className="et-head">
@@ -238,6 +241,7 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
         : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
       {pairRole && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
+      {isPartner && <div className="et-line et-pair">★ Target site — conventional partner primer, nearest the EEJ</div>}
     </div>
   );
 }

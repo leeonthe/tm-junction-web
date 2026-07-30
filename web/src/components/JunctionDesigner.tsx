@@ -3,8 +3,9 @@ import {
 } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import {
-  ARM_GAP, DEFAULT_CONDITIONS, PRIMER_MAX, PRIMER_MIN, SALT_MAX, SALT_MIN,
-  autoPick, evalWindow, isDefaultConditions, type TmConditions, type WindowEval,
+  ARM_GAP, DEFAULT_CONDITIONS, PRIMER_MAX, PRIMER_MIN, SALT_MAX, SALT_MIN, WALLACE_MAX,
+  armTmText, autoPick, evalWindow, isDefaultConditions,
+  type TmConditions, type WindowEval,
 } from "../lib/tm";
 import { numStr } from "../lib/format";
 import { Copy } from "./icons";
@@ -312,7 +313,9 @@ function Conditions({ cond, saltRef, saltStr, primerStr, editSalt, commitSalt, e
         <div>
           <p className="card-label" style={{ margin: 0 }}>Tm formula · reaction conditions</p>
           <p className="jd-model-sub">
-            Set your buffer and primer concentration — every Tm above is recomputed from them.
+            Set your buffer and primer concentration — the whole-primer Tm is recomputed from
+            them. Arms under {WALLACE_MAX} nt use the Wallace rule, which has no salt or
+            concentration term.
             {onMethod && <> The formula is documented in{" "}
               <button type="button" className="linkish" onClick={onMethod}>Method</button>.</>}
           </p>
@@ -367,12 +370,12 @@ function Readout({ ev, tmMin, tmMax }: {
       )}
 
       <div className="jd-metrics">
-        <Metric label="Whole primer" seq={ev.whole.seq} tmv={ev.whole.tm}
+        <Metric label="Whole primer" seq={ev.whole.seq} tmText={`${ev.whole.tm.toFixed(1)} °C`}
           note={`target ${tmMin}–${tmMax} °C · GC ${ev.whole.gc.toFixed(0)}% · ${ev.whole.len} nt`}
           pass={ev.whole.pass} />
-        <Metric label="5′ arm (donor)" seq={ev.left.seq} tmv={ev.left.tm}
+        <Metric label="5′ arm (donor)" seq={ev.left.seq} tmText={armTmText(ev.left.tm)}
           note={`cap ≤ ${cap} °C · ${ev.left.len} nt`} pass={ev.left.pass} />
-        <Metric label="3′ arm (acceptor)" seq={ev.right.seq} tmv={ev.right.tm}
+        <Metric label="3′ arm (acceptor)" seq={ev.right.seq} tmText={armTmText(ev.right.tm)}
           note={`cap ≤ ${cap} °C · ${ev.right.len} nt`} pass={ev.right.pass} />
       </div>
 
@@ -386,8 +389,8 @@ function Readout({ ev, tmMin, tmMax }: {
   );
 }
 
-function Metric({ label, seq, tmv, note, pass }: {
-  label: string; seq: string; tmv: number; note: string; pass: boolean;
+function Metric({ label, seq, tmText, note, pass }: {
+  label: string; seq: string; tmText: string; note: string; pass: boolean;
 }) {
   return (
     <div className={`jd-metric ${pass ? "pass" : "fail"}`}>
@@ -395,7 +398,7 @@ function Metric({ label, seq, tmv, note, pass }: {
         <span className="k">{label}</span>
         <span className={`tag ${pass ? "ok" : "bad"}`}>{pass ? "pass" : "fail"}</span>
       </div>
-      <div className="jd-tm mono">{seq ? `${tmv.toFixed(1)} °C` : "—"}</div>
+      <div className="jd-tm mono">{seq ? tmText : "—"}</div>
       <div className="jd-note">{note}</div>
     </div>
   );
