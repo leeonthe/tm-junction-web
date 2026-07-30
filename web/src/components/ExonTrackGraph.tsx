@@ -105,7 +105,9 @@ export default function ExonTrackGraph({
           const color = tierColorVar[t.tier];
           const first = t.exons[0], last = t.exons[t.exons.length - 1];
           // target only: unique region per exon (for the orange sub-span overlay)
-          const uniqByExon = new Map(isTarget ? t.unique_regions.map((r) => [r.exon_order, r]) : []);
+          // Orange target exons are shown for EVERY amplifiable isoform (each row shows the
+          // exon(s) to target for that transcript), not only the analyzed target.
+          const uniqByExon = new Map(t.unique_regions.map((r) => [r.exon_order, r]));
           let caretX: number | null = null;
           const rj = t.recommended_junction;
           if (rj) {
@@ -133,7 +135,7 @@ export default function ExonTrackGraph({
                 // Orange = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored).
                 // 7c exon pair → whole exon orange. 7a unique region → the exon keeps its
                 // tier color and only the actual unique sub-span is overlaid orange.
-                const isPair = isTarget && !!t.amplify_exon_pair?.includes(e.order);
+                const isPair = !!t.amplify_exon_pair?.includes(e.order);
                 const ur = uniqByExon.get(e.order);
                 const hasSpan = ur?.begin != null && ur?.end != null;
                 const exW = Math.max(2.5, x(e.end) - x(e.begin));
