@@ -128,10 +128,11 @@ export default function ExonTrackGraph({
               )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, k) => {
-                // Orange = the exon(s) to target: a unique exonic region (conventional
-                // primer, rule 7a) OR a discriminating exon pair (conventional pair, 7c).
+                // Orange = the exon(s) to target FOR THE ANALYZED TARGET: a unique exonic
+                // region (conventional primer, rule 7a) OR a discriminating exon pair (7c).
+                // Only the target — siblings stay tier-colored (this is "your target").
                 const isPair = !!t.amplify_exon_pair?.includes(e.order);
-                const isTargetExon = isPair || e.unique_sites > 0;
+                const isTargetExon = isTarget && (isPair || e.unique_sites > 0);
                 return (
                   <rect key={k} x={x(e.begin)} y={cy - exH / 2}
                     width={Math.max(2.5, x(e.end) - x(e.begin))} height={exH} rx={2.5}
