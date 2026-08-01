@@ -9,8 +9,9 @@ from __future__ import annotations
 from . import ncbi, overlap, primers
 from .amplify import AmplifyResult, analyze_amplifiability, cumulative_exon_ends
 from .models import (
-    AnalyzeResponse, Exon, GeneInfo, GeneSummary, JunctionOut, PrimerDesignOut,
-    PrimerOut, TranscriptVerdict, UniqueRegionOut,
+    AnalyzeResponse, Exon, GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
+    GeneTranscriptOut, JunctionOut, PrimerDesignOut, PrimerOut, TranscriptVerdict,
+    UniqueRegionOut,
 )
 
 
@@ -19,6 +20,42 @@ class AnalysisError(Exception):
         self.code = code
         self.message = message
         super().__init__(message)
+
+
+def lookup_gene(symbol: str) -> GeneLookupResponse:
+    """Human gene symbol -> its NM transcripts and exon alignment (no classification).
+
+    A lightweight reference step: no mRNA sequences are fetched and no amplifiability is
+    computed — just the structural picture so the user can choose a variant to analyze.
+    """
+    name = (symbol or "").strip()
+    if not name:
+        raise AnalysisError("BAD_REQUEST", "Enter a gene name, e.g. GAPDH.")
+    try:
+        report = ncbi.get_product_report(name)
+        gene_id, sym, description, chromosome, transcripts = ncbi.nm_transcripts(report)
+    except ncbi.NotFound:
+        raise AnalysisError("NOT_FOUND", f"No human gene found for “{name}”.")
+    if not transcripts:
+        raise AnalysisError("NOT_FOUND", f"“{name}” has no NM (mRNA) RefSeq transcripts on GRCh38.")
+
+    out: list[GeneTranscriptOut] = []
+    for t in transcripts:
+        exons = t["exons"]                      # genomic (begin,end), ascending
+        cds = t.get("cds")
+        out.append(GeneTranscriptOut(
+            accession=t["accession"],
+            is_mane=t["is_mane"],
+            exon_count=len(exons),
+            length=sum(e - b + 1 for b, e in exons),
+            cds_begin=cds[0] if cds else None,
+            cds_end=cds[1] if cds else None,
+            exons=[GeneExonOut(order=i + 1, begin=b, end=e) for i, (b, e) in enumerate(exons)],
+        ))
+    # MANE first, then longest transcript to shortest — a stable, useful reading order.
+    out.sort(key=lambda x: (not x.is_mane, -x.length))
+    gene = GeneInfo(gene_id=gene_id, symbol=sym, description=description, chromosome=chromosome)
+    return GeneLookupResponse(gene=gene, transcripts=out)
 
 
 def _cds_status(tx_begin: int, tx_end: int, cds: tuple[int, int] | None) -> str:

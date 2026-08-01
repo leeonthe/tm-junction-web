@@ -14,6 +14,7 @@
   --bad:#E5484D; --bad-tint:#FCEDED; --bad-line:#E5484D;
   --amp-pair:#EAB308; --amp-pair-tint:#FBF3D0;
   --eej-combo:#C026D3;
+  --pick-exon:#94A3B8; --pick-exon-on:#475569;   /* neutral exon blocks in the gene picker */
   --shadow-card:0 2px 20px 7px rgba(16,24,40,.045);
   --r-pill:99px; --r-lg:28px; --r-md:18px; --r-sm:12px;
   --maxw:1120px;
@@ -31,6 +32,7 @@
   --hard:#8B95A3; --hard-tint:#1D2530; --shadow-card:0 2px 26px 6px rgba(0,0,0,.4);
   --ok:#4ADE80; --ok-tint:#12271B; --ok-line:#3FB56B; --bad:#F2686C; --bad-tint:#331A1C; --bad-line:#C0474B;
   --amp-pair:#FACC15; --amp-pair-tint:#3A3410; --eej-combo:#E879F9;
+  --pick-exon:#64748B; --pick-exon-on:#CBD5E1;
 }}
 :root[data-theme="dark"]{
   --bg:#0D1017; --hero:linear-gradient(180deg,#0D1017 0%,#0C1526 100%);
@@ -42,6 +44,7 @@
   --hard:#8B95A3; --hard-tint:#1D2530; --shadow-card:0 2px 26px 6px rgba(0,0,0,.4);
   --ok:#4ADE80; --ok-tint:#12271B; --ok-line:#3FB56B; --bad:#F2686C; --bad-tint:#331A1C; --bad-line:#C0474B;
   --amp-pair:#FACC15; --amp-pair-tint:#3A3410; --eej-combo:#E879F9;
+  --pick-exon:#64748B; --pick-exon-on:#CBD5E1;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --exon-0:#93C5FD; --exon-1:#6EE7B7; --exon-2:#C4B5FD; --exon-3:#FCD34D; --exon-4:#F9A8D4;
@@ -112,6 +115,8 @@ h1{margin:0;font-weight:600;font-size:clamp(34px,5.4vw,56px);line-height:1.04;le
 .suggest .sa b{color:var(--ink);font-weight:600}
 .suggest .sg{font-size:12px;font-weight:500;color:var(--brand-ink);background:var(--brand-tint);
   padding:2px 8px;border-radius:var(--r-pill)}
+.suggest .sg-desc{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:60%;text-align:right}
 .suggest-loading{display:flex;align-items:center;gap:9px;padding:10px 12px;font-size:13px;color:var(--muted)}
 .suggest-loading .spinner{width:14px;height:14px}
 .search input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);
@@ -546,3 +551,23 @@ tr.is-target:hover td{background:var(--brand-tint)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+
+/* ── Gene-name search: mode toggle + transcript picker ───────────────────── */
+.mode-toggle{display:inline-flex;gap:3px;padding:3px;margin:0 0 12px;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:11px}
+.mode-tab{padding:6px 15px;font-size:13px;font-weight:600;color:var(--muted);
+  background:transparent;border:none;border-radius:8px;cursor:pointer;transition:all .12s ease}
+.mode-tab:hover{color:var(--text)}
+.mode-tab.on{background:var(--surface);color:var(--brand-ink);
+  box-shadow:0 1px 3px color-mix(in srgb,var(--ink) 12%,transparent)}
+.gp-sub{font-weight:500;color:var(--muted);font-size:.85em}
+.gp-hint{font-size:12px;font-weight:600;color:var(--muted);
+  padding:5px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;white-space:nowrap}
+.gp-row rect,.gp-row text,.gp-row line{transition:fill .1s ease,stroke .1s ease}
+.gp-row:focus-visible{outline:none}
+.gp-row:focus-visible>rect:first-of-type{stroke:var(--brand)!important;stroke-width:1.5}
+.back-variants{display:inline-flex;align-items:center;gap:4px;margin-bottom:14px;
+  padding:6px 13px;font-size:13px;font-weight:600;color:var(--brand-ink);
+  background:var(--brand-tint);border:1px solid color-mix(in srgb,var(--brand) 22%,transparent);
+  border-radius:999px;cursor:pointer;transition:all .12s ease}
+.back-variants:hover{background:color-mix(in srgb,var(--brand) 16%,var(--surface))}

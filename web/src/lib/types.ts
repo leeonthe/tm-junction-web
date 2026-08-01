@@ -49,3 +49,11 @@ export interface AnalyzeResponse {
   meta: Record<string, unknown>;
 }
 export interface ApiError { error: string; message: string }
+
+// Gene-name lookup: transcript reference (no classification) for the pick-a-variant step.
+export interface GeneExonRef { order: number; begin: number; end: number }
+export interface GeneTranscriptRef {
+  accession: string; is_mane: boolean; exon_count: number; length: number;
+  cds_begin: number | null; cds_end: number | null; exons: GeneExonRef[];
+}
+export interface GeneLookupResponse { gene: GeneInfo; transcripts: GeneTranscriptRef[] }

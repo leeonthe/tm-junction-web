@@ -111,6 +111,29 @@ class AnalyzeResponse(BaseModel):
     meta: dict
 
 
+class GeneExonOut(BaseModel):
+    order: int              # 1-based, by genomic position (left→right on the alignment axis)
+    begin: int             # GRCh38 genomic
+    end: int
+
+
+class GeneTranscriptOut(BaseModel):
+    accession: str
+    is_mane: bool
+    exon_count: int
+    length: int            # total mRNA length in nt (sum of exon lengths)
+    cds_begin: int | None = None   # 1-based mRNA CDS bounds, or None (non-coding)
+    cds_end: int | None = None
+    exons: list[GeneExonOut] = []
+
+
+class GeneLookupResponse(BaseModel):
+    """Gene-name → transcript reference: the NM variants and their exon alignment, WITHOUT
+    amplifiability classification. A pick-your-transcript step ahead of /analyze."""
+    gene: GeneInfo
+    transcripts: list[GeneTranscriptOut]
+
+
 class ErrorResponse(BaseModel):
     error: str
     message: str

@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import ncbi
-from .analyze import AnalysisError, analyze, analyze_events
-from .models import AnalyzeResponse
+from .analyze import AnalysisError, analyze, analyze_events, lookup_gene
+from .models import AnalyzeResponse, GeneLookupResponse
 
 app = FastAPI(title="TmJunction Engine", version="0.1.0")
 
@@ -50,6 +50,23 @@ def health() -> dict:
 def suggest(q: str, limit: int = 8) -> dict:
     """Live NCBI typeahead for NM accessions matching prefix `q`."""
     return {"suggestions": ncbi.suggest_accessions(q, limit)}
+
+
+@app.get("/suggest_genes")
+def suggest_genes(q: str, limit: int = 8) -> dict:
+    """Live NCBI typeahead for human protein-coding gene symbols matching prefix `q`."""
+    return {"suggestions": ncbi.suggest_genes(q, limit)}
+
+
+@app.get("/gene/{symbol}", response_model=GeneLookupResponse)
+def gene_lookup(symbol: str):
+    """Human gene name -> its NM transcripts + exon alignment (no classification).
+    A reference step so users can pick which variant to analyze."""
+    try:
+        return lookup_gene(symbol)
+    except AnalysisError as e:
+        status = 404 if e.code == "NOT_FOUND" else 400
+        return JSONResponse(status_code=status, content={"error": e.code, "message": e.message})
 
 
 @app.post("/analyze", response_model=AnalyzeResponse)

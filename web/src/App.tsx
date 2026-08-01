@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { analyzeStream, AnalyzeError, type Progress } from "./lib/api";
-import type { AnalyzeResponse } from "./lib/types";
+import { analyzeStream, lookupGene, AnalyzeError, type Progress } from "./lib/api";
+import type { AnalyzeResponse, GeneLookupResponse } from "./lib/types";
 import Nav from "./components/Nav";
 import Hero from "./components/Hero";
+import GeneTranscriptPicker from "./components/GeneTranscriptPicker";
 import VerdictBanner from "./components/VerdictBanner";
 import PrimerCard from "./components/PrimerCard";
 import JunctionDesigner from "./components/JunctionDesigner";
@@ -14,30 +15,59 @@ import LoadingState from "./components/LoadingState";
 import { ArrowRight } from "./components/icons";
 
 type Tab = "summary" | "amplify" | "gene";
-interface RunOpts { keepTab?: boolean; soft?: boolean; silent?: boolean }
+interface RunOpts { keepTab?: boolean; soft?: boolean; silent?: boolean; fromGene?: boolean }
 
 const HISTORY_KEY = "tmj.history";
-function loadHistory(): string[] {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]").slice(0, 3); }
+const GENE_HISTORY_KEY = "tmj.gene_history";
+function loadStored(key: string): string[] {
+  try { return JSON.parse(localStorage.getItem(key) || "[]").slice(0, 3); }
   catch { return []; }
+}
+function pushStored(key: string, value: string, prev: string[]): string[] {
+  const next = [value, ...prev.filter((x) => x !== value)].slice(0, 3);
+  try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* ignore */ }
+  return next;
 }
 
 export default function App() {
   const [loading, setLoading] = useState(false);   // full-page load (new search)
   const [busy, setBusy] = useState(false);          // in-place re-target (pick isoform)
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [gene, setGene] = useState<GeneLookupResponse | null>(null);   // gene-name lookup (variant picker)
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [tab, setTab] = useState<Tab>("summary");
-  const [history, setHistory] = useState<string[]>(loadHistory);
+  const [history, setHistory] = useState<string[]>(() => loadStored(HISTORY_KEY));
+  const [geneHistory, setGeneHistory] = useState<string[]>(() => loadStored(GENE_HISTORY_KEY));
   const [progress, setProgress] = useState<Progress>({ pct: 0, detail: "Starting…" });
   const [resetKey, setResetKey] = useState(0);   // bump to remount Hero (clears its input)
   // The Method page replaces the result flow; any analysis already loaded is kept in state,
   // so leaving it returns to exactly where the user was.
   const [showMethod, setShowMethod] = useState(false);
 
+  async function geneSearch(symbol: string) {
+    if (!symbol) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setGene(null);
+    setShowMethod(false);
+    try {
+      const g = await lookupGene(symbol);
+      setGene(g);
+      setGeneHistory((h) => pushStored(GENE_HISTORY_KEY, g.gene.symbol, h));   // canonical symbol
+    } catch (e) {
+      const err = e as AnalyzeError;
+      setError({ code: err.code ?? "ERROR", message: err.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function run(accession: string, opts: RunOpts = {}) {
-    const { keepTab = false, soft = false, silent = false } = opts;
+    const { keepTab = false, soft = false, silent = false, fromGene = false } = opts;
     if (!accession) return;
+    // A fresh accession search leaves the gene picker; picking a variant from it keeps the picker.
+    if (!soft && !fromGene) setGene(null);
     if (!soft) setProgress({ pct: 0, detail: "Starting…" });
     soft ? setBusy(true) : setLoading(true);
     setError(null);
@@ -47,11 +77,7 @@ export default function App() {
       if (!keepTab) setTab("summary");   // a fresh search lands on the everything view
       // recent searches (persisted, ≤3) — not for the initial demo or isoform re-targets
       if (!silent && !soft) {
-        setHistory((h) => {
-          const n = [r.target_accession, ...h.filter((x) => x !== r.target_accession)].slice(0, 3);
-          try { localStorage.setItem(HISTORY_KEY, JSON.stringify(n)); } catch { /* ignore */ }
-          return n;
-        });
+        setHistory((h) => pushStored(HISTORY_KEY, r.target_accession, h));
       }
     } catch (e) {
       const err = e as AnalyzeError;
@@ -70,6 +96,7 @@ export default function App() {
   // Return to the empty landing state (logo / brand click).
   function reset() {
     setResult(null);
+    setGene(null);
     setError(null);
     setLoading(false);
     setBusy(false);
@@ -98,12 +125,18 @@ export default function App() {
         </main>
       ) : (
         <>
-          <Hero key={resetKey} onSearch={(acc) => run(acc)} loading={loading} history={history} />
+          <Hero key={resetKey} onSearch={(acc) => run(acc)} onGeneSearch={geneSearch}
+            loading={loading} history={history} geneHistory={geneHistory} />
           <main className="wrap">
             {loading && <LoadingState pct={progress.pct} detail={progress.detail} />}
             {!loading && error && <div className="error-box"><b>{error.code}.</b> {error.message}</div>}
+            {!loading && !result && gene && (
+              <GeneTranscriptPicker data={gene} busy={busy}
+                onSelect={(acc) => run(acc, { fromGene: true })} />
+            )}
             {!loading && result && (
               <Result result={result} tab={tab} setTab={setTab} busy={busy}
+                backToVariants={gene ? () => setResult(null) : undefined}
                 onSelect={selectIsoform} onInspect={inspectIsoform} onMethod={openMethod} />
             )}
           </main>
@@ -113,14 +146,17 @@ export default function App() {
   );
 }
 
-function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod }: {
+function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, backToVariants }: {
   result: AnalyzeResponse; tab: Tab; setTab: (t: Tab) => void;
   busy: boolean; onSelect: (acc: string) => void; onInspect: (acc: string) => void;
-  onMethod: () => void;
+  onMethod: () => void; backToVariants?: () => void;
 }) {
   const { gene, target_accession, target_verdict, primer_design, summary } = result;
   return (
     <>
+      {backToVariants && (
+        <button className="back-variants" onClick={backToVariants}>‹ All {gene.symbol} variants</button>
+      )}
       <div className="res-head">
         <span className="acc">{target_accession}</span>
         <span className="arrow-sm"><ArrowRight /></span>

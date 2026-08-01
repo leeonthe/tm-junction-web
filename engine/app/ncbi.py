@@ -262,6 +262,44 @@ def suggest_accessions(q: str, limit: int = 8) -> list[dict]:
     return _suggest_live(base, limit)
 
 
+def suggest_genes(q: str, limit: int = 8) -> list[dict]:
+    """Typeahead: human protein-coding genes whose official symbol starts with `q`.
+
+    Live NCBI E-utilities (db=gene), per-prefix cached. The protein-coding filter drops
+    pseudogenes / antisense RNAs that would have no NM transcript to analyze. Best-effort —
+    any error (incl. E-utilities rate limiting without an API key) yields []. Non-empty
+    results only are cached, so a transient failure doesn't poison the prefix. Returns
+    [{symbol, description}]."""
+    base = q.strip().upper()
+    if len(base) < 2:
+        return []
+    cached = _read_json(CACHE_DIR / "suggest_gene" / f"{base}.json")
+    if cached is not None:
+        return cached[:limit]
+    try:
+        term = (f"{base}*[Preferred Symbol] AND Homo sapiens[Organism] "
+                'AND alive[prop] AND "genetype protein coding"[Properties]')
+        es = _eutils_json("esearch.fcgi",
+                          {"db": "gene", "term": term, "retmax": limit,
+                           "retmode": "json", "sort": "relevance"})
+        ids = ((es.get("esearchresult") or {}).get("idlist")) or []
+        out: list[dict] = []
+        if ids:
+            summ = _eutils_json("esummary.fcgi",
+                                {"db": "gene", "id": ",".join(ids), "retmode": "json"})
+            res = summ.get("result") or {}
+            for uid in res.get("uids", []):
+                r = res.get(uid) or {}
+                sym = r.get("name") or ""
+                if sym.upper().startswith(base):   # drop Entrez wildcard noise
+                    out.append({"symbol": sym, "description": r.get("description", "")})
+        if out:
+            _write_json(CACHE_DIR / "suggest_gene" / f"{base}.json", out[:limit])
+        return out[:limit]
+    except Exception:
+        return []
+
+
 def _suggest_live(base: str, limit: int) -> list[dict]:
     """Fallback: NCBI E-utilities lookup (per-prefix cached). Post-filtered to true prefix
     matches (Entrez's accession wildcard is noisy). Best-effort — errors yield []."""

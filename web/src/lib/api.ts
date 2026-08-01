@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ApiError } from "./types";
+import type { AnalyzeResponse, ApiError, GeneLookupResponse } from "./types";
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 
@@ -20,6 +20,35 @@ export async function suggest(q: string, signal?: AbortSignal): Promise<RemoteSu
     return (d.suggestions ?? []) as RemoteSuggestion[];
   } catch {
     return [];   // network/abort — fall back to local matches only
+  }
+}
+
+/** Gene name -> its human NM transcripts + exon alignment (no classification). */
+export async function lookupGene(symbol: string, signal?: AbortSignal): Promise<GeneLookupResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/gene/${encodeURIComponent(symbol.trim())}`, { signal });
+  } catch {
+    throw new AnalyzeError("NETWORK", "Can't reach the engine. Is the Python backend running?");
+  }
+  const data = (await res.json()) as GeneLookupResponse | ApiError;
+  if (!res.ok || "error" in data) {
+    const err = data as ApiError;
+    throw new AnalyzeError(err.error ?? "ERROR", err.message ?? "Gene lookup failed.");
+  }
+  return data as GeneLookupResponse;
+}
+
+export interface GeneSuggestion { symbol: string; description: string }
+
+export async function suggestGenes(q: string, signal?: AbortSignal): Promise<GeneSuggestion[]> {
+  try {
+    const res = await fetch(`${API_URL}/suggest_genes?q=${encodeURIComponent(q)}`, { signal });
+    if (!res.ok) return [];
+    const d = await res.json();
+    return (d.suggestions ?? []) as GeneSuggestion[];
+  } catch {
+    return [];
   }
 }
 
