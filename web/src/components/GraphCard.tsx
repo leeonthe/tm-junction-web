@@ -12,12 +12,26 @@ const LEGEND = [
   { token: "--eej-combo", label: "EEJ pair" },
 ] as const;
 
-// 3×3 palette shown when a swatch is clicked.
-const PALETTE = [
-  "#2563EB", "#E5484D", "#64748B",
-  "#EAB308", "#C026D3", "#16A34A",
-  "#0EA5E9", "#F97316", "#EC4899",
-];
+// Spare colors offered beyond the tiers' current colors. Chosen to be visually distinct
+// from every tier default (both themes) so a pick can't create a near-duplicate. The 3×3
+// palette ALSO always includes each tier's current color (so picking a color another tier
+// uses is an exact match → swaps), which is why the palette is built dynamically per-open
+// rather than fixed. (A fixed palette whose blue #2563EB ≠ the Conventional default #237AF2
+// was the swap bug: an un-overridden tier's color was never a pickable cell, so no match.)
+const SPARES = ["#16A34A", "#0D9488", "#F97316", "#EC4899", "#7C3AED", "#B45309"];
+
+/** The 9 palette cells for the open popover: every tier's current color + distinct spares. */
+function buildCells(effective: Record<string, string>): string[] {
+  const inUse = Object.values(effective).filter(Boolean);
+  const seen = new Set(inUse);
+  const cells = [...inUse];
+  for (const s of SPARES) {
+    const u = s.toUpperCase();
+    if (!seen.has(u)) { seen.add(u); cells.push(u); }
+    if (cells.length >= 9) break;
+  }
+  return cells.slice(0, 9);
+}
 
 export default function GraphCard({ result }: { result: AnalyzeResponse }) {
   const { gene, transcripts, target_accession, meta, primer_design } = result;
@@ -101,11 +115,11 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
               {openToken === token && (
                 <div className="sw-pop" role="dialog" aria-label={`${label} color`}>
                   <div className="sw-grid">
-                    {PALETTE.map((c) => (
+                    {buildCells(effective).map((c) => (
                       <button
                         type="button"
                         key={c}
-                        className={`sw-cell${effective[token] === c.toUpperCase() ? " on" : ""}`}
+                        className={`sw-cell${effective[token] === c ? " on" : ""}`}
                         style={{ background: c }}
                         aria-label={c}
                         onClick={() => pick(token, c)}
