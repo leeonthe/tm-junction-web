@@ -196,6 +196,22 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
 .legend{display:flex;gap:16px;flex-wrap:wrap}
 .lg{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
 .lg .sw{width:11px;height:11px;border-radius:3px}
+/* clickable legend swatch -> opens the color palette */
+.sw-btn{padding:0;border:1px solid color-mix(in srgb,var(--ink) 12%,transparent);cursor:pointer;
+  transition:transform .08s ease,box-shadow .12s ease}
+.sw-btn:hover{transform:scale(1.18)}
+.sw-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--surface),0 0 0 4px color-mix(in srgb,var(--brand) 55%,transparent)}
+.sw-pop{position:absolute;top:calc(100% + 8px);left:-6px;z-index:60;padding:7px;
+  background:var(--surface);border:1px solid var(--border);border-radius:11px;
+  box-shadow:0 10px 30px color-mix(in srgb,var(--ink) 20%,transparent),0 1px 0 var(--surface) inset}
+.sw-pop::before{content:"";position:absolute;top:-5px;left:12px;width:9px;height:9px;
+  background:var(--surface);border-left:1px solid var(--border);border-top:1px solid var(--border);
+  transform:rotate(45deg)}
+.sw-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.sw-cell{width:24px;height:24px;border-radius:7px;border:1px solid color-mix(in srgb,var(--ink) 10%,transparent);
+  cursor:pointer;transition:transform .08s ease}
+.sw-cell:hover{transform:scale(1.12)}
+.sw-cell.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
 .scroll-x{overflow-x:auto}
 .g-note{font-size:12.5px;color:var(--faint);margin:14px 0 0}
 
