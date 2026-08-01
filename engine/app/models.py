@@ -23,6 +23,8 @@ class UniqueRegionOut(BaseModel):
     side: str
     begin: int | None = None   # genomic start of the unique-window span within the exon
     end: int | None = None     # genomic end (so the graph can highlight only the unique part)
+    tx_begin: int | None = None  # 1-based mRNA start of the unique-window span
+    tx_end: int | None = None    # 1-based mRNA end
 
 
 class JunctionOut(BaseModel):

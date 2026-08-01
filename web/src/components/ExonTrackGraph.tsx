@@ -218,6 +218,11 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
   const pair = t.amplify_exon_pair;
   const pairRole = pair?.[0] === e.order ? "Forward" : pair?.[1] === e.order ? "Reverse" : null;
   const isPartner = t.partner_exon === e.order;
+  // mRNA (transcript) coordinates of the unique window span(s) within this exon, e.g. "100–200".
+  const uspan = t.unique_regions
+    .filter((r) => r.exon_order === e.order && r.tx_begin != null && r.tx_end != null)
+    .map((r) => `${r.tx_begin}–${r.tx_end}`)
+    .join(", ");
   return (
     <div className="exon-tip" style={style}>
       <div className="et-head">
@@ -232,12 +237,11 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
         <span className="et-c2">{e.end.toLocaleString()}</span>
       </div>
       <div className="et-line mono">
-        <b className="et-num">{e.length}</b>&nbsp;nt&nbsp;&nbsp;·&nbsp;&nbsp;GC&nbsp;<b className="et-num">{e.gc}%</b>
-        &nbsp;&nbsp;·&nbsp;&nbsp;mRNA&nbsp;{e.tx_begin}–{e.tx_end}
+        <b className="et-num">{e.length}</b>&nbsp;nt&nbsp;&nbsp;·&nbsp;&nbsp;mRNA&nbsp;{e.tx_begin}–{e.tx_end}
       </div>
       <div className="et-div" />
       {e.unique_sites > 0
-        ? <div className="et-line et-good">{e.unique_sites} primer sites unique to {isTarget ? "this isoform" : t.accession}</div>
+        ? <div className="et-line et-good">unique sequence sites: {uspan || `${e.tx_begin}–${e.tx_end}`}</div>
         : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
       {pairRole && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}

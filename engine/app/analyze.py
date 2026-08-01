@@ -123,7 +123,8 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
     for r in amp.unique_regions:
         gb, ge = _uniq_genomic(exons, r.tx_start, r.tx_end, r.exon_order)
         uniq_out.append(UniqueRegionOut(exon_order=r.exon_order, window_count=r.window_count,
-                                        side=r.side, begin=gb, end=ge))
+                                        side=r.side, begin=gb, end=ge,
+                                        tx_begin=r.tx_start + 1, tx_end=r.tx_end + 1))
     return TranscriptVerdict(
         accession=acc,
         is_mane=is_mane,

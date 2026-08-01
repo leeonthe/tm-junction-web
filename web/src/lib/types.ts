@@ -8,7 +8,7 @@ export interface Exon {
   cds: "5utr" | "cds" | "3utr" | "noncoding";
   gc: number; unique_sites: number;
 }
-export interface UniqueRegion { exon_order: number; window_count: number; side: string; begin?: number | null; end?: number | null }
+export interface UniqueRegion { exon_order: number; window_count: number; side: string; begin?: number | null; end?: number | null; tx_begin?: number | null; tx_end?: number | null }
 export interface Junction { donor_order: number; acceptor_order: number; label: string }
 
 export interface Primer {
