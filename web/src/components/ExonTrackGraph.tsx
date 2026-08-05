@@ -141,14 +141,14 @@ export default function ExonTrackGraph({
               )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, k) => {
-                // Orange = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored).
-                // 7c exon pair → whole exon orange. 7a unique region → the exon keeps its
-                // tier color and only the actual unique sub-span is overlaid orange.
-                // Yellow target site: a 7c/combo specificity exon, OR the nearest partner exon
-                // for an original single-junction EEJ (where the junction alone is specific).
-                const isPair = !!t.amplify_exon_pair?.includes(e.order) || t.partner_exon === e.order;
+                // Yellow = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored).
+                // A 7c exon pair / single-junction partner exon → the WHOLE exon is yellow.
+                // But when the exon carries a distinguishing sub-span (a 7a unique region, or a
+                // junction+exon combo's discriminating slice) the exon keeps its tier color and
+                // only that sub-span is overlaid yellow — the overlapped rest stays red.
                 const ur = uniqByExon.get(e.order);
                 const hasSpan = ur?.begin != null && ur?.end != null;
+                const isPair = (!!t.amplify_exon_pair?.includes(e.order) || t.partner_exon === e.order) && !hasSpan;
                 const exW = Math.max(2.5, x(e.end) - x(e.begin));
                 const clipId = `exclip-${i}-${k}`;
                 return (

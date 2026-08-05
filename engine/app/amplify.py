@@ -56,6 +56,11 @@ class AmplifyResult:
     # combo_jj = ((d1,a1),(d2,a2)) — two EEJs that together isolate it (no sibling has both).
     #   NEEDS_EEJ; the two junctions are the discriminating pair (shown magenta).
     combo_jj: tuple[tuple[int, int], tuple[int, int]] | None = None
+    # For a junction+exon combo (combo_je): the GENOMIC (begin,end) sub-span of the combo exon
+    # that actually distinguishes the transcript — the exon minus the parts the junction-holding
+    # siblings still carry (the conventional primer must sit here, so only this part is the yellow
+    # target site; the overlapped rest stays the tier color). None if the whole exon distinguishes.
+    combo_exon_region: tuple[int, int] | None = None
 
 
 def cumulative_exon_ends(exons: list[Interval]) -> list[int]:
@@ -175,6 +180,39 @@ def _junction_holders(target_exons: list[Interval], target_seq: str,
             continue
         out[(i + 1, i + 2)] = {si for si, o in enumerate(others) if w in o}
     return out
+
+
+def _combo_exon_region(
+    target_exons: list[Interval], exon_order: int, hold_exons: list[list[Interval]],
+) -> tuple[int, int] | None:
+    """Distinguishing genomic sub-span of a combo exon: the exon MINUS the parts covered by the
+    junction-holding siblings' exons at that locus (the siblings the conventional primer must
+    still exclude — the others are already excluded by the junction). Returns the largest
+    uncovered (begin,end), the whole exon if nothing overlaps, or None if fully covered."""
+    b, e = target_exons[exon_order - 1]
+    covered = []
+    for sib_exons in hold_exons:
+        for (sb, se) in sib_exons:
+            lo, hi = max(sb, b), min(se, e)
+            if lo <= hi:
+                covered.append((lo, hi))
+    if not covered:
+        return (b, e)
+    covered.sort()
+    merged = [list(covered[0])]
+    for lo, hi in covered[1:]:
+        if lo <= merged[-1][1] + 1:
+            merged[-1][1] = max(merged[-1][1], hi)
+        else:
+            merged.append([lo, hi])
+    gaps, cur = [], b
+    for lo, hi in merged:
+        if lo > cur:
+            gaps.append((cur, lo - 1))
+        cur = max(cur, hi + 1)
+    if cur <= e:
+        gaps.append((cur, e))
+    return max(gaps, key=lambda g: g[1] - g[0]) if gaps else None
 
 
 def discriminating_junction_exon(
@@ -308,6 +346,14 @@ def analyze_amplifiability(
     else:
         tier = "NO_SINGLE_UNIQUE_JUNCTION"
 
+    # For a junction+exon combo, pin down which part of the combo exon actually distinguishes
+    # the transcript (the part the junction-holding siblings lack) — only that is the target site.
+    combo_exon_region: tuple[int, int] | None = None
+    if combo_je:
+        d, a, eo = combo_je
+        jh = _junction_holders(target_exons, seq, [s for (_, s) in siblings], k).get((d, a), set())
+        combo_exon_region = _combo_exon_region(target_exons, eo, [siblings[si][0] for si in jh])
+
     return AmplifyResult(
         tier=tier,
         amplifiable=tier in ("CONVENTIONAL", "NEEDS_EEJ"),
@@ -321,4 +367,5 @@ def analyze_amplifiability(
         exon_pair=exon_pair,
         combo_je=combo_je,
         combo_jj=combo_jj,
+        combo_exon_region=combo_exon_region,
     )

@@ -105,6 +105,20 @@ def _uniq_genomic(exons: list[tuple[int, int]], tx_start: int, tx_end: int,
     return (min(b, e), max(b, e))
 
 
+def _region_tx(exons: list[tuple[int, int]], exon_order: int,
+               gb: int, ge: int) -> tuple[int, int]:
+    """Inverse of _uniq_genomic for a sub-span: map a genomic (gb,ge) inside exon `exon_order`
+    to 1-based mRNA (tx_begin, tx_end), honoring strand."""
+    cum = cumulative_exon_ends(exons)
+    ei = exon_order - 1
+    b, e = exons[ei]
+    exon_tx1 = (cum[ei - 1] if ei else 0) + 1          # 1-based mRNA start of the exon
+    plus = len(exons) < 2 or exons[0][0] <= exons[-1][0]
+    if plus:
+        return (exon_tx1 + (gb - b), exon_tx1 + (ge - b))
+    return (exon_tx1 + (e - ge), exon_tx1 + (e - gb))
+
+
 def _partner_exon(exons: list[tuple[int, int]], donor: int, acceptor: int) -> int | None:
     """Nearest exon to the exon-exon junction (donor|acceptor), for the partner primer.
 
@@ -162,6 +176,16 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         uniq_out.append(UniqueRegionOut(exon_order=r.exon_order, window_count=r.window_count,
                                         side=r.side, begin=gb, end=ge,
                                         tx_begin=r.tx_start + 1, tx_end=r.tx_end + 1))
+    # Junction+exon combo: only the distinguishing part of the combo exon is the target site.
+    # Emit it as a sub-span (genomic + mRNA) so the graph paints just that slice yellow and
+    # leaves the overlapped remainder the tier color (red). exon_pair_out keeps the exon for the
+    # verdict text; the sub-span makes the fill precise.
+    if amp.combo_je and amp.combo_exon_region:
+        _, _, ce = amp.combo_je
+        gb, ge = amp.combo_exon_region
+        tb, te = _region_tx(exons, ce, gb, ge)
+        uniq_out.append(UniqueRegionOut(exon_order=ce, window_count=0, side="either",
+                                        begin=gb, end=ge, tx_begin=tb, tx_end=te))
     return TranscriptVerdict(
         accession=acc,
         is_mane=is_mane,
