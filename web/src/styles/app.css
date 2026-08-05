@@ -210,8 +210,17 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
 
 /* legend + graph */
 .legend{display:flex;gap:16px;flex-wrap:wrap}
+/* two-row legend: three tiers on top, the two target-site markers below */
+.legend-2row{flex-direction:column;align-items:flex-end;gap:6px;flex-wrap:nowrap}
+.legend-row{display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
 .lg{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
 .lg .sw{width:11px;height:11px;border-radius:3px}
+/* ⓘ "what is this" marker next to Target site / EEJ pair */
+.lg-info{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;
+  margin-left:1px;border:1px solid var(--border-2);border-radius:50%;color:var(--faint);
+  font-size:9.5px;font-weight:700;font-style:italic;font-family:var(--sans);cursor:help;line-height:1}
+.lg-info:hover,.lg-info:focus-visible{color:var(--brand-ink);border-color:color-mix(in srgb,var(--brand) 45%,transparent);
+  background:var(--brand-tint);outline:none}
 /* clickable legend swatch -> opens the color palette */
 .sw-btn{padding:0;border:1px solid color-mix(in srgb,var(--ink) 12%,transparent);cursor:pointer;
   transition:transform .08s ease,box-shadow .12s ease}

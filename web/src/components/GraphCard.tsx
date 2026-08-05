@@ -20,6 +20,14 @@ const LEGEND = [
 // was the swap bug: an un-overridden tier's color was never a pickable cell, so no match.)
 const SPARES = ["#16A34A", "#0D9488", "#F97316", "#EC4899", "#7C3AED", "#B45309"];
 
+// "What is this" hover text for the target-site legend entries (shown as a title on the ⓘ marker).
+const HINTS: Record<string, string> = {
+  "--amp-pair": "Target site — the exon region to put your primer(s): a conventional exon pair, a "
+    + "junction+exon combo's discriminating exon region, or the partner exon of a single-junction EEJ.",
+  "--eej-combo": "EEJ pair — two exon–exon junctions that together isolate this transcript "
+    + "(a two-junction combination); both are marked and both junction primers are needed.",
+};
+
 /** The 9 palette cells for the open popover: every tier's current color + distinct spares. */
 function buildCells(effective: Record<string, string>): string[] {
   const inUse = Object.values(effective).filter(Boolean);
@@ -93,6 +101,40 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
     setOpenToken(null);
   };
 
+  const legendItem = ({ token, label }: { token: string; label: string }) => (
+    <span className="lg" key={token} style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="sw sw-btn"
+        style={{ background: `var(${token})` }}
+        aria-label={`Change ${label} color`}
+        aria-expanded={openToken === token}
+        onClick={() => openPalette(token)}
+      />
+      {label}
+      {HINTS[token] && (
+        <span className="lg-info" title={HINTS[token]} tabIndex={0}
+          role="img" aria-label={HINTS[token]}>i</span>
+      )}
+      {openToken === token && (
+        <div className="sw-pop" role="dialog" aria-label={`${label} color`}>
+          <div className="sw-grid">
+            {buildCells(effective).map((c) => (
+              <button
+                type="button"
+                key={c}
+                className={`sw-cell${effective[token] === c ? " on" : ""}`}
+                style={{ background: c }}
+                aria-label={c}
+                onClick={() => pick(token, c)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </span>
+  );
+
   return (
     <section className="card" style={overrides as React.CSSProperties}>
       <div className="card-head">
@@ -100,36 +142,10 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           <h3 className="card-title">Exon structure — all {gene.symbol} isoforms</h3>
           <p className="sub">GRCh38 · colored by amplification tier · your target highlighted</p>
         </div>
-        <div className="legend" ref={legendRef}>
-          {LEGEND.map(({ token, label }) => (
-            <span className="lg" key={token} style={{ position: "relative" }}>
-              <button
-                type="button"
-                className="sw sw-btn"
-                style={{ background: `var(${token})` }}
-                aria-label={`Change ${label} color`}
-                aria-expanded={openToken === token}
-                onClick={() => openPalette(token)}
-              />
-              {label}
-              {openToken === token && (
-                <div className="sw-pop" role="dialog" aria-label={`${label} color`}>
-                  <div className="sw-grid">
-                    {buildCells(effective).map((c) => (
-                      <button
-                        type="button"
-                        key={c}
-                        className={`sw-cell${effective[token] === c ? " on" : ""}`}
-                        style={{ background: c }}
-                        aria-label={c}
-                        onClick={() => pick(token, c)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </span>
-          ))}
+        {/* Two rows: the three tiers on top, the two target-site markers (with ⓘ hints) below. */}
+        <div className="legend legend-2row" ref={legendRef}>
+          <div className="legend-row">{LEGEND.slice(0, 3).map(legendItem)}</div>
+          <div className="legend-row">{LEGEND.slice(3).map(legendItem)}</div>
         </div>
       </div>
       <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} />
