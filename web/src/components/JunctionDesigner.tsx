@@ -102,6 +102,10 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   }
 
   const { jx, donor, acceptor } = geom;
+  // The two exons flanking THIS junction get dedicated colors (exon A = 5′/donor = magenta,
+  // exon B = 3′/acceptor = dark green); any other exon that peeks into the window is muted.
+  const donorIdx = exons.findIndex((e) => e.order === donor.order);
+  const acceptorIdx = exons.findIndex((e) => e.order === acceptor.order);
 
   const ev: WindowEval | null = sel ? evalWindow(mrna, jx, sel.s, sel.e, tmMin, tmMax, cond) : null;
 
@@ -199,6 +203,7 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   const bases = [];
   for (let i = winStart; i < winEnd; i++) {
     const ex = exonAt[i];
+    const exc = ex === donorIdx ? " ex-a" : ex === acceptorIdx ? " ex-b" : " ex-o";
     const inSel = sel != null && i >= sel.s && i < sel.e;
     const side = inSel ? (i < jx ? " sel-l" : " sel-r") : "";
     const warm = pick?.warm.has(i) && !inSel ? " warm" : "";
@@ -206,8 +211,7 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
     bases.push(
       <span
         key={i}
-        className={`b${side}${warm}${jxm}`}
-        style={{ color: `var(--exon-${(ex < 0 ? 0 : ex) % 5})` }}
+        className={`b${exc}${side}${warm}${jxm}`}
         onMouseDown={(e) => { e.preventDefault(); onDown(i); }}
         onMouseEnter={() => onEnter(i)}
       >{mrna[i]}</span>
@@ -215,6 +219,10 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   }
 
   const valid = ev?.valid ?? false;
+  // The pristine auto-pick is the "suggested" primer (yellow); once the user drags to a
+  // different window it becomes their own selection — blue if valid, orange if not.
+  const isSuggested = !!(pick?.best && sel && sel.s === pick.best.s && sel.e === pick.best.e);
+  const selState = isSuggested ? "suggested" : valid ? "valid" : "invalid";
 
   return (
     <section className="card elevated jd">
@@ -245,13 +253,13 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
       </div>
 
       <p className="sub" style={{ marginBottom: 14 }}>
-        Drag across the junction to select a primer. The 5′ arm sits on exon {donor.order},
-        the 3′ arm on exon {acceptor.order}. Green = the whole primer melts in range and
-        neither arm alone is stable enough to prime — so it fires only on this exact splice.
+        Drag across the junction to select a primer. The 5′ arm sits on <b className="jd-exa-t">exon {donor.order}</b>,
+        the 3′ arm on <b className="jd-exb-t">exon {acceptor.order}</b>. A valid primer means the whole primer melts
+        in range while neither arm alone is stable enough to prime — so it fires only on this exact splice.
       </p>
 
       <div ref={seqRef} tabIndex={0} role="textbox" aria-label="Drag to select a primer; press Cmd or Ctrl + C to copy"
-        className={`jd-seq mono ${valid ? "valid" : "invalid"}`}
+        className={`jd-seq mono ${selState}`}
         onKeyDown={onSeqKeyDown} onMouseLeave={() => { dragging.current = false; }}>
         {winStart > 0 && <span className="cdna-ellipsis">…{winStart} nt </span>}
         {bases}
@@ -266,6 +274,7 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
 
       <div className="jd-legend">
         <span className="lg"><span className="sw warm" />selectable region (each arm ≤ cap)</span>
+        <span className="lg"><span className="sw sel-sug" />suggested primer</span>
         <span className="lg"><span className="sw sel-ok" />selected — valid</span>
         <span className="lg"><span className="sw sel-bad" />selected — invalid</span>
         <span className="lg"><span className="jx-mark" />exon–exon junction</span>

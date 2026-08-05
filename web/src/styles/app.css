@@ -21,6 +21,11 @@
   /* cDNA view — exon text colors + primer highlight backgrounds (light) */
   --exon-0:#1D4ED8; --exon-1:#047857; --exon-2:#7C3AED; --exon-3:#B45309; --exon-4:#BE185D;
   --fwd-hl:#DBEAFE; --rev-hl:#FEF3C7; --jx-line:#E5484D;
+  /* Junction designer — exon-role colors + selection states (light). exon A=magenta,
+     exon B=dark green, selectable=reddish-purple, suggested=yellow, valid=blue, invalid=orange */
+  --jd-exa:#C026D3; --jd-exb:#047857; --jd-exo:#94A3B8; --jd-warm:#A21CAF;
+  --jd-sug:#CA8A04; --jd-sug-bg:#FEF9C3; --jd-ok:#2563EB; --jd-ok-bg:#DBEAFE;
+  --jd-bad:#EA580C; --jd-bad-bg:#FFEDD5;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0D1017; --hero:linear-gradient(180deg,#0D1017 0%,#0C1526 100%);
@@ -49,10 +54,16 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --exon-0:#93C5FD; --exon-1:#6EE7B7; --exon-2:#C4B5FD; --exon-3:#FCD34D; --exon-4:#F9A8D4;
   --fwd-hl:#1E3A5F; --rev-hl:#3D3316; --jx-line:#F2686C;
+  --jd-exa:#E879F9; --jd-exb:#6EE7B7; --jd-exo:#6B7685; --jd-warm:#D946EF;
+  --jd-sug:#FACC15; --jd-sug-bg:#3A3410; --jd-ok:#4F9CF9; --jd-ok-bg:#152439;
+  --jd-bad:#FB923C; --jd-bad-bg:#3A2410;
 }}
 :root[data-theme="dark"]{
   --exon-0:#93C5FD; --exon-1:#6EE7B7; --exon-2:#C4B5FD; --exon-3:#FCD34D; --exon-4:#F9A8D4;
   --fwd-hl:#1E3A5F; --rev-hl:#3D3316; --jx-line:#F2686C;
+  --jd-exa:#E879F9; --jd-exb:#6EE7B7; --jd-exo:#6B7685; --jd-warm:#D946EF;
+  --jd-sug:#FACC15; --jd-sug-bg:#3A3410; --jd-ok:#4F9CF9; --jd-ok-bg:#152439;
+  --jd-bad:#FB923C; --jd-bad-bg:#3A2410;
 }
 
 *{box-sizing:border-box}
@@ -388,23 +399,37 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-copyhint .ok{color:var(--ok);font-weight:600}
 .jd-copyhint kbd{font-family:var(--mono);font-size:11px;background:var(--surface-3);
   border:1px solid var(--border-2);border-radius:4px;padding:1px 5px;color:var(--ink)}
-.jd-seq .b.warm{box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--brand) 45%,transparent)}
-.jd-seq .b.jx{box-shadow:inset 2px 0 0 var(--jx-line)}
-.jd-seq .b.jx.warm{box-shadow:inset 2px 0 0 var(--jx-line),inset 0 -2px 0 color-mix(in srgb,var(--brand) 45%,transparent)}
-.jd-seq.valid .b.sel-l,.jd-seq.valid .b.sel-r{background:var(--ok-tint);font-weight:700;
-  box-shadow:inset 0 -2px 0 var(--ok-line)}
-.jd-seq.invalid .b.sel-l,.jd-seq.invalid .b.sel-r{background:var(--bad-tint);font-weight:700;
-  box-shadow:inset 0 -2px 0 var(--bad-line)}
-.jd-seq .b.sel-l.jx,.jd-seq .b.sel-r.jx{box-shadow:inset 2px 0 0 var(--jx-line),inset 0 -2px 0 var(--ok-line)}
-.jd-seq.invalid .b.sel-r.jx{box-shadow:inset 2px 0 0 var(--jx-line),inset 0 -2px 0 var(--bad-line)}
+/* exon-role text colors: exon A (5′/donor)=magenta, exon B (3′/acceptor)=dark green, other=muted */
+.jd-seq .b.ex-a{color:var(--jd-exa)}
+.jd-seq .b.ex-b{color:var(--jd-exb)}
+.jd-seq .b.ex-o{color:var(--jd-exo)}
+.jd-exa-t{color:var(--jd-exa)}
+.jd-exb-t{color:var(--jd-exb)}
+/* selectable region — reddish-purple underline */
+.jd-seq .b.warm{box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--jd-warm) 60%,transparent)}
+/* exon–exon junction marker — red bar with breathing room on both sides (ticket d) */
+.jd-seq .b.jx{margin-left:5px;padding-left:3px;box-shadow:inset 3px 0 0 var(--jx-line)}
+.jd-seq .b.jx.warm{box-shadow:inset 3px 0 0 var(--jx-line),inset 0 -2px 0 color-mix(in srgb,var(--jd-warm) 60%,transparent)}
+/* selected primer — over + under line (ticket f); color by state: suggested=yellow, valid=blue, invalid=orange */
+.jd-seq.suggested .b.sel-l,.jd-seq.suggested .b.sel-r{background:var(--jd-sug-bg);font-weight:700;
+  box-shadow:inset 0 -2px 0 var(--jd-sug),inset 0 2px 0 var(--jd-sug)}
+.jd-seq.valid .b.sel-l,.jd-seq.valid .b.sel-r{background:var(--jd-ok-bg);font-weight:700;
+  box-shadow:inset 0 -2px 0 var(--jd-ok),inset 0 2px 0 var(--jd-ok)}
+.jd-seq.invalid .b.sel-l,.jd-seq.invalid .b.sel-r{background:var(--jd-bad-bg);font-weight:700;
+  box-shadow:inset 0 -2px 0 var(--jd-bad),inset 0 2px 0 var(--jd-bad)}
+/* the junction base while inside a selection: keep the red bar + the state's over/underline */
+.jd-seq.suggested .b.sel-l.jx,.jd-seq.suggested .b.sel-r.jx{box-shadow:inset 3px 0 0 var(--jx-line),inset 0 -2px 0 var(--jd-sug),inset 0 2px 0 var(--jd-sug)}
+.jd-seq.valid .b.sel-l.jx,.jd-seq.valid .b.sel-r.jx{box-shadow:inset 3px 0 0 var(--jx-line),inset 0 -2px 0 var(--jd-ok),inset 0 2px 0 var(--jd-ok)}
+.jd-seq.invalid .b.sel-l.jx,.jd-seq.invalid .b.sel-r.jx{box-shadow:inset 3px 0 0 var(--jx-line),inset 0 -2px 0 var(--jd-bad),inset 0 2px 0 var(--jd-bad)}
 
 .jd-legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:12px;
   font-size:12px;color:var(--muted)}
 .jd-legend .lg{display:inline-flex;align-items:center;gap:6px}
 .jd-legend .sw{width:13px;height:12px;border-radius:3px;display:inline-block}
-.jd-legend .sw.warm{background:var(--surface-2);box-shadow:inset 0 -3px 0 color-mix(in srgb,var(--brand) 45%,transparent)}
-.jd-legend .sw.sel-ok{background:var(--ok-tint);box-shadow:inset 0 -3px 0 var(--ok-line)}
-.jd-legend .sw.sel-bad{background:var(--bad-tint);box-shadow:inset 0 -3px 0 var(--bad-line)}
+.jd-legend .sw.warm{background:var(--surface-2);box-shadow:inset 0 -3px 0 color-mix(in srgb,var(--jd-warm) 65%,transparent)}
+.jd-legend .sw.sel-sug{background:var(--jd-sug-bg);box-shadow:inset 0 -3px 0 var(--jd-sug)}
+.jd-legend .sw.sel-ok{background:var(--jd-ok-bg);box-shadow:inset 0 -3px 0 var(--jd-ok)}
+.jd-legend .sw.sel-bad{background:var(--jd-bad-bg);box-shadow:inset 0 -3px 0 var(--jd-bad)}
 .jd-legend .jx-mark{width:3px;height:14px;background:var(--jx-line);border-radius:2px;display:inline-block}
 .jd-auto{margin-left:auto;padding:6px 12px;font-size:12px}
 
