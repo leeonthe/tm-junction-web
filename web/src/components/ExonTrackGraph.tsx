@@ -223,6 +223,9 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
     .filter((r) => r.exon_order === e.order && r.tx_begin != null && r.tx_end != null)
     .map((r) => `${r.tx_begin}–${r.tx_end}`)
     .join(", ");
+  // The conventional exon of a junction+exon combo: NEEDS_EEJ, has a recommended junction, and
+  // this exon is the (single) combo exon. Its target site is the distinguishing sub-region.
+  const isComboExon = t.tier === "NEEDS_EEJ" && !!t.recommended_junction && !!pair?.includes(e.order);
   return (
     <div className="exon-tip" style={style}>
       <div className="et-head">
@@ -240,11 +243,16 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
         <b className="et-num">{e.length}</b>&nbsp;nt&nbsp;&nbsp;·&nbsp;&nbsp;mRNA&nbsp;{e.tx_begin}–{e.tx_end}
       </div>
       <div className="et-div" />
-      {e.unique_sites > 0
+      {isComboExon ? (
+        <>
+          <div className="et-line et-good">EEJ + Exon combination</div>
+          <div className="et-line et-good">Exon target sites: {uspan || `${e.tx_begin}–${e.tx_end}`}</div>
+        </>
+      ) : e.unique_sites > 0
         ? <div className="et-line et-good">unique sequence sites: {uspan || `${e.tx_begin}–${e.tx_end}`}</div>
         : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
-      {pairRole && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
+      {pairRole && !isComboExon && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
       {isPartner && <div className="et-line et-pair">★ Target site — conventional partner primer, nearest the EEJ</div>}
     </div>
   );
