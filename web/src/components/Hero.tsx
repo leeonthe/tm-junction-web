@@ -88,10 +88,10 @@ export default function Hero({
         </p>
 
         <div className="mode-toggle" role="tablist" aria-label="Search by">
-          <button role="tab" aria-selected={!geneMode} className={`mode-tab ${!geneMode ? "on" : ""}`}
-            onClick={() => switchMode("accession")}>Accession</button>
           <button role="tab" aria-selected={geneMode} className={`mode-tab ${geneMode ? "on" : ""}`}
             onClick={() => switchMode("gene")}>Gene name</button>
+          <button role="tab" aria-selected={!geneMode} className={`mode-tab ${!geneMode ? "on" : ""}`}
+            onClick={() => switchMode("accession")}>Accession</button>
         </div>
 
         <div className="search-wrap">
