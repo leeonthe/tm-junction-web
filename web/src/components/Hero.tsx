@@ -91,7 +91,7 @@ export default function Hero({
           <button role="tab" aria-selected={geneMode} className={`mode-tab ${geneMode ? "on" : ""}`}
             onClick={() => switchMode("gene")}>Gene name</button>
           <button role="tab" aria-selected={!geneMode} className={`mode-tab ${!geneMode ? "on" : ""}`}
-            onClick={() => switchMode("accession")}>Accession</button>
+            onClick={() => switchMode("accession")}>NCBI ID (Refseq)</button>
         </div>
 
         <div className="search-wrap">
