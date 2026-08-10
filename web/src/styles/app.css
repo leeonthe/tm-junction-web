@@ -492,7 +492,9 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-model-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .jd-model-sub{margin:5px 0 0;font-size:12.5px;color:var(--muted);max-width:52ch}
 
-.jd-cond{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+/* Four buffer terms in a 2×2 block, reset spanning underneath — a wrapping flex row
+   splits them unevenly once there are more than two fields. */
+.jd-cond{display:grid;grid-template-columns:repeat(2,auto);align-items:end;gap:10px 14px}
 .jd-cond label{display:flex;flex-direction:column;gap:5px}
 .jd-cond .ck{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
 .jd-cond .ck i{font-family:var(--mono);font-style:normal;text-transform:none;letter-spacing:0;
@@ -507,7 +509,7 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-cond input:focus{outline:none}
 .jd-cond input::-webkit-outer-spin-button,.jd-cond input::-webkit-inner-spin-button{margin:0}
 .jd-cond .unit{font-family:var(--mono);font-size:12px;color:var(--muted)}
-.jd-reset{padding:7px 14px;font-size:12px;align-self:flex-end}
+.jd-reset{padding:7px 14px;font-size:12px;grid-column:1/-1;justify-self:start}
 
 /* inline text button that reads as a link (e.g. "documented in Method") */
 .linkish{font:inherit;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;
@@ -579,7 +581,7 @@ tr.is-target:hover td{background:var(--brand-tint)}
   .jd-cond{width:100%}
 }
 @media (max-width:520px){
-  .jd-cond label{flex:1 1 40%}
+  .jd-cond{grid-template-columns:1fr 1fr}
   .jd-cond input{width:100%}
   .jd-cond .cin{width:100%}
 }

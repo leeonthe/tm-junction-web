@@ -1,14 +1,32 @@
 import {
-  type KeyboardEvent, type RefObject, useEffect, useMemo, useRef, useState,
+  type KeyboardEvent, type ReactNode, type RefObject, useEffect, useMemo, useRef, useState,
 } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import {
-  ARM_GAP, DEFAULT_CONDITIONS, PRIMER_MAX, PRIMER_MIN, SALT_MAX, SALT_MIN, WALLACE_MAX,
+  ARM_GAP, DEFAULT_CONDITIONS, DNTP_MAX, DNTP_MIN, MG_MAX, MG_MIN,
+  PRIMER_MAX, PRIMER_MIN, SALT_MAX, SALT_MIN, WALLACE_MAX,
   armTmText, autoPick, evalWindow, isDefaultConditions,
   type TmConditions, type WindowEval,
 } from "../lib/tm";
 import { numStr } from "../lib/format";
 import { Copy } from "./icons";
+
+type CondKey = keyof TmConditions;
+
+const COND_BOUNDS: Record<CondKey, [number, number]> = {
+  saltMM: [SALT_MIN, SALT_MAX],
+  primerUM: [PRIMER_MIN, PRIMER_MAX],
+  mgMM: [MG_MIN, MG_MAX],
+  dntpMM: [DNTP_MIN, DNTP_MAX],
+};
+
+/** The four editable buffer terms, in the order they appear under the designer. */
+const COND_FIELDS: { k: CondKey; label: ReactNode; unit: string; step: number }[] = [
+  { k: "saltMM", label: <>Monovalent salt <i>[Na⁺]+[K⁺]</i></>, unit: "mM", step: 5 },
+  { k: "mgMM", label: <>Magnesium <i>[Mg²⁺]</i></>, unit: "mM", step: 0.5 },
+  { k: "dntpMM", label: <>dNTPs <i>total</i></>, unit: "mM", step: 0.1 },
+  { k: "primerUM", label: <>Primer conc. <i>C<sub>T</sub></i></>, unit: "µM", step: 0.05 },
+];
 
 /**
  * Interactive Tm-guided EEJ primer designer.
@@ -39,8 +57,12 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   // Reaction conditions feeding the Tm formula. The defaults are the project's
   // calibration point, so the designer opens with exactly the numbers it always had.
   const [cond, setCond] = useState<TmConditions>(DEFAULT_CONDITIONS);
-  const [saltStr, setSaltStr] = useState(String(DEFAULT_CONDITIONS.saltMM));
-  const [primerStr, setPrimerStr] = useState(String(DEFAULT_CONDITIONS.primerUM));
+  const [condStr, setCondStr] = useState<Record<CondKey, string>>(() => ({
+    saltMM: String(DEFAULT_CONDITIONS.saltMM),
+    primerUM: String(DEFAULT_CONDITIONS.primerUM),
+    mgMM: String(DEFAULT_CONDITIONS.mgMM),
+    dntpMM: String(DEFAULT_CONDITIONS.dntpMM),
+  }));
   const [sel, setSel] = useState<{ s: number; e: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const dragging = useRef(false);
@@ -166,33 +188,29 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   }
 
   // Reaction-condition inputs: same type-freely / clamp-on-commit contract as the Tm
-  // range. Both accept decimals (0.25 µM primer, 62.5 mM salt are all real setups).
-  function editSalt(raw: string) {
-    setSaltStr(raw);
+  // range. All four accept decimals (0.25 µM primer, 1.5 mM Mg²⁺, 62.5 mM salt are
+  // all real setups).
+  function editCond(k: CondKey, raw: string) {
+    setCondStr((s) => ({ ...s, [k]: raw }));
     const v = parseFloat(raw);
-    if (Number.isFinite(v) && v >= SALT_MIN && v <= SALT_MAX) setCond((c) => ({ ...c, saltMM: v }));
+    const [lo, hi] = COND_BOUNDS[k];
+    if (Number.isFinite(v) && v >= lo && v <= hi) setCond((c) => ({ ...c, [k]: v }));
   }
-  function commitSalt() {
-    const v = parseFloat(saltStr);
-    const c = Number.isFinite(v) ? Math.min(SALT_MAX, Math.max(SALT_MIN, v)) : cond.saltMM;
-    setCond((p) => ({ ...p, saltMM: c }));
-    setSaltStr(numStr(c));
-  }
-  function editPrimer(raw: string) {
-    setPrimerStr(raw);
-    const v = parseFloat(raw);
-    if (Number.isFinite(v) && v >= PRIMER_MIN && v <= PRIMER_MAX) setCond((c) => ({ ...c, primerUM: v }));
-  }
-  function commitPrimer() {
-    const v = parseFloat(primerStr);
-    const c = Number.isFinite(v) ? Math.min(PRIMER_MAX, Math.max(PRIMER_MIN, v)) : cond.primerUM;
-    setCond((p) => ({ ...p, primerUM: c }));
-    setPrimerStr(numStr(c));
+  function commitCond(k: CondKey) {
+    const v = parseFloat(condStr[k]);
+    const [lo, hi] = COND_BOUNDS[k];
+    const c = Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : cond[k];
+    setCond((p) => ({ ...p, [k]: c }));
+    setCondStr((s) => ({ ...s, [k]: numStr(c) }));
   }
   function resetConditions() {
     setCond(DEFAULT_CONDITIONS);
-    setSaltStr(String(DEFAULT_CONDITIONS.saltMM));
-    setPrimerStr(String(DEFAULT_CONDITIONS.primerUM));
+    setCondStr({
+      saltMM: String(DEFAULT_CONDITIONS.saltMM),
+      primerUM: String(DEFAULT_CONDITIONS.primerUM),
+      mgMM: String(DEFAULT_CONDITIONS.mgMM),
+      dntpMM: String(DEFAULT_CONDITIONS.dntpMM),
+    });
   }
   function focusConditions() {
     saltRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -245,8 +263,9 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
           <span className="jd-cap">each arm Tm ≤ <b>whole-primer Tm − {ARM_GAP} °C</b></span>
           <button type="button" onClick={focusConditions}
             className={`jd-cond-chip ${isDefaultConditions(cond) ? "" : "mod"}`}
-            title="Edit the salt and primer concentration used by the Tm formula">
-            <b>{numStr(cond.saltMM)}</b> mM salt · <b>{numStr(cond.primerUM)}</b> µM primer
+            title="Edit the buffer and primer concentration used by the Tm formula">
+            <b>{numStr(cond.saltMM)}</b> mM salt · <b>{numStr(cond.mgMM)}</b> mM Mg²⁺ ·{" "}
+            <b>{numStr(cond.primerUM)}</b> µM primer
             {!isDefaultConditions(cond) && <span className="dotmark" aria-hidden="true" />}
           </button>
         </div>
@@ -288,9 +307,8 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
       {ev && <Readout ev={ev} tmMin={tmMin} tmMax={tmMax} />}
 
       <Conditions
-        cond={cond} saltRef={saltRef} saltStr={saltStr} primerStr={primerStr}
-        editSalt={editSalt} commitSalt={commitSalt}
-        editPrimer={editPrimer} commitPrimer={commitPrimer}
+        cond={cond} saltRef={saltRef} condStr={condStr}
+        editCond={editCond} commitCond={commitCond}
         reset={resetConditions} onMethod={onMethod}
       />
     </section>
@@ -298,16 +316,16 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
 }
 
 /**
- * The two reaction conditions that feed the Tm formula. Editing either re-runs the whole
+ * The reaction conditions that feed the Tm formula. Editing any of them re-runs the whole
  * designer — warm zone, auto-pick, arm caps, every metric above. The formula itself is
  * documented on the Method page; this card only exposes the knobs.
  */
-function Conditions({ cond, saltRef, saltStr, primerStr, editSalt, commitSalt, editPrimer, commitPrimer, reset, onMethod }: {
+function Conditions({ cond, saltRef, condStr, editCond, commitCond, reset, onMethod }: {
   cond: TmConditions;
   saltRef: RefObject<HTMLInputElement>;
-  saltStr: string; primerStr: string;
-  editSalt: (v: string) => void; commitSalt: () => void;
-  editPrimer: (v: string) => void; commitPrimer: () => void;
+  condStr: Record<CondKey, string>;
+  editCond: (k: CondKey, v: string) => void;
+  commitCond: (k: CondKey) => void;
   reset: () => void;
   onMethod?: () => void;
 }) {
@@ -323,31 +341,27 @@ function Conditions({ cond, saltRef, saltStr, primerStr, editSalt, commitSalt, e
           <p className="card-label" style={{ margin: 0 }}>Tm formula · reaction conditions</p>
           <p className="jd-model-sub">
             Set your buffer and primer concentration — the whole-primer Tm is recomputed from
-            them. Arms under {WALLACE_MAX} nt use the Wallace rule, which has no salt or
-            concentration term.
+            them. Mg²⁺ and the monovalent cations compete for the DNA backbone, so both matter,
+            and dNTPs chelate Mg²⁺ so only the surplus counts. Arms under {WALLACE_MAX} nt use
+            the Wallace rule, which has no salt or concentration term.
             {onMethod && <> The formula is documented in{" "}
               <button type="button" className="linkish" onClick={onMethod}>Method</button>.</>}
           </p>
         </div>
         <div className="jd-cond">
-          <label>
-            <span className="ck">Monovalent salt <i>[Na⁺]+[K⁺]</i></span>
-            <span className="cin">
-              <input ref={saltRef} type="number" value={saltStr} inputMode="decimal"
-                min={SALT_MIN} max={SALT_MAX} step={5}
-                onChange={(e) => editSalt(e.target.value)} onBlur={commitSalt} onKeyDown={enterBlur} />
-              <span className="unit">mM</span>
-            </span>
-          </label>
-          <label>
-            <span className="ck">Primer conc. <i>C<sub>T</sub></i></span>
-            <span className="cin">
-              <input type="number" value={primerStr} inputMode="decimal"
-                min={PRIMER_MIN} max={PRIMER_MAX} step={0.05}
-                onChange={(e) => editPrimer(e.target.value)} onBlur={commitPrimer} onKeyDown={enterBlur} />
-              <span className="unit">µM</span>
-            </span>
-          </label>
+          {COND_FIELDS.map(({ k, label, unit, step }) => (
+            <label key={k}>
+              <span className="ck">{label}</span>
+              <span className="cin">
+                <input ref={k === "saltMM" ? saltRef : undefined}
+                  type="number" value={condStr[k]} inputMode="decimal"
+                  min={COND_BOUNDS[k][0]} max={COND_BOUNDS[k][1]} step={step}
+                  onChange={(e) => editCond(k, e.target.value)}
+                  onBlur={() => commitCond(k)} onKeyDown={enterBlur} />
+                <span className="unit">{unit}</span>
+              </span>
+            </label>
+          ))}
           <button className="btn btn-ghost jd-reset" onClick={reset} disabled={isDefault}>
             Reset{isDefault ? "" : " to default"}
           </button>

@@ -1,34 +1,32 @@
 // Client-side Tm engine for the interactive EEJ junction designer.
 //
-// Nearest-neighbor melting temperature (SantaLucia 1998 unified stacking
-// parameters) with the two reaction conditions the user can tune in the
-// designer — monovalent salt and primer concentration:
+// Nearest-neighbour melting temperature (SantaLucia 1998 unified stacking
+// parameters) evaluated at 1 M Na⁺, then corrected to the user's actual buffer
+// with the Owczarzy (2008) mixed monovalent/divalent salt model:
 //
-//     Tm = ΔH_total / (ΔS_total + R·ln(C_T/4)) + ΔT_salt − 273.15
+//     Tm(1 M)  = ΔH_total / (ΔS_total + R·ln(C_T))          [Kelvin]
+//     1/Tm     = 1/Tm(1 M) + Δ(salt)
+//     Tm(°C)   = 1/(1/Tm) − 273.15
 //
 // ΔH_total (cal/mol) and ΔS_total (cal/(mol·K)) are the summed adjacent-doublet
-// terms plus a lumped initiation term; R = 1.987 cal/(K·mol); C_T is the total
-// primer concentration (mol/L); ΔT_salt = 16.6·log10[Na⁺] is the monovalent-salt
-// correction.
+// terms plus SantaLucia's terminal-dependent initiation (a terminal G·C and a
+// terminal A·T initiate differently); R = 1.987 cal/(K·mol). C_T is the primer
+// concentration WITHOUT the /4 term — in PCR the primer is in vast excess over
+// its template, which is the pseudo-first-order case Tm = ΔH/(ΔS + R·ln[primer]).
 //
-// Both condition-dependent terms are anchored at this project's calibration
-// point (200 nM primer, 50 mM monovalent salt), where the concentration term
-// equals the −32.22 constant the project standardized on (see vault 01 Science/
-// Primer Design Strategy) and the salt correction is zero. So DEFAULT_CONDITIONS
-// reproduces exactly what the designer computed before conditions were editable
-// — the user's Tm range and the ARM_GAP rule stay calibrated to it — while
-// changing either condition shifts Tm by the standard amount: R·ln(C_T/C_T⁰) on
-// the entropy term, +16.6 °C per 10× salt.
+// The salt correction Δ(salt) is applied to 1/Tm, not as an additive °C shift,
+// and is picked by the divalent/monovalent competition ratio
+// R_ratio = √[Mg²⁺]_free / [Mon⁺] — see saltCorrection() for the three regimes.
+// Free Mg²⁺ is what is left after dNTPs chelate it (K_a = 3·10⁴ M⁻¹).
+//
+// Validated against IDT OligoAnalyzer for AACTACATGGCTGAGAAC at 0.2 µM primer:
+//   50 mM Na⁺, no Mg²⁺        → 49.2 °C   (IDT "standard": 49 °C)
+//   50 mM Na⁺, 3 mM Mg²⁺,
+//   0.8 mM dNTP               → 57.0 °C   (IDT "qPCR": 56 °C)
 //
 // This applies to the WHOLE primer. Each arm is short enough that nearest-neighbour
 // stops being valid, so arms below WALLACE_MAX nt use the Wallace rule instead —
 // see armTm().
-//
-// NB this runs hotter than the engine: for CTGCGGGCCGAG the designer says 63.6,
-// primer3 (engine, when installed) 51.1, and primers.py::_nn_tm 42.8 — the
-// engine's fallback applies both terms in absolute form. The designer is
-// internally consistent and is what the Tm range here is tuned against; don't
-// compare its numbers with the primer cards.
 
 const NN_H: Record<string, number> = {
   AA: -7.9, TT: -7.9, AT: -7.2, TA: -7.2, CA: -8.5, TG: -8.5, GT: -8.4, AC: -8.4,
@@ -38,6 +36,9 @@ const NN_S: Record<string, number> = {
   AA: -22.2, TT: -22.2, AT: -20.4, TA: -21.3, CA: -22.7, TG: -22.7, GT: -22.4, AC: -22.4,
   CT: -21.0, AG: -21.0, GA: -22.2, TC: -22.2, CG: -27.2, GC: -24.4, GG: -19.9, CC: -19.9,
 };
+/** SantaLucia 1998 helix initiation, per end, keyed by that end's base pair. */
+const INIT_GC = { dh: 0.1, ds: -2.8 };
+const INIT_AT = { dh: 2.3, ds: 4.1 };
 
 /** The fixed discrimination gap: each arm must melt at least this far below tmMax. */
 export const ARM_GAP = 15;
@@ -57,8 +58,11 @@ const CLEAN = /^[ACGT]+$/;
 export const R_GAS = 1.987;
 /** Kelvin → Celsius. */
 export const ZERO_C = 273.15;
-/** °C per 10-fold change in monovalent salt (Schildkraut–Lifson). */
-export const SALT_COEF = 16.6;
+/** Mg²⁺:dNTP association constant, M⁻¹ (Owczarzy 2008). */
+export const MG_DNTP_KA = 3e4;
+/** Regime boundaries on R_ratio = √[Mg²⁺]_free / [Mon⁺] (Owczarzy 2008). */
+export const RATIO_MONO_MAX = 0.22;
+export const RATIO_MIXED_MAX = 6.0;
 
 /** Reaction conditions, in the units the user types them in. */
 export interface TmConditions {
@@ -66,28 +70,42 @@ export interface TmConditions {
   saltMM: number;
   /** Total primer concentration C_T, in µM. */
   primerUM: number;
+  /** Total divalent magnesium [Mg²⁺], in mM. */
+  mgMM: number;
+  /** Total dNTPs, in mM — they chelate Mg²⁺, so only the surplus counts as free. */
+  dntpMM: number;
 }
 
-/** The calibration point: the conditions the design rules and Tm range are tuned to. */
-export const DEFAULT_CONDITIONS: TmConditions = { saltMM: 50, primerUM: 0.2 };
+/**
+ * The default reaction: a standard qPCR/RT-PCR buffer. These are the conditions
+ * the Owczarzy model was validated against above, so the designer opens on the
+ * numbers IDT's qPCR mode reports.
+ */
+export const DEFAULT_CONDITIONS: TmConditions = {
+  saltMM: 50, primerUM: 0.2, mgMM: 3, dntpMM: 0.8,
+};
 /** Accepted input bounds — generous PCR/qPCR ranges. */
 export const SALT_MIN = 1, SALT_MAX = 1000;      // mM
 export const PRIMER_MIN = 0.01, PRIMER_MAX = 20; // µM
-
-/** R·ln(C_T/4) at DEFAULT_CONDITIONS.primerUM (this project's folded constant). */
-const ENTROPY_TERM_REF = -32.22;
+export const MG_MIN = 0, MG_MAX = 100;           // mM
+export const DNTP_MIN = 0, DNTP_MAX = 100;       // mM
 
 export function clampConditions(c: TmConditions): TmConditions {
-  const salt = Number.isFinite(c.saltMM) ? c.saltMM : DEFAULT_CONDITIONS.saltMM;
-  const primer = Number.isFinite(c.primerUM) ? c.primerUM : DEFAULT_CONDITIONS.primerUM;
+  const pick = (v: number, lo: number, hi: number, dflt: number) =>
+    Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : dflt));
   return {
-    saltMM: Math.min(SALT_MAX, Math.max(SALT_MIN, salt)),
-    primerUM: Math.min(PRIMER_MAX, Math.max(PRIMER_MIN, primer)),
+    saltMM: pick(c.saltMM, SALT_MIN, SALT_MAX, DEFAULT_CONDITIONS.saltMM),
+    primerUM: pick(c.primerUM, PRIMER_MIN, PRIMER_MAX, DEFAULT_CONDITIONS.primerUM),
+    mgMM: pick(c.mgMM, MG_MIN, MG_MAX, DEFAULT_CONDITIONS.mgMM),
+    dntpMM: pick(c.dntpMM, DNTP_MIN, DNTP_MAX, DEFAULT_CONDITIONS.dntpMM),
   };
 }
 
 export function isDefaultConditions(c: TmConditions): boolean {
-  return c.saltMM === DEFAULT_CONDITIONS.saltMM && c.primerUM === DEFAULT_CONDITIONS.primerUM;
+  return c.saltMM === DEFAULT_CONDITIONS.saltMM
+    && c.primerUM === DEFAULT_CONDITIONS.primerUM
+    && c.mgMM === DEFAULT_CONDITIONS.mgMM
+    && c.dntpMM === DEFAULT_CONDITIONS.dntpMM;
 }
 
 /** µM → mol/L (1 µM = 10⁻⁶ M). */
@@ -96,23 +114,86 @@ export const primerMolar = (primerUM: number) => primerUM * 1e-6;
 export const saltMolar = (saltMM: number) => saltMM * 1e-3;
 
 /**
- * The R·ln(C_T/4) entropy term, cal/(mol·K), referenced to the calibration
- * primer concentration so the default reproduces the folded −32.22 constant.
+ * The R·ln(C_T) concentration term, cal/(mol·K). No /4: a PCR primer anneals to
+ * template in vast excess of itself, so the pseudo-first-order form applies.
  */
 export function entropyTerm(primerUM: number): number {
-  const c = primerMolar(Math.max(primerUM, PRIMER_MIN));
-  const c0 = primerMolar(DEFAULT_CONDITIONS.primerUM);
-  return ENTROPY_TERM_REF + R_GAS * Math.log(c / c0);
+  return R_GAS * Math.log(primerMolar(Math.max(primerUM, PRIMER_MIN)));
 }
 
 /**
- * ΔT_salt (°C) = 16.6·log10[Na⁺], referenced to the calibration salt so the
- * default contributes nothing and a 10× change moves Tm by 16.6 °C.
+ * Free [Mg²⁺] (mol/L) once dNTPs have chelated their share. Solving the 1:1
+ * binding equilibrium Mg + dNTP ⇌ Mg·dNTP with K_a = 3·10⁴ M⁻¹ gives the
+ * positive root of the quadratic below. With no dNTPs all Mg²⁺ is free.
  */
-export function saltShift(saltMM: number): number {
-  const na = saltMolar(Math.max(saltMM, SALT_MIN));
-  const na0 = saltMolar(DEFAULT_CONDITIONS.saltMM);
-  return SALT_COEF * Math.log10(na / na0);
+export function freeMg(mgMM: number, dntpMM: number): number {
+  const mg = Math.max(0, mgMM) * 1e-3;
+  const dntp = Math.max(0, dntpMM) * 1e-3;
+  if (mg <= 0) return 0;
+  if (dntp <= 0) return mg;
+  const t = MG_DNTP_KA * dntp - MG_DNTP_KA * mg + 1;
+  return (-t + Math.sqrt(t * t + 4 * MG_DNTP_KA * mg)) / (2 * MG_DNTP_KA);
+}
+
+/** Which of Owczarzy's three salt regimes a buffer falls in. */
+export type SaltRegime = "monovalent" | "mixed" | "divalent";
+
+export interface SaltCorrection {
+  /** Added to 1/Tm(1 M), in K⁻¹. */
+  delta: number;
+  regime: SaltRegime;
+  /** Free [Mg²⁺], mol/L. */
+  mgFree: number;
+  /** R_ratio = √[Mg²⁺]_free / [Mon⁺]; Infinity when there is no monovalent salt. */
+  ratio: number;
+}
+
+/**
+ * Owczarzy (2008) salt correction, returned as the Δ added to 1/Tm(1 M).
+ *
+ * Which model applies is decided by how hard Mg²⁺ and the monovalent cations
+ * compete for the DNA backbone, measured by R_ratio = √[Mg²⁺]_free / [Mon⁺]:
+ *
+ *   R_ratio < 0.22   monovalent dominates → Owczarzy (2004) [Na⁺]-only equation
+ *   0.22 ≤ R < 6.0   they compete       → eq. 16 with a, d, g re-fitted for [Mon⁺]
+ *   R_ratio ≥ 6.0    Mg²⁺ dominates     → eq. 16 with the base a, d, g
+ *
+ * A normal PCR/qPCR buffer (50 mM K⁺, 1.5–3 mM Mg²⁺) sits in the middle band.
+ * All seven coefficients are ×10⁻⁵, per Table 2 of the paper.
+ */
+export function saltCorrection(fGC: number, len: number, cond: TmConditions): SaltCorrection {
+  const mon = saltMolar(Math.max(cond.saltMM, 0));
+  const mgFree = freeMg(cond.mgMM, cond.dntpMM);
+  const ratio = mon > 0 ? Math.sqrt(mgFree) / mon : Infinity;
+
+  // Owczarzy (2004) monovalent-only correction.
+  const monovalent = (): number => {
+    if (mon <= 0) return 0;
+    const l = Math.log(mon);
+    return (4.29 * fGC - 3.95) * 1e-5 * l + 9.4e-6 * l * l;
+  };
+
+  if (mgFree <= 0 || ratio < RATIO_MONO_MAX)
+    return { delta: monovalent(), regime: "monovalent", mgFree, ratio };
+
+  // eq. 16 base coefficients (×10⁻⁵), Table 2.
+  let a = 3.92, d = 1.42, g = 8.31;
+  const b = -0.911, c = 6.26, e = -48.2, f = 52.5;
+  const regime: SaltRegime = ratio < RATIO_MIXED_MAX ? "mixed" : "divalent";
+  if (regime === "mixed" && mon > 0) {
+    // Competition band: a, d and g pick up a monovalent dependence (eqs. 18–20).
+    const l = Math.log(mon);
+    a = 3.92 * (0.843 - 0.352 * Math.sqrt(mon) * l);
+    d = 1.42 * (1.279 - 4.03e-3 * l - 8.03e-3 * l * l);
+    g = 8.31 * (0.486 - 0.258 * l + 5.25e-3 * l ** 3);
+  }
+  const lm = Math.log(mgFree);
+  const delta = (
+    a + b * lm
+    + fGC * (c + d * lm)
+    + (e + f * lm + g * lm * lm) / (2 * (len - 1))
+  ) * 1e-5;
+  return { delta, regime, mgFree, ratio };
 }
 
 /** Every term of the Tm calculation, for the live formula readout. */
@@ -122,12 +203,16 @@ export interface TmParts {
   dh: number;
   /** cal/(mol·K) — summed doublet entropies + initiation. */
   ds: number;
-  /** R·ln(C_T/4), cal/(mol·K). */
+  /** R·ln(C_T), cal/(mol·K). */
   dsTerm: number;
-  /** ΔT_salt, °C. */
-  saltShift: number;
-  /** ΔS_total + R·ln(C_T/4). */
+  /** ΔS_total + R·ln(C_T). */
   denom: number;
+  /** Uncorrected melting temperature at 1 M Na⁺, °C. */
+  tm1M: number;
+  /** The Owczarzy 2008 salt term, added to 1/Tm. */
+  salt: SaltCorrection;
+  /** How far the salt correction moved Tm, °C — for display only. */
+  saltShift: number;
   tm: number;
 }
 
@@ -135,17 +220,29 @@ export interface TmParts {
 export function tmParts(seq: string, cond: TmConditions = DEFAULT_CONDITIONS): TmParts | null {
   const p = seq.toUpperCase();
   if (p.length < 2 || !CLEAN.test(p)) return null;
-  let dh = 0.2;
-  let ds = -5.7;
+  let dh = 0;
+  let ds = 0;
+  for (const end of [p[0], p[p.length - 1]]) {
+    const init = end === "G" || end === "C" ? INIT_GC : INIT_AT;
+    dh += init.dh;
+    ds += init.ds;
+  }
   for (let i = 0; i < p.length - 1; i++) {
     const step = p.slice(i, i + 2);
     dh += NN_H[step];
     ds += NN_S[step];
   }
   const dsTerm = entropyTerm(cond.primerUM);
-  const shift = saltShift(cond.saltMM);
   const denom = ds + dsTerm;
-  return { seq: p, dh, ds, dsTerm, saltShift: shift, denom, tm: (dh * 1000) / denom + shift - ZERO_C };
+  const kelvin1M = (dh * 1000) / denom;
+  const salt = saltCorrection(gcPercent(p) / 100, p.length, cond);
+  const kelvin = 1 / (1 / kelvin1M + salt.delta);
+  return {
+    seq: p, dh, ds, dsTerm, denom,
+    tm1M: kelvin1M - ZERO_C,
+    salt, saltShift: kelvin - kelvin1M,
+    tm: kelvin - ZERO_C,
+  };
 }
 
 /** Melting temperature (°C) of an oligo under the given reaction conditions. */
