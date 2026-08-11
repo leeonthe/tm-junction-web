@@ -48,15 +48,31 @@ describe("Owczarzy 2008 salt correction vs Biopython", () => {
 });
 
 describe("published reference values", () => {
-  // The oligo and the two IDT OligoAnalyzer readings this model was adopted to match.
   const SEQ = "AACTACATGGCTGAGAAC";
 
-  it("reproduces IDT qPCR mode (50 mM salt, 3 mM Mg, 0.8 mM dNTP, 0.2 µM) ≈ 56 °C", () => {
-    expect(tm(SEQ, DEFAULT_CONDITIONS)).toBeCloseTo(56.96, 2);
+  it("qPCR buffer (50 mM salt, 3 mM Mg, 0.8 mM dNTP, 0.2 µM total)", () => {
+    expect(tm(SEQ, DEFAULT_CONDITIONS)).toBeCloseTo(54.77, 2);
   });
 
-  it("reproduces IDT standard mode (50 mM salt, no Mg) ≈ 49 °C", () => {
-    expect(tm(SEQ, CONDS({ mgMM: 0, dntpMM: 0 }))).toBeCloseTo(49.16, 2);
+  it("monovalent only (50 mM salt, no Mg)", () => {
+    expect(tm(SEQ, CONDS({ mgMM: 0, dntpMM: 0 }))).toBeCloseTo(47.07, 2);
+  });
+
+  /**
+   * IDT OligoAnalyzer reports 56 °C (qPCR) and 49 °C (standard) for this oligo at
+   * 0.2 µM. It uses the pseudo-first-order form R·ln(C_T) — primer in vast excess —
+   * whereas we use SantaLucia's R·ln(C_T/4) for a non-self-complementary duplex. The
+   * two are the same equation with C_T meaning different things, and they agree once
+   * C_T is read as the TOTAL of both strands: 4 × 0.2 µM.
+   */
+  it("agrees with IDT once C_T is read as total strand concentration (4× 0.2 µM)", () => {
+    expect(tm(SEQ, CONDS({ primerUM: 0.8 }))).toBeCloseTo(56.96, 2);
+    expect(tm(SEQ, CONDS({ primerUM: 0.8, mgMM: 0, dntpMM: 0 }))).toBeCloseTo(49.16, 2);
+  });
+
+  it("the /4 costs exactly R·ln(4) on the entropy term", () => {
+    // Same oligo, C_T vs C_T/4 → the gap is fixed by the factor, not the sequence.
+    expect(tm(SEQ, CONDS({ primerUM: 0.8 })) - tm(SEQ, DEFAULT_CONDITIONS)).toBeCloseTo(2.19, 2);
   });
 
   it("puts a normal qPCR buffer in the mixed (competing-ion) regime", () => {
@@ -211,9 +227,11 @@ describe("Wallace rule for short arms", () => {
   });
 
   it("governs arms below the nearest-neighbour cutoff, and NN at or above it", () => {
-    const short = "ACGTACGTACG";                    // 11 nt
-    const long = "ACGTACGTACGTAC";                  // 14 nt = WALLACE_MAX
-    expect(short.length).toBeLessThan(WALLACE_MAX);
+    // Built from the constant so the test cannot go stale if the cutoff moves.
+    const motif = "ACGTACGTACGTACGTACGT";
+    const short = motif.slice(0, WALLACE_MAX - 1);
+    const long = motif.slice(0, WALLACE_MAX);
+    expect(short.length).toBe(WALLACE_MAX - 1);
     expect(long.length).toBe(WALLACE_MAX);
     expect(armTm(short, DEFAULT_CONDITIONS)).toBe(wallaceTm(short));
     expect(armTm(long, DEFAULT_CONDITIONS)).toBeCloseTo(tm(long, DEFAULT_CONDITIONS), 12);

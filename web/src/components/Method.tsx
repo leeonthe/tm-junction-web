@@ -116,7 +116,7 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
             <span>T<sub>m</sub><sup>1M</sup></span><span className="op">=</span>
             <span className="frac">
               <span className="num">ΔH<sub>total</sub></span>
-              <span className="den">ΔS<sub>total</sub> + R · ln(C<sub>T</sub>)</span>
+              <span className="den">ΔS<sub>total</sub> + R · ln(C<sub>T</sub> / 4)</span>
             </span>
           </div>
         </div>
@@ -143,8 +143,9 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           <Term k="R" unit={`${R_GAS} cal/(K·mol)`}
             note="Ideal gas constant." />
           <Term k={<>C<sub>T</sub></>} unit="mol/L"
-            note={<>Primer concentration — no /4 term, because in PCR the primer is in vast
-              excess over the template it anneals to. You enter it in µM; 1 µM = 10⁻⁶ M.</>} />
+            note={<>Total strand concentration. The 4 is SantaLucia's factor for a
+              non-self-complementary duplex with both strands at equal concentration. You
+              enter it in µM; 1 µM = 10⁻⁶ M.</>} />
           <Term k={<>Δ<sub>salt</sub></>} unit="K⁻¹"
             note={<>The Owczarzy (2008) salt term, set by monovalent salt, free Mg²⁺, GC
               fraction and length — see below.</>} />
@@ -241,16 +242,30 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           {fixed(ex.ds, 1)} cal/(mol·K) for this {EXAMPLE.length}-mer; {fixed(ex.dsTerm, 2)} is the
           concentration term at {numStr(DEFAULT_CONDITIONS.primerUM)} µM. The salt term is
           evaluated in the <b>{ex.salt.regime}</b> branch and pulls Tm by{" "}
-          {signed(ex.saltShift, 1)} °C. IDT's OligoAnalyzer reports 56 °C for this oligo in qPCR
-          mode and 49 °C in monovalent-only mode; this engine gives{" "}
-          <b className="mono">{fixed(ex.tm, 1)}</b> and{" "}
-          <b className="mono">{fixed(tmParts(EXAMPLE, { ...DEFAULT_CONDITIONS, mgMM: 0, dntpMM: 0 })!.tm, 1)}</b> °C.
+          {signed(ex.saltShift, 1)} °C.
+        </p>
+
+        <h3 className="mth-h3">Comparing with IDT OligoAnalyzer</h3>
+        <p className="mth-note">
+          IDT reports <b>56 °C</b> for this oligo in qPCR mode and <b>49 °C</b> monovalent-only,
+          at 0.2 µM. This engine gives <b className="mono">{fixed(ex.tm, 1)}</b> and{" "}
+          <b className="mono">{fixed(tmParts(EXAMPLE, { ...DEFAULT_CONDITIONS, mgMM: 0, dntpMM: 0 })!.tm, 1)}</b> °C
+          for the same typed number — about 2 °C cooler. That gap is the{" "}
+          <span className="mono">/4</span> and nothing else: IDT uses the pseudo-first-order
+          form R·ln(C<sub>T</sub>), which assumes the primer is in vast excess over its
+          template, while the equation above is the non-self-complementary duplex form. They
+          are the same equation with C<sub>T</sub> meaning different things, and they agree
+          once it is read as the total of <em>both</em> strands — at{" "}
+          <b className="mono">0.8 µM</b> here, this engine gives{" "}
+          <b className="mono">{fixed(tmParts(EXAMPLE, { ...DEFAULT_CONDITIONS, primerUM: 0.8 })!.tm, 1)}</b> °C.
+          So enter C<sub>T</sub> as your total strand concentration, not the per-strand figure
+          you would type into IDT.
         </p>
 
         <h3 className="mth-h3">Short arms: the Wallace rule</h3>
         <p>
           Nearest-neighbour thermodynamics is not valid on very short oligos: the initiation and
-          concentration terms stop being small next to the stacking sum, so a {MIN_ARM}–8 nt arm
+          concentration terms stop being small next to the stacking sum, so a {MIN_ARM}–{WALLACE_MAX - 1} nt arm
           comes out implausibly cold and can even go negative. Arms are short by design here — the
           arm cap is what makes them short — so any arm below{" "}
           <b className="mono">{WALLACE_MAX} nt</b> is scored with the Wallace rule instead:

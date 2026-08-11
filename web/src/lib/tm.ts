@@ -4,25 +4,28 @@
 // parameters) evaluated at 1 M Na⁺, then corrected to the user's actual buffer
 // with the Owczarzy (2008) mixed monovalent/divalent salt model:
 //
-//     Tm(1 M)  = ΔH_total / (ΔS_total + R·ln(C_T))          [Kelvin]
+//     Tm(1 M)  = ΔH_total / (ΔS_total + R·ln(C_T/4))        [Kelvin]
 //     1/Tm     = 1/Tm(1 M) + Δ(salt)
 //     Tm(°C)   = 1/(1/Tm) − 273.15
 //
 // ΔH_total (cal/mol) and ΔS_total (cal/(mol·K)) are the summed adjacent-doublet
 // terms plus SantaLucia's terminal-dependent initiation (a terminal G·C and a
-// terminal A·T initiate differently); R = 1.987 cal/(K·mol). C_T is the primer
-// concentration WITHOUT the /4 term — in PCR the primer is in vast excess over
-// its template, which is the pseudo-first-order case Tm = ΔH/(ΔS + R·ln[primer]).
+// terminal A·T initiate differently); R = 1.987 cal/(K·mol). C_T is the TOTAL
+// strand concentration and the /4 is SantaLucia's factor for a non-self-
+// complementary duplex whose two strands are at equal concentration.
 //
 // The salt correction Δ(salt) is applied to 1/Tm, not as an additive °C shift,
 // and is picked by the divalent/monovalent competition ratio
 // R_ratio = √[Mg²⁺]_free / [Mon⁺] — see saltCorrection() for the three regimes.
 // Free Mg²⁺ is what is left after dNTPs chelate it (K_a = 3·10⁴ M⁻¹).
 //
-// Validated against IDT OligoAnalyzer for AACTACATGGCTGAGAAC at 0.2 µM primer:
-//   50 mM Na⁺, no Mg²⁺        → 49.2 °C   (IDT "standard": 49 °C)
-//   50 mM Na⁺, 3 mM Mg²⁺,
-//   0.8 mM dNTP               → 57.0 °C   (IDT "qPCR": 56 °C)
+// NB the /4 is what separates this from the pseudo-first-order form some primer
+// tools use, Tm = ΔH/(ΔS + R·ln[primer]), which assumes the primer is in vast
+// excess over its template. The two differ by R·ln(4) on the entropy term —
+// about 2 °C — so a Tm here reads ~2 °C cooler than IDT OligoAnalyzer for the
+// same typed concentration. They agree once C_T is read as the TOTAL of both
+// strands: for AACTACATGGCTGAGAAC in a 50 mM Na⁺ / 3 mM Mg²⁺ / 0.8 mM dNTP
+// buffer, 0.8 µM total here gives 57.0 °C, matching IDT's 56 °C at 0.2 µM.
 //
 // This applies to the WHOLE primer. Each arm is short enough that nearest-neighbour
 // stops being valid, so arms below WALLACE_MAX nt use the Wallace rule instead —
@@ -50,7 +53,7 @@ export const LEN_MAX = 36;
 /** Below this whole-primer length, flag the primer as hard (few bases → GC-rich). */
 const SHORT_PRIMER = 15;
 /** Arms shorter than this use the Wallace rule instead of nearest-neighbour. */
-export const WALLACE_MAX = 14;
+export const WALLACE_MAX = 10;
 
 const CLEAN = /^[ACGT]+$/;
 
@@ -114,11 +117,12 @@ export const primerMolar = (primerUM: number) => primerUM * 1e-6;
 export const saltMolar = (saltMM: number) => saltMM * 1e-3;
 
 /**
- * The R·ln(C_T) concentration term, cal/(mol·K). No /4: a PCR primer anneals to
- * template in vast excess of itself, so the pseudo-first-order form applies.
+ * The R·ln(C_T/4) concentration term, cal/(mol·K). C_T is the total strand
+ * concentration; the 4 is SantaLucia's factor for a non-self-complementary
+ * duplex with both strands at equal concentration.
  */
 export function entropyTerm(primerUM: number): number {
-  return R_GAS * Math.log(primerMolar(Math.max(primerUM, PRIMER_MIN)));
+  return R_GAS * Math.log(primerMolar(Math.max(primerUM, PRIMER_MIN)) / 4);
 }
 
 /**
@@ -203,9 +207,9 @@ export interface TmParts {
   dh: number;
   /** cal/(mol·K) — summed doublet entropies + initiation. */
   ds: number;
-  /** R·ln(C_T), cal/(mol·K). */
+  /** R·ln(C_T/4), cal/(mol·K). */
   dsTerm: number;
-  /** ΔS_total + R·ln(C_T). */
+  /** ΔS_total + R·ln(C_T/4). */
   denom: number;
   /** Uncorrected melting temperature at 1 M Na⁺, °C. */
   tm1M: number;
@@ -263,10 +267,16 @@ export function wallaceTm(seq: string): number {
 }
 
 /**
- * Tm of a single arm. Nearest-neighbour breaks down on short oligos — its
- * initiation and concentration terms dominate and can drive the result absurdly
- * low (even negative) — so arms below WALLACE_MAX nt use the Wallace rule
- * instead. Arms only: the whole primer is always nearest-neighbour.
+ * Tm of a single arm. Nearest-neighbour breaks down on very short oligos — its
+ * initiation and concentration terms stop being small next to the stacking sum and
+ * can drive the result absurdly low (even negative) — so arms below WALLACE_MAX nt
+ * use the Wallace rule instead. Arms only: the whole primer is always
+ * nearest-neighbour, whatever its length.
+ *
+ * The cutoff is deliberately low. Wallace is the cruder estimator and ignores the
+ * buffer entirely, so it is used only where nearest-neighbour is outright invalid;
+ * every arm long enough for NN to mean something gets NN, and therefore responds to
+ * salt, Mg²⁺ and primer concentration like the whole primer does.
  */
 export function armTm(seq: string, cond: TmConditions = DEFAULT_CONDITIONS): number {
   return seq.length < WALLACE_MAX ? wallaceTm(seq) : tm(seq, cond);
