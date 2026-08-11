@@ -43,6 +43,7 @@ function buildCells(effective: Record<string, string>): string[] {
 
 export default function GraphCard({ result }: { result: AnalyzeResponse }) {
   const { gene, transcripts, target_accession, meta, primer_design } = result;
+  const k = Number(meta.k) || 20;
   // exon that holds the target's conventional forward primer (for the "★ primer here" badge)
   let primerExon: number | null = null;
   const f = primer_design.forward;
@@ -148,8 +149,8 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           <div className="legend-row">{LEGEND.slice(3).map(legendItem)}</div>
         </div>
       </div>
-      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} />
-      <p className="g-note">▾ marks the recommended exon–exon junction primer. Window size k={String(meta.k ?? 20)}.</p>
+      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} k={k} />
+      <p className="g-note">▾ marks the recommended exon–exon junction primer. Window size k={k}.</p>
     </section>
   );
 }

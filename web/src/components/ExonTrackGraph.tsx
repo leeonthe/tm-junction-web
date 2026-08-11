@@ -3,7 +3,7 @@ import type { Exon, TranscriptVerdict } from "../lib/types";
 import { tierColorVar, tierLabel } from "../lib/tier";
 
 type Tip =
-  | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null }
+  | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null; k: number }
   | { kind: "junction"; x: number; y: number; label: string; t: TranscriptVerdict }
   | null;
 
@@ -17,12 +17,14 @@ const CDS_LABEL: Record<Exon["cds"], string> = {
  * Hovering an exon / caret shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
-  transcripts, targetAccession, primerExon, chromosome = "",
+  transcripts, targetAccession, primerExon, chromosome = "", k = 20,
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
   primerExon?: number | null;
   chromosome?: string;
+  /** Primer-window length the uniqueness scan used — labels the exon tooltip's site count. */
+  k?: number;
 }) {
   const [tip, setTip] = useState<Tip>(null);
 
@@ -140,7 +142,7 @@ export default function ExonTrackGraph({
                 </>
               )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
-              {t.exons.map((e, k) => {
+              {t.exons.map((e, ei) => {
                 // Yellow = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored).
                 // A 7c exon pair / single-junction partner exon → the WHOLE exon is yellow.
                 // But when the exon carries a distinguishing sub-span (a 7a unique region, or a
@@ -150,16 +152,16 @@ export default function ExonTrackGraph({
                 const hasSpan = ur?.begin != null && ur?.end != null;
                 const isPair = (!!t.amplify_exon_pair?.includes(e.order) || t.partner_exon === e.order) && !hasSpan;
                 const exW = Math.max(2.5, x(e.end) - x(e.begin));
-                const clipId = `exclip-${i}-${k}`;
+                const clipId = `exclip-${i}-${ei}`;
                 return (
-                  <g key={k}>
+                  <g key={ei}>
                     <rect x={x(e.begin)} y={cy - exH / 2}
                       width={exW} height={exH} rx={2.5}
                       fill={isPair ? "var(--amp-pair)" : color} style={{ cursor: "inherit" }}
                       stroke={isPair ? "var(--amp-pair)" : "none"} strokeWidth={isPair ? 1.6 : 0}
                       onMouseMove={(ev) => { if (drag.current.active) return; setTip({
                         kind: "exon", x: ev.clientX, y: ev.clientY, exon: e, t, isTarget,
-                        primerExon: primerExon ?? null,
+                        primerExon: primerExon ?? null, k,
                       }); }} />
                     {hasSpan && (
                       // Full-height orange for just the unique window span, CLIPPED to the exon
@@ -213,16 +215,24 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
       </div>
     );
   }
-  const { exon: e, t, isTarget, primerExon } = tip;
+  const { exon: e, t, isTarget, primerExon, k } = tip;
   const primerHere = isTarget && primerExon === e.order;
   const pair = t.amplify_exon_pair;
   const pairRole = pair?.[0] === e.order ? "Forward" : pair?.[1] === e.order ? "Reverse" : null;
   const isPartner = t.partner_exon === e.order;
   // mRNA (transcript) coordinates of the unique window span(s) within this exon, e.g. "100–200".
+  //
+  // NB this span is the PLACEMENT ENVELOPE for a k-nt primer, not a run of k-nt-unique
+  // bases. A window is target-specific as soon as it OVERLAPS the isoform difference, so
+  // even a 1-nt difference yields a span up to (k − 1) nt wider than the difference
+  // itself. Reading the span as "this much sequence is unique" overstates it by that
+  // margin — hence the explicit window count next to it. (APEX1 NM_001641.4 exon 1:
+  // 4 windows over mRNA 147–169, from a 5-nt alternative-donor difference.)
   const uspan = t.unique_regions
     .filter((r) => r.exon_order === e.order && r.tx_begin != null && r.tx_end != null)
     .map((r) => `${r.tx_begin}–${r.tx_end}`)
     .join(", ");
+  const sites = e.unique_sites;
   // The conventional exon of a junction+exon combo: NEEDS_EEJ, has a recommended junction, and
   // this exon is the (single) combo exon. Its target site is the distinguishing sub-region.
   const isComboExon = t.tier === "NEEDS_EEJ" && !!t.recommended_junction && !!pair?.includes(e.order);
@@ -248,9 +258,18 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
           <div className="et-line et-good">EEJ + Exon combination</div>
           <div className="et-line et-good">Exon target sites: {uspan || `${e.tx_begin}–${e.tx_end}`}</div>
         </>
-      ) : e.unique_sites > 0
-        ? <div className="et-line et-good">unique sequence sites: {uspan || `${e.tx_begin}–${e.tx_end}`}</div>
-        : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
+      ) : sites > 0 ? (
+        <>
+          <div className="et-line et-good">
+            <b className="et-num">{sites}</b>&nbsp;target-specific {k}-nt primer
+            site{sites !== 1 ? "s" : ""}
+          </div>
+          <div className="et-line et-sub">
+            placeable across mRNA {uspan || `${e.tx_begin}–${e.tx_end}`} — each site
+            overlaps the isoform difference
+          </div>
+        </>
+      ) : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
       {pairRole && !isComboExon && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
       {isPartner && <div className="et-line et-pair">★ Target site — conventional partner primer, nearest the EEJ</div>}

@@ -179,6 +179,9 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
       {tab === "amplify" && (
         <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <VerdictBanner v={target_verdict} />
+          {/* The transcript's own exon track comes first: it shows WHERE the unique region and
+              the primer sit, which is the context for reading the primer cards below it. */}
+          <TargetTrackCard result={result} onExplore={() => setTab("gene")} onSelect={onSelect} />
           {/* Show DESIGNED PRIMERS only for a real conventional primer design, or the hard-case
               note. EEJ variants use the Tm designer; combo/7c cases show their info in the verdict. */}
           {!target_verdict.recommended_junction &&
@@ -186,7 +189,6 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
             <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
           )}
           <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} onMethod={onMethod} />
-          <TargetTrackCard result={result} onExplore={() => setTab("gene")} onSelect={onSelect} />
         </div>
       )}
 
