@@ -1,22 +1,28 @@
 import { useEffect, useState } from "react";
 import { suggest, suggestGenes } from "../lib/api";
+import { CustomArmInputs, type Arms } from "./CustomJunction";
 import { ArrowRight } from "./icons";
 
 // Unified typeahead row: `primary` is the value inserted/searched; `secondary` is the label
 // (gene symbol for an accession, description for a gene).
 interface Suggestion { primary: string; secondary?: string }
-type Mode = "accession" | "gene";
+/** What the user is providing. "sequence" takes no NCBI lookup — the arms ARE the input. */
+export type Mode = "accession" | "gene" | "sequence";
 
 export default function Hero({
-  onSearch, onGeneSearch, loading, history, geneHistory,
+  onSearch, onGeneSearch, loading, history, geneHistory, mode, onMode, arms, onArms,
 }: {
   onSearch: (acc: string) => void;
   onGeneSearch: (symbol: string) => void;
   loading: boolean;
   history: string[];
   geneHistory: string[];
+  /** Lifted so the page below can swap between analysis results and the sequence designer. */
+  mode: Mode;
+  onMode: (m: Mode) => void;
+  arms: Arms;
+  onArms: (a: Arms) => void;
 }) {
-  const [mode, setMode] = useState<Mode>("accession");
   const [value, setValue] = useState("NM_001256799.3");
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
@@ -25,18 +31,19 @@ export default function Hero({
 
   const q = value.trim().toUpperCase();
   const geneMode = mode === "gene";
+  const seqMode = mode === "sequence";
 
   function switchMode(m: Mode) {
     if (m === mode) return;
-    setMode(m);
-    setValue(m === "gene" ? "" : "NM_001256799.3");
+    onMode(m);
+    if (m !== "sequence") setValue(m === "gene" ? "" : "NM_001256799.3");
     setRemote([]); setActive(-1); setFocused(false);
   }
 
   // Live NCBI typeahead — accession (NM index) or gene symbols (E-utilities). Debounced.
   const minLen = geneMode ? 2 : 5;
   useEffect(() => {
-    if (!focused || q.length < minLen) { setRemote([]); setSearching(false); return; }
+    if (seqMode || !focused || q.length < minLen) { setRemote([]); setSearching(false); return; }
     const ctrl = new AbortController();
     setSearching(true);
     const t = setTimeout(async () => {
@@ -48,7 +55,7 @@ export default function Hero({
       setSearching(false);
     }, 200);
     return () => { clearTimeout(t); ctrl.abort(); };
-  }, [q, focused, value, geneMode, minLen]);
+  }, [q, focused, value, geneMode, seqMode, minLen]);
 
   const showSuggest = focused && q.length >= minLen && (remote.length > 0 || searching);
 
@@ -82,7 +89,9 @@ export default function Hero({
         Clean primers.</h1>
         <p className="lede">
         Amplify one isoform. Not its siblings. <br></br>
-    {geneMode
+    {seqMode
+      ? <>Paste the two sides of a junction to design an EEJ primer <br />against your own sequence.</>
+      : geneMode
       ? <>Search a human gene to browse its transcripts,<br />then pick a variant to analyze.</>
       : <>Enter a RefSeq accession to find unique primer regions <br />for transcript-specific RT-PCR.</>}
         </p>
@@ -90,10 +99,17 @@ export default function Hero({
         <div className="mode-toggle" role="tablist" aria-label="Search by">
           <button role="tab" aria-selected={geneMode} className={`mode-tab ${geneMode ? "on" : ""}`}
             onClick={() => switchMode("gene")}>Gene name</button>
-          <button role="tab" aria-selected={!geneMode} className={`mode-tab ${!geneMode ? "on" : ""}`}
+          <button role="tab" aria-selected={mode === "accession"} className={`mode-tab ${mode === "accession" ? "on" : ""}`}
             onClick={() => switchMode("accession")}>NCBI ID (Refseq)</button>
+          <button role="tab" aria-selected={seqMode} className={`mode-tab ${seqMode ? "on" : ""}`}
+            onClick={() => switchMode("sequence")}>Custom sequence</button>
         </div>
 
+        {seqMode ? (
+          <div className="search-wrap seq">
+            <CustomArmInputs arms={arms} onChange={onArms} />
+          </div>
+        ) : (
         <div className="search-wrap">
           <form className="search" onSubmit={(e) => { e.preventDefault(); submit(); }}>
             <input className="mono" value={value} spellCheck={false}
@@ -126,8 +142,9 @@ export default function Hero({
             </ul>
           )}
         </div>
+        )}
 
-        {(geneMode ? geneHistory : history).length > 0 && (
+        {!seqMode && (geneMode ? geneHistory : history).length > 0 && (
           <div className="examples">
             <span>Recent:</span>
             {(geneMode ? geneHistory : history).map((h) => (

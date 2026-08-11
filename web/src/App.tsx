@@ -11,6 +11,8 @@ import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
 import Summary from "./components/Summary";
 import Method from "./components/Method";
+import CustomJunctionResult, { EMPTY_ARMS, type Arms } from "./components/CustomJunction";
+import type { Mode } from "./components/Hero";
 import LoadingState from "./components/LoadingState";
 import { ArrowRight } from "./components/icons";
 
@@ -43,6 +45,10 @@ export default function App() {
   // The Method page replaces the result flow; any analysis already loaded is kept in state,
   // so leaving it returns to exactly where the user was.
   const [showMethod, setShowMethod] = useState(false);
+  // What the hero is asking for. "sequence" is a self-contained mode: the arms replace the
+  // search bar and the designer below replaces the analysis, with no NCBI lookup involved.
+  const [mode, setMode] = useState<Mode>("accession");
+  const [arms, setArms] = useState<Arms>(EMPTY_ARMS);
 
   async function geneSearch(symbol: string) {
     if (!symbol) return;
@@ -102,6 +108,7 @@ export default function App() {
     setBusy(false);
     setTab("summary");
     setShowMethod(false);
+    setMode("accession");
     setResetKey((k) => k + 1);   // remount Hero so its input clears
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -126,8 +133,11 @@ export default function App() {
       ) : (
         <>
           <Hero key={resetKey} onSearch={(acc) => run(acc)} onGeneSearch={geneSearch}
-            loading={loading} history={history} geneHistory={geneHistory} />
+            loading={loading} history={history} geneHistory={geneHistory}
+            mode={mode} onMode={setMode} arms={arms} onArms={setArms} />
           <main className="wrap">
+            {mode === "sequence" && <CustomJunctionResult arms={arms} onMethod={openMethod} />}
+            {mode !== "sequence" && <>
             {loading && <LoadingState pct={progress.pct} detail={progress.detail} />}
             {!loading && error && <div className="error-box"><b>{error.code}.</b> {error.message}</div>}
             {!loading && !result && gene && (
@@ -137,8 +147,10 @@ export default function App() {
             {!loading && result && (
               <Result result={result} tab={tab} setTab={setTab} busy={busy}
                 backToVariants={gene ? () => setResult(null) : undefined}
-                onSelect={selectIsoform} onInspect={inspectIsoform} onMethod={openMethod} />
+                onSelect={selectIsoform} onInspect={inspectIsoform} onMethod={openMethod}
+                />
             )}
+            </>}
           </main>
         </>
       )}

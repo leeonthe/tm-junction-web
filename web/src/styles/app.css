@@ -609,3 +609,45 @@ tr.is-target:hover td{background:var(--brand-tint)}
   background:var(--brand-tint);border:1px solid color-mix(in srgb,var(--brand) 22%,transparent);
   border-radius:999px;cursor:pointer;transition:all .12s ease}
 .back-variants:hover{background:color-mix(in srgb,var(--brand) 16%,var(--surface))}
+
+/* ── Custom-sequence hero mode ───────────────────────────────────────────── */
+/* Third search mode: the two arms replace the search bar, and the designer renders
+   below in place of an analysis. No NCBI lookup is involved. */
+.search-wrap.seq{max-width:820px}
+.cj-entry{display:flex;flex-direction:column;gap:12px;padding:16px;text-align:left;
+  background:var(--surface);border:1px solid var(--border-2);border-radius:var(--r-md);
+  box-shadow:var(--shadow-card)}
+.cj-inputs{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:14px}
+.cj-arm{display:flex;flex-direction:column;gap:6px;min-width:0}
+.cj-arm-head{display:flex;align-items:baseline;gap:8px;font-size:12.5px;color:var(--ink)}
+.cj-arm-hint{color:var(--faint);font-size:11.5px}
+.cj-arm-len{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
+.cj-arm textarea{width:100%;resize:vertical;padding:10px 12px;font-size:13px;line-height:1.6;
+  letter-spacing:.04em;color:var(--ink);background:var(--surface-2);border:1px solid var(--border-2);
+  border-radius:var(--r-sm);transition:border-color .15s,box-shadow .15s}
+.cj-arm textarea:focus{outline:none;border-color:var(--brand);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 16%,transparent)}
+.cj-arm.ok textarea{border-color:color-mix(in srgb,var(--conv) 45%,var(--border-2))}
+.cj-arm.bad textarea{border-color:color-mix(in srgb,var(--eej) 55%,var(--border-2))}
+.cj-arm-msg{font-size:11px;color:var(--faint);min-height:14px}
+.cj-arm-msg.bad{color:var(--eej);font-weight:600}
+/* the seam between the two arms, mirroring the red junction mark in the strip */
+.cj-join{display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:26px}
+.cj-join-mark{width:2px;height:38px;border-radius:1px;background:var(--eej)}
+.cj-join-cap{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.cj-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cj-actions .btn{padding:7px 14px;font-size:13px}
+.cj-note{font-size:11.5px;color:var(--faint);flex:1 1 240px;line-height:1.5}
+
+/* waiting-for-input state of the designer below the hero */
+.cj-idle{margin-top:28px}
+.cj-idle .sub{max-width:78ch}
+/* stats chip: same shape as the junction badge but neutral, since it labels no tier */
+.jd-badge.neutral{color:var(--muted);background:var(--surface-3)}
+.jd-intro{margin-bottom:14px}
+
+@media (max-width:720px){
+  .cj-inputs{grid-template-columns:1fr;gap:10px}
+  .cj-join{flex-direction:row;padding-top:0;gap:8px}
+  .cj-join-mark{width:38px;height:2px}
+}
