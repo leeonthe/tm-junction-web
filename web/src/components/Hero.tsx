@@ -9,6 +9,14 @@ interface Suggestion { primary: string; secondary?: string }
 /** What the user is providing. "sequence" takes no NCBI lookup — the arms ARE the input. */
 export type Mode = "accession" | "gene" | "sequence";
 
+/** The mode the app opens on. Gene name is the friendlier entry point: most users know the
+ *  symbol, not the accession, and it leads into the variant picker. */
+export const DEFAULT_MODE: Mode = "gene";
+
+/** Seed text for the search box in a given mode — shared by the initial state and the mode
+ *  switch so the two can never disagree about what a mode starts with. */
+const seedFor = (m: Mode) => (m === "accession" ? "NM_001256799.3" : "");
+
 export default function Hero({
   onSearch, onGeneSearch, loading, history, geneHistory, mode, onMode, arms, onArms,
 }: {
@@ -23,7 +31,7 @@ export default function Hero({
   arms: Arms;
   onArms: (a: Arms) => void;
 }) {
-  const [value, setValue] = useState("NM_001256799.3");
+  const [value, setValue] = useState(() => seedFor(mode));
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const [remote, setRemote] = useState<Suggestion[]>([]);
@@ -36,7 +44,7 @@ export default function Hero({
   function switchMode(m: Mode) {
     if (m === mode) return;
     onMode(m);
-    if (m !== "sequence") setValue(m === "gene" ? "" : "NM_001256799.3");
+    if (m !== "sequence") setValue(seedFor(m));
     setRemote([]); setActive(-1); setFocused(false);
   }
 

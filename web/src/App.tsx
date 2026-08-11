@@ -12,7 +12,7 @@ import GeneClassification from "./components/GeneClassification";
 import Summary from "./components/Summary";
 import Method from "./components/Method";
 import CustomJunctionResult, { EMPTY_ARMS, type Arms } from "./components/CustomJunction";
-import type { Mode } from "./components/Hero";
+import { DEFAULT_MODE, type Mode } from "./components/Hero";
 import LoadingState from "./components/LoadingState";
 import { ArrowRight } from "./components/icons";
 
@@ -47,7 +47,7 @@ export default function App() {
   const [showMethod, setShowMethod] = useState(false);
   // What the hero is asking for. "sequence" is a self-contained mode: the arms replace the
   // search bar and the designer below replaces the analysis, with no NCBI lookup involved.
-  const [mode, setMode] = useState<Mode>("accession");
+  const [mode, setMode] = useState<Mode>(DEFAULT_MODE);
   const [arms, setArms] = useState<Arms>(EMPTY_ARMS);
 
   async function geneSearch(symbol: string) {
@@ -108,7 +108,7 @@ export default function App() {
     setBusy(false);
     setTab("summary");
     setShowMethod(false);
-    setMode("accession");
+    setMode(DEFAULT_MODE);
     setResetKey((k) => k + 1);   // remount Hero so its input clears
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
