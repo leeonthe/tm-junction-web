@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import ref from "./__fixtures__/owczarzy2008.json";
 import {
-  ARM_GAP, DEFAULT_CONDITIONS, LEN_MAX, LEN_MIN, MIN_ARM, MG_DNTP_KA, WALLACE_MAX,
+  ARM_GAP, DEFAULT_CONDITIONS, LEN_MAX, LEN_MIN, MIN_ARM, MG_DNTP_KA, R_GAS, WALLACE_MAX,
   armTm, autoPick, clampConditions, evalWindow, freeMg, gcPercent, isDefaultConditions,
-  saltCorrection, tm, tmParts, wallaceTm, type TmConditions,
+  SALT_COEF_BASE, saltCorrection, tm, tmParts, wallaceTm, type TmConditions,
 } from "./tm";
 
 /**
@@ -70,9 +70,25 @@ describe("published reference values", () => {
     expect(tm(SEQ, CONDS({ primerUM: 0.8, mgMM: 0, dntpMM: 0 }))).toBeCloseTo(49.16, 2);
   });
 
-  it("the /4 costs exactly R·ln(4) on the entropy term", () => {
-    // Same oligo, C_T vs C_T/4 → the gap is fixed by the factor, not the sequence.
-    expect(tm(SEQ, CONDS({ primerUM: 0.8 })) - tm(SEQ, DEFAULT_CONDITIONS)).toBeCloseTo(2.19, 2);
+  it("the /4 shifts the entropy term by exactly R·ln(4) for every sequence", () => {
+    for (const q of ["GGGGGGCCCC", SEQ, "CTTTTTTACCTCAGGTCACAAATTGGT"]) {
+      const a = tmParts(q, DEFAULT_CONDITIONS)!;          // C_T/4
+      const b = tmParts(q, CONDS({ primerUM: 0.8 }))!;    // same as C_T with no /4
+      expect(a.dsTerm - b.dsTerm).toBeCloseTo(-R_GAS * Math.log(4), 10);
+    }
+  });
+
+  it("but the resulting Tm shift is NOT constant — a larger |ΔS| dilutes it", () => {
+    // Worth pinning: it is tempting to quote "the /4 costs ~2 °C" as a fixed number.
+    // It is not. The ΔS offset is fixed; its effect on Tm scales with 1/|ΔS|, so a
+    // 10-mer moves ~4 °C and a 40-mer ~1 °C.
+    const shift = (q: string) =>
+      tm(q, CONDS({ primerUM: 0.8 })) - tm(q, DEFAULT_CONDITIONS);
+    expect(shift("GGGGGGCCCC")).toBeCloseTo(4.03, 1);                    // 10 nt
+    expect(shift(SEQ)).toBeCloseTo(2.19, 1);                             // 18 nt
+    expect(shift("CTTTTTTACCTCAGGTCACAAATTGGT")).toBeCloseTo(1.51, 1);   // 27 nt
+    expect(shift("GCTCCTCCTGTTCGACAGTCAGCCGCATCTTCTTTTGCGT")).toBeCloseTo(1.04, 1); // 40 nt
+    expect(shift("GGGGGGCCCC")).toBeGreaterThan(shift("CTTTTTTACCTCAGGTCACAAATTGGT"));
   });
 
   it("puts a normal qPCR buffer in the mixed (competing-ion) regime", () => {
@@ -80,6 +96,54 @@ describe("published reference values", () => {
     expect(s.regime).toBe("mixed");
     expect(s.ratio).toBeGreaterThanOrEqual(0.22);
     expect(s.ratio).toBeLessThan(6.0);
+  });
+});
+
+describe("eq.-16 coefficients (what the Method page prints)", () => {
+  const f = gcPercent("AACTACATGGCTGAGAAC") / 100, L = 18;
+
+  it("base values match Owczarzy 2008 Table 2", () => {
+    expect(SALT_COEF_BASE).toEqual({
+      a: 3.92, b: -0.911, c: 6.26, d: 1.42, e: -48.2, f: 52.5, g: 8.31,
+    });
+  });
+
+  it("only a, d and g vary with monovalent salt; b, c, e, f are constants", () => {
+    const lo = saltCorrection(f, L, CONDS({ saltMM: 20, mgMM: 50, dntpMM: 0 })).coef!;
+    const hi = saltCorrection(f, L, CONDS({ saltMM: 200, mgMM: 50, dntpMM: 0 })).coef!;
+    for (const k of ["b", "c", "e", "f"] as const) expect(lo[k]).toBe(hi[k]);
+    for (const k of ["a", "d", "g"] as const) expect(lo[k]).not.toBe(hi[k]);
+  });
+
+  it("the divalent branch uses the base values unrefitted", () => {
+    const s = saltCorrection(f, L, CONDS({ saltMM: 1, mgMM: 50, dntpMM: 0 }));
+    expect(s.regime).toBe("divalent");
+    expect(s.coef).toEqual(SALT_COEF_BASE);
+  });
+
+  it("the monovalent branch reports no eq.-16 coefficients (different equation)", () => {
+    const s = saltCorrection(f, L, CONDS({ mgMM: 0, dntpMM: 0 }));
+    expect(s.regime).toBe("monovalent");
+    expect(s.coef).toBeNull();
+  });
+
+  it("the refits reproduce eqs. 18-20 exactly at the default buffer", () => {
+    const c = saltCorrection(f, L, DEFAULT_CONDITIONS).coef!;
+    const l = Math.log(DEFAULT_CONDITIONS.saltMM * 1e-3);
+    expect(c.a).toBeCloseTo(3.92 * (0.843 - 0.352 * Math.sqrt(0.05) * l), 12);
+    expect(c.d).toBeCloseTo(1.42 * (1.279 - 4.03e-3 * l - 8.03e-3 * l * l), 12);
+    expect(c.g).toBeCloseTo(8.31 * (0.486 - 0.258 * l + 5.25e-3 * l ** 3), 12);
+  });
+
+  it("the printed coefficients actually reconstruct the delta they came from", () => {
+    // Guards against the page showing one set of numbers while the model uses another.
+    const cond = CONDS({ saltMM: 50, mgMM: 3, dntpMM: 0.8 });
+    const s = saltCorrection(f, L, cond);
+    const { a, b, c, d, e, f: ff, g } = s.coef!;
+    const lm = Math.log(s.mgFree);
+    const rebuilt = (a + b * lm + f * (c + d * lm)
+      + (e + ff * lm + g * lm * lm) / (2 * (L - 1))) * 1e-5;
+    expect(rebuilt).toBeCloseTo(s.delta, 15);
   });
 });
 

@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import {
   ARM_GAP, DEFAULT_CONDITIONS, DNTP_MAX, DNTP_MIN, LEN_MAX, LEN_MIN, MG_DNTP_KA, MG_MAX,
   MG_MIN, MIN_ARM, PRIMER_MAX, PRIMER_MIN, RATIO_MIXED_MAX, RATIO_MONO_MAX, R_GAS,
-  SALT_MAX, SALT_MIN, WALLACE_MAX, ZERO_C, primerMolar, saltMolar, tmParts,
-  wallaceTm,
+  SALT_COEF_BASE, SALT_MAX, SALT_MIN, WALLACE_MAX, ZERO_C, primerMolar, saltMolar, tmParts,
+  wallaceTm, type SaltCoefficients,
 } from "../lib/tm";
 import { fixed, molarStr, numStr, rounded, signed } from "../lib/format";
 import { ArrowRight } from "./icons";
@@ -12,6 +12,18 @@ import { ArrowRight } from "./icons";
 const EXAMPLE = "AACTACATGGCTGAGAAC";
 /** An arm-length oligo for the Wallace worked example — also recomputed live. */
 const ARM_EXAMPLE = "CTCGCGA";
+
+/** Equation-16 coefficients in display order, with the mixed-band refit for the three that
+ *  are not constants (Owczarzy 2008 eqs. 18–20). `l` denotes ln[Mon⁺]. */
+const COEF_ROWS: { k: keyof SaltCoefficients; refit: string | null }[] = [
+  { k: "a", refit: "a · (0.843 − 0.352·√[Mon]·l)" },
+  { k: "b", refit: null },
+  { k: "c", refit: null },
+  { k: "d", refit: "d · (1.279 − 4.03e-3·l − 8.03e-3·l²)" },
+  { k: "e", refit: null },
+  { k: "f", refit: null },
+  { k: "g", refit: "g · (0.486 − 0.258·l + 5.25e-3·l³)" },
+];
 
 /**
  * Method page: how the verdict is reached, what the Tm-guided EEJ rule is, and the exact
@@ -195,6 +207,79 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           <b> free</b> Mg²⁺ left over, not what you pipetted. At the defaults that is{" "}
           <b className="mono">{fixed(ex.salt.mgFree * 1e3, 2)} mM</b> free of{" "}
           {numStr(DEFAULT_CONDITIONS.mgMM)} mM total.
+        </p>
+
+        <h3 className="mth-h3">The equation and its coefficients</h3>
+        <p>
+          In the mixed and Mg²⁺-dominant branches the correction is Owczarzy's equation 16.
+          f<sub>GC</sub> is the GC fraction, N the oligo length in bases, and [Mg²⁺] the{" "}
+          <em>free</em> magnesium from above:
+        </p>
+        <div className="mth-eq-wrap">
+          <div className="mth-eq mono mth-eq-16">
+            <span className="frac">
+              <span className="num">1</span><span className="den">T<sub>m</sub>(salt)</span>
+            </span>
+            <span className="op">=</span>
+            <span className="frac">
+              <span className="num">1</span><span className="den">T<sub>m</sub>(1 M)</span>
+            </span>
+            <span><span className="op">+ </span>a</span>
+            <span><span className="op">+ </span>b · ln[Mg²⁺]</span>
+            <span><span className="op">+ </span>f<sub>GC</sub> · (c + d · ln[Mg²⁺])</span>
+            <span><span className="op">+ </span>
+              <span className="frac">
+                <span className="num">e + f · ln[Mg²⁺] + g · (ln[Mg²⁺])²</span>
+                <span className="den">2 · (N − 1)</span>
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <p>
+          All seven coefficients are <span className="mono">×10⁻⁵</span>. <b>Four of them are
+          constants.</b> The other three — <span className="mono">a</span>,{" "}
+          <span className="mono">d</span> and <span className="mono">g</span> — are themselves
+          refitted against ln[Mon⁺] in the competing-ion band, which is what makes that band a
+          different model rather than the same numbers at different inputs. The right-hand
+          column is the value this page actually computed at the default conditions
+          ({numStr(DEFAULT_CONDITIONS.saltMM)} mM salt, {ex.salt.regime} branch):
+        </p>
+        <div className="mth-coef-wrap">
+          <table className="mth-coef mono">
+            <thead>
+              <tr>
+                <th>coef.</th><th>base (×10⁻⁵)</th>
+                <th>depends on [Mon⁺]?</th><th>at defaults (×10⁻⁵)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COEF_ROWS.map(({ k, refit }) => (
+                <tr key={k} className={refit ? "vary" : undefined}>
+                  <td><b>{k}</b></td>
+                  <td>{SALT_COEF_BASE[k]}</td>
+                  <td className="tn">{refit ?? "—  constant"}</td>
+                  <td>{ex.salt.coef ? fixed(ex.salt.coef[k], 4) : "n/a"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mth-note">
+          The monovalent-only branch does not use equation 16 at all — it is the Owczarzy (2004)
+          two-term equation{" "}
+          <span className="mono">
+            Δ<sub>salt</sub> = (4.29·f<sub>GC</sub> − 3.95)·10⁻⁵·ln[Mon⁺] + 9.40·10⁻⁶·(ln[Mon⁺])²
+          </span>, which is why the table above reads <span className="mono">n/a</span> whenever
+          the buffer falls in that branch.
+        </p>
+        <p className="mth-note">
+          ⚠️ A circulating version of this table expands <em>all seven</em> coefficients as
+          uniform quadratics in ln[Mon⁺]. That is wrong on three counts — only a, d and g vary;
+          the expansions are not quadratics (a carries √[Mon⁺]·ln[Mon⁺], g a cubic term); and
+          several values are misstated. Implemented verbatim it returns ≈88 °C where the
+          reference is ≈55 °C. The values above are cross-checked against Biopython's
+          independent implementation of the same paper.
         </p>
 
         <h3 className="mth-h3">Reaction conditions</h3>

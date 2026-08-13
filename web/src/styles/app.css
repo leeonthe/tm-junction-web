@@ -651,3 +651,17 @@ tr.is-target:hover td{background:var(--brand-tint)}
   .cj-join{flex-direction:row;padding-top:0;gap:8px}
   .cj-join-mark{width:38px;height:2px}
 }
+
+/* Owczarzy eq.-16 coefficient table on the Method page */
+.mth-coef-wrap{overflow-x:auto;margin:14px 0}
+.mth-coef{width:100%;border-collapse:collapse;font-size:12px;min-width:520px}
+.mth-coef th{text-align:left;padding:7px 12px 7px 0;font-size:10.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--faint);font-weight:600;border-bottom:1px solid var(--border-2)}
+.mth-coef td{padding:7px 12px 7px 0;border-bottom:1px solid var(--divider);color:var(--ink);
+  vertical-align:baseline;white-space:nowrap}
+.mth-coef td.tn{color:var(--muted);white-space:normal}
+/* the three that carry a monovalent dependence — the point of the table */
+.mth-coef tr.vary td{background:var(--brand-tint)}
+.mth-coef tr.vary td:first-child b{color:var(--brand-ink)}
+/* eq. 16 is long; let it wrap between terms rather than overflow */
+.mth-eq.mth-eq-16{flex-wrap:wrap;row-gap:10px}

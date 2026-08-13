@@ -142,6 +142,11 @@ export function freeMg(mgMM: number, dntpMM: number): number {
 /** Which of Owczarzy's three salt regimes a buffer falls in. */
 export type SaltRegime = "monovalent" | "mixed" | "divalent";
 
+/** The seven eq.-16 coefficients, as actually used for a given buffer (already ×10⁻⁵). */
+export interface SaltCoefficients {
+  a: number; b: number; c: number; d: number; e: number; f: number; g: number;
+}
+
 export interface SaltCorrection {
   /** Added to 1/Tm(1 M), in K⁻¹. */
   delta: number;
@@ -150,7 +155,20 @@ export interface SaltCorrection {
   mgFree: number;
   /** R_ratio = √[Mg²⁺]_free / [Mon⁺]; Infinity when there is no monovalent salt. */
   ratio: number;
+  /**
+   * The resolved eq.-16 coefficients for this buffer — base values in the divalent
+   * regime, with a, d and g refitted against ln[Mon⁺] in the mixed regime. Exposed so the
+   * Method page can PRINT the numbers it actually computed with, rather than restating a
+   * table that could drift from the code. Null in the monovalent-only branch, which uses
+   * the Owczarzy 2004 equation instead of eq. 16.
+   */
+  coef: SaltCoefficients | null;
 }
+
+/** Base eq.-16 coefficients (Owczarzy 2008 Table 2), ×10⁻⁵. */
+export const SALT_COEF_BASE: SaltCoefficients = {
+  a: 3.92, b: -0.911, c: 6.26, d: 1.42, e: -48.2, f: 52.5, g: 8.31,
+};
 
 /**
  * Owczarzy (2008) salt correction, returned as the Δ added to 1/Tm(1 M).
@@ -178,11 +196,11 @@ export function saltCorrection(fGC: number, len: number, cond: TmConditions): Sa
   };
 
   if (mgFree <= 0 || ratio < RATIO_MONO_MAX)
-    return { delta: monovalent(), regime: "monovalent", mgFree, ratio };
+    return { delta: monovalent(), regime: "monovalent", mgFree, ratio, coef: null };
 
   // eq. 16 base coefficients (×10⁻⁵), Table 2.
-  let a = 3.92, d = 1.42, g = 8.31;
-  const b = -0.911, c = 6.26, e = -48.2, f = 52.5;
+  let { a, d, g } = SALT_COEF_BASE;
+  const { b, c, e, f } = SALT_COEF_BASE;
   const regime: SaltRegime = ratio < RATIO_MIXED_MAX ? "mixed" : "divalent";
   if (regime === "mixed" && mon > 0) {
     // Competition band: a, d and g pick up a monovalent dependence (eqs. 18–20).
@@ -197,7 +215,7 @@ export function saltCorrection(fGC: number, len: number, cond: TmConditions): Sa
     + fGC * (c + d * lm)
     + (e + f * lm + g * lm * lm) / (2 * (len - 1))
   ) * 1e-5;
-  return { delta, regime, mgFree, ratio };
+  return { delta, regime, mgFree, ratio, coef: { a, b, c, d, e, f, g } };
 }
 
 /** Every term of the Tm calculation, for the live formula readout. */
