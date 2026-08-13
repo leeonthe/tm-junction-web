@@ -150,7 +150,31 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
         </div>
       </div>
       <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} k={k} />
-      <p className="g-note">▾ marks the recommended exon–exon junction primer. Window size k={k}.</p>
+      <p className="g-note">
+        The <BracketGlyph /> bracket joins the two exons of the recommended exon–exon junction
+        primer — the primer spans that connection, so it marks a range, not one exact spot.{" "}
+        <TriangleGlyph /> marks the conventional partner primer's exon and points toward its
+        EEJ mate. Window size k={k}.
+      </p>
     </section>
+  );
+}
+
+/* The two graph markers, drawn the same way in the note as on the track — a text glyph
+   (⌐¬, ⏴) renders too inconsistently across fonts to stand in for them. */
+function BracketGlyph() {
+  return (
+    <svg className="g-glyph" width="20" height="9" viewBox="0 0 20 9" aria-label="bracket" role="img">
+      <path d="M2 8 L2 2 L18 2 L18 8" fill="none" stroke="var(--eej)" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function TriangleGlyph() {
+  return (
+    <svg className="g-glyph" width="12" height="10" viewBox="0 0 12 10" aria-label="triangle" role="img">
+      <path d="M10 1 L10 9 L2 5 Z" fill="var(--amp-pair)"
+        stroke="color-mix(in srgb, var(--ink) 35%, transparent)" strokeWidth="0.8" />
+    </svg>
   );
 }

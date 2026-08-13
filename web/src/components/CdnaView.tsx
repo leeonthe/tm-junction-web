@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
-import type { Exon, Primer, TranscriptVerdict } from "../lib/types";
+import type { Exon, TranscriptVerdict } from "../lib/types";
+
+/** Where a primer binds on the mRNA — all this view needs (a full Primer also fits). */
+export interface PrimerSpan { tx_start: number; length: number }
 
 /**
  * cDNA sequence view (ExonSurfer-style): the mRNA around the amplicon, exons colored by
@@ -10,8 +13,8 @@ export default function CdnaView({
   mrna, forward, reverse, verdict,
 }: {
   mrna: string;
-  forward: Primer | null;
-  reverse: Primer | null;
+  forward: PrimerSpan | null;
+  reverse: PrimerSpan | null;
   verdict: TranscriptVerdict;
 }) {
   const exons = verdict.exons;

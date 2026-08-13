@@ -239,6 +239,8 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
 .sw-cell.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
 .scroll-x{overflow-x:auto}
 .g-note{font-size:12.5px;color:var(--faint);margin:14px 0 0}
+/* marker glyphs drawn inline in the note, sitting on the text baseline */
+.g-note .g-glyph{vertical-align:-1px;margin:0 1px}
 
 /* table */
 table{width:100%;border-collapse:collapse;font-size:14px}
@@ -476,6 +478,43 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-primer{font-size:15px;color:var(--ink);letter-spacing:.02em;word-break:break-all}
 .jd-primer .jd-split{display:inline-block;width:2px;height:1.1em;background:var(--jx-line);
   margin:0 2px;vertical-align:-2px;border-radius:2px}
+
+/* 5'/3' orientation labels pinned inside the top corners of the drag strip */
+.jd-ends{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;
+  font-weight:700;line-height:1;color:var(--faint);letter-spacing:.04em;
+  margin:-2px 0 2px;user-select:none;pointer-events:none}
+
+/* ---- second (partner) primer panel ---- */
+.pp{margin-top:18px;padding-top:18px;border-top:1px dashed var(--border-2);
+  display:flex;flex-direction:column;gap:12px}
+.pp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+/* amplicon sizes run to four digits — wider than the two-digit Tm bounds */
+.pp-amp input{width:66px}
+.pp-sub{margin:5px 0 0;font-size:12.5px;color:var(--muted);max-width:62ch}
+.pp-idle{margin:0;font-size:13px;color:var(--muted)}
+.pp-options{display:flex;flex-direction:column;gap:8px}
+.pp-opt{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;text-align:left;
+  font:inherit;padding:9px 12px;background:var(--surface);border:1px solid var(--border-2);
+  border-radius:var(--r-sm);cursor:pointer;transition:border-color .15s,background .15s}
+.pp-opt:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--border-2))}
+.pp-opt.on{background:var(--brand-tint);border-color:var(--brand);
+  box-shadow:inset 0 0 0 1px var(--brand)}
+.pp-role{font-size:11px;font-weight:700;letter-spacing:.03em;white-space:nowrap;
+  padding:3px 9px;border-radius:var(--r-pill)}
+.pp-role.f{background:var(--fwd-hl);color:var(--ink)}
+.pp-role.r{background:var(--rev-hl);color:var(--ink)}
+.pp-seq{font-size:13.5px;color:var(--ink);word-break:break-all}
+.pp-meta{font-size:12px;color:var(--muted)}
+.pp-meta b{color:var(--ink);font-family:var(--mono);font-weight:600}
+/* every listed option is inside the user's ±cap, so ΔTm needs no pass/fail color */
+.pp-dtm{font-family:var(--mono);font-weight:600;color:var(--ok)}
+.pp-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pp-pair{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--ink);word-break:break-all}
+.pp-tag{display:inline-block;min-width:18px;text-align:center;font-size:11px;font-weight:700;
+  border-radius:4px;padding:1px 4px;margin-right:6px}
+.pp-tag.f{background:var(--fwd-hl)}
+.pp-tag.r{background:var(--rev-hl)}
+.pp-eej{font-style:normal;font-size:11px;font-weight:700;color:var(--eej);margin-left:6px}
 
 /* conditions summary chip in the card head — jumps to the editable inputs */
 .jd-cond-chip{display:inline-flex;align-items:center;gap:5px;margin-top:2px;padding:3px 10px;

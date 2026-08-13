@@ -5,6 +5,7 @@ import { tierColorVar, tierLabel } from "../lib/tier";
 type Tip =
   | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null; k: number }
   | { kind: "junction"; x: number; y: number; label: string; t: TranscriptVerdict }
+  | { kind: "partner"; x: number; y: number; exon: number; left: boolean }
   | null;
 
 const CDS_LABEL: Record<Exon["cds"], string> = {
@@ -13,8 +14,10 @@ const CDS_LABEL: Record<Exon["cds"], string> = {
 
 /**
  * Exon-track graph — one row per NM isoform, exons to GRCh38 scale, colored by
- * sequence tier, target highlighted, MANE badged, ▾ at the recommended EEJ.
- * Hovering an exon / caret shows a primer-design-relevant card.
+ * sequence tier, target highlighted, MANE badged, a bracket joining the two exons of
+ * the recommended EEJ (the primer spans the connection — a range, not one spot) and a
+ * ⏴/⏵ triangle over the partner exon pointing toward its EEJ mate.
+ * Hovering an exon / marker shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
   transcripts, targetAccession, primerExon, chromosome = "", k = 20,
@@ -110,20 +113,37 @@ export default function ExonTrackGraph({
           // Orange target exons are shown for EVERY amplifiable isoform (each row shows the
           // exon(s) to target for that transcript), not only the analyzed target.
           const uniqByExon = new Map(t.unique_regions.map((r) => [r.exon_order, r]));
-          // EEJ carets: the recommended junction (red), plus a two-junction combo (magenta).
-          const junctionCx = (d: number, a: number): number | null => {
+          // EEJ markers: a BRACKET connecting the two exons the primer joins — the
+          // recommended junction (red), plus a two-junction combo (magenta). A bracket,
+          // not an arrow: the primer spans the whole connection, it has no single spot.
+          const junctionSpanX = (d: number, a: number): [number, number] | null => {
             const donor = t.exons[d - 1], acceptor = t.exons[a - 1];
-            return donor && acceptor ? (x(donor.end) + x(acceptor.begin)) / 2 : null;
+            if (!donor || !acceptor) return null;
+            let lo = Math.min(x(donor.end), x(acceptor.begin));
+            let hi = Math.max(x(donor.end), x(acceptor.begin));
+            if (hi - lo < 12) { const m = (hi + lo) / 2; lo = m - 6; hi = m + 6; }
+            return [lo, hi];
           };
-          const carets: { cx: number; magenta: boolean; label: string }[] = [];
+          const brackets: { x1: number; x2: number; magenta: boolean; label: string }[] = [];
           const rj = t.recommended_junction;
           if (rj) {
-            const cx = junctionCx(rj.donor_order, rj.acceptor_order);
-            if (cx != null) carets.push({ cx, magenta: false, label: rj.label });
+            const sp = junctionSpanX(rj.donor_order, rj.acceptor_order);
+            if (sp) brackets.push({ x1: sp[0], x2: sp[1], magenta: false, label: rj.label });
           }
           for (const [d, a] of t.combo_junctions ?? []) {
-            const cx = junctionCx(d, a);
-            if (cx != null) carets.push({ cx, magenta: true, label: `exon ${d}–exon ${a}` });
+            const sp = junctionSpanX(d, a);
+            if (sp) brackets.push({ x1: sp[0], x2: sp[1], magenta: true, label: `exon ${d}–exon ${a}` });
+          }
+          // Partner-primer marker: a triangle above the partner exon pointing toward the
+          // junction (its EEJ mate). Pointing left (⏴) = it is the pair's reverse primer.
+          let partnerTri: { cx: number; left: boolean; exon: number } | null = null;
+          if (t.partner_exon != null && rj) {
+            const pe = t.exons[t.partner_exon - 1];
+            const sp = junctionSpanX(rj.donor_order, rj.acceptor_order);
+            if (pe && sp) {
+              const cx = (x(pe.begin) + x(pe.end)) / 2;
+              partnerTri = { cx, left: cx > (sp[0] + sp[1]) / 2, exon: t.partner_exon };
+            }
           }
           return (
             <g key={t.accession}>
@@ -178,12 +198,31 @@ export default function ExonTrackGraph({
                   </g>
                 );
               })}
-              {carets.map((c, ci) => (
-                <path key={ci}
-                  d={`M${c.cx - 5} ${cy - exH / 2 - 8} L${c.cx + 5} ${cy - exH / 2 - 8} L${c.cx} ${cy - exH / 2 - 1} Z`}
-                  fill={c.magenta ? "var(--eej-combo)" : "var(--eej)"} style={{ cursor: "inherit" }}
-                  onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "junction", x: ev.clientX, y: ev.clientY, label: c.label, t }); }} />
-              ))}
+              {brackets.map((c, ci) => {
+                const yb = cy - exH / 2 - 8;   // bracket bar; legs reach down toward each exon
+                return (
+                  <g key={ci} style={{ cursor: "inherit" }}
+                    onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "junction", x: ev.clientX, y: ev.clientY, label: c.label, t }); }}>
+                    <path d={`M${c.x1} ${yb + 5} L${c.x1} ${yb} L${c.x2} ${yb} L${c.x2} ${yb + 5}`}
+                      fill="none" stroke={c.magenta ? "var(--eej-combo)" : "var(--eej)"}
+                      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    {/* invisible, slightly larger hover target for the tooltip */}
+                    <rect x={c.x1 - 3} y={yb - 4} width={c.x2 - c.x1 + 6} height={12} fill="transparent" />
+                  </g>
+                );
+              })}
+              {partnerTri && (() => {
+                const { cx, left } = partnerTri;
+                const py = cy - exH / 2 - 5.5;
+                const d = left
+                  ? `M${cx + 4.5} ${py - 4.5} L${cx + 4.5} ${py + 4.5} L${cx - 4.5} ${py} Z`
+                  : `M${cx - 4.5} ${py - 4.5} L${cx - 4.5} ${py + 4.5} L${cx + 4.5} ${py} Z`;
+                return (
+                  <path d={d} fill="var(--amp-pair)" style={{ cursor: "inherit" }}
+                    stroke="color-mix(in srgb, var(--ink) 35%, transparent)" strokeWidth={0.8}
+                    onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "partner", x: ev.clientX, y: ev.clientY, exon: partnerTri!.exon, left }); }} />
+                );
+              })()}
             </g>
           );
         })}
@@ -211,7 +250,18 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
       <div className="exon-tip" style={style}>
         <div className="et-head"><b style={{ color: "var(--eej)" }}>Recommended EEJ</b></div>
         <div className="et-line mono">{tip.label}</div>
-        <div className="et-line">A junction-spanning primer here is unique to this isoform.</div>
+        <div className="et-line">A junction-spanning primer across this exon–exon connection is
+          unique to this isoform — the bracket spans the connection, not one exact spot.</div>
+      </div>
+    );
+  }
+  if (tip.kind === "partner") {
+    return (
+      <div className="exon-tip" style={style}>
+        <div className="et-head"><b style={{ color: "var(--amp-pair)" }}>
+          Partner primer · exon {tip.exon}</b></div>
+        <div className="et-line">Conventional <b>{tip.left ? "reverse" : "forward"}</b> primer
+          site — {tip.left ? "⏴" : "⏵"} points toward its EEJ mate.</div>
       </div>
     );
   }

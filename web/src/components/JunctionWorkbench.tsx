@@ -213,11 +213,15 @@ export function Conditions({ s, onMethod }: { s: JunctionSettings; onMethod?: ()
  * Deliberately NOT keyed on the reaction conditions: keeping the user's window lets them
  * watch the same primer move as they retune salt or primer concentration.
  */
-export function JunctionWorkbench({ geom, s, reseedKey, intro }: {
+export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEval }: {
   geom: JunctionGeom;
   s: JunctionSettings;
   reseedKey: string;
   intro?: ReactNode;
+  /** Extra control(s) rendered at the end of the legend row (e.g. a full-view toggle). */
+  legendExtra?: ReactNode;
+  /** Live report of the current selection's evaluation — lets a parent design a partner. */
+  onEval?: (ev: WindowEval | null) => void;
 }) {
   const { seq, jx, leftBound, rightBound, winStart, winEnd } = geom;
   const [sel, setSel] = useState<{ s: number; e: number } | null>(null);
@@ -246,6 +250,12 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro }: {
   const ev: WindowEval | null = sel
     ? evalWindow(seq, jx, sel.s, sel.e, s.tmMin, s.tmMax, s.cond)
     : null;
+
+  // Report the live evaluation upward whenever the selection or the Tm inputs move.
+  useEffect(() => {
+    onEval?.(ev);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel?.s, sel?.e, s.tmMin, s.tmMax, s.cond, seq, jx]);
 
   function onDown(i: number) {
     dragging.current = true;
@@ -300,6 +310,8 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro }: {
         aria-label="Drag to select a primer; press Cmd or Ctrl + C to copy"
         className={`jd-seq mono ${selState}`}
         onKeyDown={onSeqKeyDown} onMouseLeave={() => { dragging.current = false; }}>
+        {/* Strand orientation: the strip always reads sense 5′ (left) → 3′ (right). */}
+        <div className="jd-ends" aria-hidden="true"><span>5′</span><span>3′</span></div>
         {winStart > 0 && <span className="cdna-ellipsis">…{winStart} nt </span>}
         {bases}
         {winEnd < seq.length && <span className="cdna-ellipsis"> {seq.length - winEnd} nt…</span>}
@@ -320,6 +332,7 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro }: {
         <button className="btn btn-ghost jd-auto"
           onClick={() => pick.best && setSel({ s: pick.best.s, e: pick.best.e })}
           disabled={!pick.best}>Reset to auto-pick</button>
+        {legendExtra}
       </div>
 
       {ev && <Readout ev={ev} tmMin={s.tmMin} tmMax={s.tmMax}
