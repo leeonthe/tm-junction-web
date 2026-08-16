@@ -5,12 +5,47 @@ import { tierColorVar, tierLabel } from "../lib/tier";
 type Tip =
   | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null; k: number }
   | { kind: "junction"; x: number; y: number; label: string; t: TranscriptVerdict }
-  | { kind: "partner"; x: number; y: number; exon: number; left: boolean }
+  | { kind: "partner"; x: number; y: number; exon: number; left: boolean; reverse: boolean }
   | null;
 
 const CDS_LABEL: Record<Exon["cds"], string> = {
   "5utr": "5′ UTR", cds: "CDS", "3utr": "3′ UTR", noncoding: "non-coding",
 };
+
+/**
+ * The two GRCh38 coordinates an EEJ bracket must join: the donor exon's 3′ end and the
+ * acceptor exon's 5′ start — the edges that FACE each other across the intron the
+ * junction primer reads through.
+ *
+ * Which genomic edge is which depends on the direction of transcription, and the graph's
+ * axis is always coordinate-ascending. On a plus-strand transcript the donor is the left
+ * block, so its 3′ end is its genomic `end` and the acceptor's 5′ start is its `begin`.
+ * On a minus-strand one the donor sits to the RIGHT of the acceptor and both invert.
+ * Taking `end`/`begin` unconditionally therefore picked the two OUTER edges on a minus-
+ * strand transcript, drawing the bracket across both whole exons rather than the gap
+ * between them (CHCHD2 NM_016139.4).
+ *
+ * Direction is read from the pair itself rather than from the gene's strand, so the
+ * bracket is right even if a strand is unstated upstream.
+ */
+export function junctionEdges(
+  donor: { begin: number; end: number }, acceptor: { begin: number; end: number },
+): [number, number] {
+  const rtl = donor.begin > acceptor.begin;   // this junction runs right-to-left
+  return [rtl ? donor.begin : donor.end, rtl ? acceptor.end : acceptor.begin];
+}
+
+/**
+ * Is the conventional partner primer the pair's REVERSE primer? It is exactly when its
+ * exon sits downstream of the junction in TRANSCRIPT order — which is what decides the
+ * role, not where the exon lands on screen. The two agree on a plus-strand transcript and
+ * disagree on every minus-strand one, where the graph lays the transcript out right-to-
+ * left, so deriving the role from the marker's on-screen side mislabelled a minus-strand
+ * forward primer "reverse".
+ */
+export function partnerIsReverse(partnerExon: number, acceptorOrder: number): boolean {
+  return partnerExon > acceptorOrder;
+}
 
 /**
  * Exon-track graph — one row per NM isoform, exons to GRCh38 scale, colored by
@@ -125,8 +160,9 @@ export default function ExonTrackGraph({
           const junctionSpanX = (d: number, a: number): [number, number] | null => {
             const donor = t.exons[d - 1], acceptor = t.exons[a - 1];
             if (!donor || !acceptor) return null;
-            let lo = Math.min(x(donor.end), x(acceptor.begin));
-            let hi = Math.max(x(donor.end), x(acceptor.begin));
+            const [dg, ag] = junctionEdges(donor, acceptor);
+            let lo = Math.min(x(dg), x(ag));
+            let hi = Math.max(x(dg), x(ag));
             if (hi - lo < 12) { const m = (hi + lo) / 2; lo = m - 6; hi = m + 6; }
             return [lo, hi];
           };
@@ -141,14 +177,22 @@ export default function ExonTrackGraph({
             if (sp) brackets.push({ x1: sp[0], x2: sp[1], magenta: true, label: `exon ${d}–exon ${a}` });
           }
           // Partner-primer marker: a triangle above the partner exon pointing toward the
-          // junction (its EEJ mate). Pointing left (⏴) = it is the pair's reverse primer.
-          let partnerTri: { cx: number; left: boolean; exon: number } | null = null;
+          // junction (its EEJ mate). Two DIFFERENT questions, and they part company on a
+          // minus-strand transcript: which way the glyph points is screen geometry, but
+          // whether the primer is the pair's forward or reverse one is transcript order —
+          // a partner exon downstream of the junction (higher exon number) is the reverse
+          // primer however the row happens to be laid out. Deriving the role from the
+          // glyph direction called a minus-strand forward primer "reverse".
+          let partnerTri: { cx: number; left: boolean; reverse: boolean; exon: number } | null = null;
           if (t.partner_exon != null && rj) {
             const pe = t.exons[t.partner_exon - 1];
             const sp = junctionSpanX(rj.donor_order, rj.acceptor_order);
             if (pe && sp) {
               const cx = (x(pe.begin) + x(pe.end)) / 2;
-              partnerTri = { cx, left: cx > (sp[0] + sp[1]) / 2, exon: t.partner_exon };
+              partnerTri = {
+                cx, left: cx > (sp[0] + sp[1]) / 2, exon: t.partner_exon,
+                reverse: partnerIsReverse(t.partner_exon, rj.acceptor_order),
+              };
             }
           }
           return (
@@ -226,7 +270,7 @@ export default function ExonTrackGraph({
                 return (
                   <path d={d} fill="var(--amp-pair)" style={{ cursor: "inherit" }}
                     stroke="color-mix(in srgb, var(--ink) 35%, transparent)" strokeWidth={0.8}
-                    onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "partner", x: ev.clientX, y: ev.clientY, exon: partnerTri!.exon, left }); }} />
+                    onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "partner", x: ev.clientX, y: ev.clientY, exon: partnerTri!.exon, left, reverse: partnerTri!.reverse }); }} />
                 );
               })()}
             </g>
@@ -286,7 +330,7 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
       <div className="exon-tip" style={style}>
         <div className="et-head"><b style={{ color: "var(--amp-pair)" }}>
           Partner primer · exon {tip.exon}</b></div>
-        <div className="et-line">Conventional <b>{tip.left ? "reverse" : "forward"}</b> primer
+        <div className="et-line">Conventional <b>{tip.reverse ? "reverse" : "forward"}</b> primer
           site — {tip.left ? "⏴" : "⏵"} points toward its EEJ mate.</div>
       </div>
     );
