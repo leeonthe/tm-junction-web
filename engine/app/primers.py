@@ -254,15 +254,16 @@ def design(target_exons: list[Interval], target_seq: str,
         )
 
     # Conventional by structure (rule 7c: not a trimmed copy of any sibling) but with no
-    # single unique exon window — a single primer can't be placed. Its unique *exon
-    # combination* is amplifiable by a conventional primer PAIR spanning it; designing that
-    # pair is a follow-up. Report honestly rather than crash.
+    # single unique exon window — no single primer is specific. The specificity is the
+    # exon COMBINATION: no sibling carries both exons of amp.exon_pair, so a primer pair
+    # spanning them makes an amplicon only this transcript can form. Design that pair.
     if amp.tier == "CONVENTIONAL" and not amp.unique_regions:
+        if amp.exon_pair:
+            return _design_exon_pair(amp, seq, cum, excluded)
         return PrimerDesign(
             tier=amp.tier,
             mechanism="Structurally unique (not a trimmed copy of any sibling), but no single "
-                      "unique exon window — amplifiable by a conventional primer pair spanning "
-                      "its unique exon combination (pair design is a follow-up).",
+                      "unique exon window and no isolating 2-exon pair.",
             flags=["NO_UNIQUE_WINDOW"],
         )
 
@@ -344,6 +345,124 @@ def design(target_exons: list[Interval], target_seq: str,
         confidence="high" if (dtm >= DELTA_TM_SAFE and s_eval.ok) else "low",
         excluded_siblings=excluded, flags=sorted(set(flags)), pair_dimer_tm=pair_dimer,
     )
+
+
+def _design_exon_pair(amp: AmplifyResult, seq: str, cum: list[int],
+                      excluded: list[str]) -> PrimerDesign:
+    """7c-Blue design: forward in exon FA, reverse in exon FB (amp.exon_pair).
+
+    The PAIR is the specificity — no single sibling carries both exons, so the amplicon
+    forms only on the target. The individual oligos need not be unique, which is why the
+    unique-window sweep above does not apply. Instead primer3's own pair designer (the
+    engine behind Primer3Plus) picks a Tm-matched, structure-checked pair, confined to
+    the two exons via SEQUENCE_PRIMER_PAIR_OK_REGION_LIST; a plain QC sweep is the
+    fallback if primer3 is unavailable or finds nothing under its constraints.
+    """
+    fa, fb = amp.exon_pair                                 # 1-based, fa < fb
+    a = ((cum[fa - 2] if fa > 1 else 0), cum[fa - 1] - 1)  # 0-based inclusive tx spans
+    b = ((cum[fb - 2] if fb > 1 else 0), cum[fb - 1] - 1)
+    mech = (f"Conventional primer pair spanning the unique exon combination — forward in "
+            f"exon {fa}, reverse in exon {fb}. No other isoform carries both exons, so "
+            f"the amplicon forms only on this transcript.")
+    pick = _p3_pair(seq, a, b) if HAS_PRIMER3 else None
+    if pick is None:
+        pick = _sweep_pair(seq, a, b)
+    if pick is None:                                       # exons too short for any oligo
+        return PrimerDesign(tier=amp.tier, mechanism=mech,
+                            excluded_siblings=excluded, flags=["NO_PAIR"])
+    (f_start, f_seq, f_ev), (r_start, r_seq, r_ev) = pick
+    fwd = _mk_primer(f_seq, f_ev, "conventional", "forward", f"exon {fa} (pair)", pos=f_start)
+    rev = _mk_primer(r_seq, r_ev, "conventional", "reverse", f"exon {fb} (pair)", pos=r_start)
+    pair_dimer = heterodimer_tm(fwd.seq, rev.seq)
+    flags = []
+    if not (f_ev.ok and r_ev.ok):
+        flags.append("LOW_QC")
+    if pair_dimer >= STRUCT_TM_MAX:
+        flags.append("PAIR_DIMER")
+    return PrimerDesign(
+        tier=amp.tier, mechanism=mech, forward=fwd, reverse=rev,
+        amplicon_len=(r_start + len(r_seq)) - f_start,
+        delta_tm=None,   # specificity is combinatorial here, not a per-oligo Tm margin
+        confidence="high" if (f_ev.ok and r_ev.ok) else "low",
+        excluded_siblings=excluded, flags=sorted(set(flags)), pair_dimer_tm=pair_dimer,
+    )
+
+
+def _p3_pair(seq: str, a: tuple[int, int], b: tuple[int, int]):
+    """primer3 pair design confined to sense-strand spans a (left) and b (right).
+
+    Returns ((f_start, f_oligo, f_eval), (r_start, r_oligo, r_eval)) with starts =
+    0-based binding-site starts on the mRNA, oligos 5'->3' as ordered, or None.
+    Pairs come back in primer3's own penalty order; the first one that also passes OUR
+    QC gate wins, else the top pair is kept and design() flags it LOW_QC.
+    """
+    (a_lo, a_hi), (b_lo, b_hi) = a, b
+    lo = max(AMPLICON_MIN, b_lo - a_hi + 2 * LEN_MIN - 1)  # shortest reachable product
+    hi = b_hi - a_lo + 1
+    if lo > hi:
+        return None
+    try:
+        res = primer3.bindings.design_primers(
+            {
+                "SEQUENCE_ID": "target",
+                "SEQUENCE_TEMPLATE": seq,
+                "SEQUENCE_PRIMER_PAIR_OK_REGION_LIST":
+                    [[a_lo, a_hi - a_lo + 1, b_lo, b_hi - b_lo + 1]],
+            },
+            {
+                "PRIMER_TASK": "generic",
+                "PRIMER_PICK_LEFT_PRIMER": 1, "PRIMER_PICK_RIGHT_PRIMER": 1,
+                "PRIMER_PICK_INTERNAL_OLIGO": 0,
+                "PRIMER_NUM_RETURN": 10,
+                "PRIMER_MIN_SIZE": LEN_MIN, "PRIMER_OPT_SIZE": LEN_OPT,
+                "PRIMER_MAX_SIZE": LEN_MAX,
+                "PRIMER_MIN_TM": TM_MIN, "PRIMER_OPT_TM": TM_OPT, "PRIMER_MAX_TM": TM_MAX,
+                "PRIMER_MIN_GC": GC_MIN, "PRIMER_MAX_GC": GC_MAX,
+                "PRIMER_GC_CLAMP": 1,            # match _evaluate's 3'-clamp gate
+                "PRIMER_MAX_POLY_X": 4,          # match _homopolymer (5+ run rejected)
+                "PRIMER_PRODUCT_SIZE_RANGE": [[lo, hi]],
+                # nudge toward compact products; quality still dominates the penalty
+                "PRIMER_PRODUCT_OPT_SIZE": min(max(AMPLICON_OPT, lo), hi),
+                "PRIMER_PAIR_WT_PRODUCT_SIZE_GT": 0.05,
+                "PRIMER_PAIR_WT_PRODUCT_SIZE_LT": 0.05,
+            })
+    except Exception:
+        return None
+    best = None
+    for i in range(res.get("PRIMER_PAIR_NUM_RETURNED", 0)):
+        f_seq = res[f"PRIMER_LEFT_{i}_SEQUENCE"].upper()
+        r_seq = res[f"PRIMER_RIGHT_{i}_SEQUENCE"].upper()
+        f_start = res[f"PRIMER_LEFT_{i}"][0]
+        r_pos, r_len = res[f"PRIMER_RIGHT_{i}"]   # r_pos = 3'-most template index
+        f_ev, r_ev = _evaluate(f_seq, TM_MIN), _evaluate(r_seq, TM_MIN)
+        cand = ((f_start, f_seq, f_ev), (r_pos - r_len + 1, r_seq, r_ev))
+        if f_ev.ok and r_ev.ok:
+            return cand
+        if best is None:
+            best = cand
+    return best
+
+
+def _region_best(seq: str, lo: int, hi: int, as_reverse: bool):
+    """Best QC oligo whose binding site fits inside [lo, hi] (0-based inclusive)."""
+    best, best_key = None, None
+    for s in range(max(0, lo), hi - LEN_MIN + 2):
+        for L in range(LEN_MIN, LEN_MAX + 1):
+            if s + L - 1 > hi or s + L > len(seq):
+                break
+            oligo = revcomp(seq[s:s + L]) if as_reverse else seq[s:s + L]
+            ev = _evaluate(oligo, TM_MIN)
+            key = (ev.ok, ev.quality)
+            if best_key is None or key > best_key:
+                best_key, best = key, (s, oligo, ev)
+    return best
+
+
+def _sweep_pair(seq: str, a: tuple[int, int], b: tuple[int, int]):
+    """Fallback pair pick: best-QC oligo per exon, no pair-level optimization."""
+    f = _region_best(seq, a[0], a[1], as_reverse=False)
+    r = _region_best(seq, b[0], b[1], as_reverse=True)
+    return (f, r) if f and r else None
 
 
 def _choose_partner(seq: str, spec_start: int, spec_len: int,
