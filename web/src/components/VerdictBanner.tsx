@@ -1,4 +1,4 @@
-import type { TranscriptVerdict } from "../lib/types";
+import type { TranscriptVerdict, UniqueRegion } from "../lib/types";
 import { tierChipClass, tierColorVar, verdictClass } from "../lib/tier";
 import { Check, Split, Alert } from "./icons";
 
@@ -33,15 +33,21 @@ export default function VerdictBanner({ v }: { v: TranscriptVerdict }) {
 
 function Explanation({ v, region, junc }: {
   v: TranscriptVerdict;
-  region?: { exon_order: number; window_count: number };
+  region?: UniqueRegion;
   junc: { label: string } | null;
 }) {
   if (v.tier === "CONVENTIONAL" && region) {
+    // The sequence that distinguishes it, in mRNA coordinates. Naming the count of
+    // placeable k-nt primers here instead overstated how much sequence is actually unique.
+    const nt = region.uniq_len ?? (region.tx_begin != null && region.tx_end != null
+      ? region.tx_end - region.tx_begin + 1 : null);
     return (
       <p>
-        <span className="mono">{v.accession}</span> owns a region unique to it —{" "}
-        <b>exon {region.exon_order}</b>, with <b>{region.window_count}</b> target-specific sites.
-        A conventional primer there will not amplify the other isoforms.
+        <span className="mono">{v.accession}</span> owns a region unique to it — in{" "}
+        <b>exon {region.exon_order}</b>
+        {nt != null && region.tx_begin != null && <>, <b>mRNA {region.tx_begin}–{region.tx_end}</b>{" "}
+          ({nt} nt no other isoform carries)</>}.
+        A conventional primer covering it will not amplify the other isoforms.
       </p>
     );
   }

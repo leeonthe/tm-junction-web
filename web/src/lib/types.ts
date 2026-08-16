@@ -8,7 +8,15 @@ export interface Exon {
   cds: "5utr" | "cds" | "3utr" | "noncoding";
   gc: number; unique_sites: number;
 }
-export interface UniqueRegion { exon_order: number; window_count: number; side: string; begin?: number | null; end?: number | null; tx_begin?: number | null; tx_end?: number | null }
+/**
+ * The stretch of an exon that distinguishes this transcript — the sequence no sibling
+ * carries. `begin/end` (genomic) and `tx_begin/tx_end` (1-based mRNA) bound exactly that,
+ * and `uniq_len` is its length. NOT the wider envelope of positions a k-nt primer could be
+ * placed at: a window is specific as soon as it OVERLAPS the difference, so that envelope
+ * runs up to k-1 nt wider each side. `window_count` counts those placements — a primer
+ * count, never a measure of how much sequence is unique.
+ */
+export interface UniqueRegion { exon_order: number; window_count: number; side: string; begin?: number | null; end?: number | null; tx_begin?: number | null; tx_end?: number | null; uniq_len?: number | null }
 export interface Junction { donor_order: number; acceptor_order: number; label: string }
 
 export interface Primer {

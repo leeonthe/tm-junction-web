@@ -151,7 +151,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           <div className="legend-row">{LEGEND.slice(3).map(legendItem)}</div>
         </div>
       </div>
-      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} k={k} />
+      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} />
       <p className="g-note">
         The <BracketGlyph /> bracket joins the two exons of the recommended exon–exon junction
         primer — the primer spans that connection, so it marks a range, not one exact spot.{" "}

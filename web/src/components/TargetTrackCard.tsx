@@ -14,8 +14,7 @@ export default function TargetTrackCard({
   onExplore: () => void;
   onSelect: (acc: string) => void;
 }) {
-  const { gene, target_verdict, target_accession, primer_design, transcripts, meta } = result;
-  const k = Number(meta.k) || 20;
+  const { gene, target_verdict, target_accession, primer_design, transcripts } = result;
 
   let primerExon: number | null = null;
   const f = primer_design.forward;
@@ -33,7 +32,7 @@ export default function TargetTrackCard({
           <p className="sub">{target_accession} · GRCh38 · unique region &amp; primer highlighted · hover an exon</p>
         </div>
       </div>
-      <ExonTrackGraph transcripts={[target_verdict]} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} k={k} />
+      <ExonTrackGraph transcripts={[target_verdict]} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} />
       {siblings.length > 0 && (
         <div className="sibling-note">
           <span className="sn-label">Distinguished from {siblings.length} other {gene.symbol} isoform{siblings.length !== 1 ? "s" : ""}:</span>

@@ -18,13 +18,19 @@ class Exon(BaseModel):
 
 
 class UniqueRegionOut(BaseModel):
+    """The stretch of an exon that distinguishes this transcript — the sequence no sibling
+    carries. This is the isoform difference itself, NOT the wider envelope of positions a
+    k-nt primer could be placed at (a window is specific as soon as it overlaps the
+    difference, so that envelope runs up to k-1 nt wider on each side and reads as far more
+    unique sequence than exists)."""
     exon_order: int
-    window_count: int
+    window_count: int          # k-mer windows placeable here; a primer count, not a length
     side: str
-    begin: int | None = None   # genomic start of the unique-window span within the exon
-    end: int | None = None     # genomic end (so the graph can highlight only the unique part)
-    tx_begin: int | None = None  # 1-based mRNA start of the unique-window span
+    begin: int | None = None   # genomic start of the distinguishing sequence
+    end: int | None = None     # genomic end (the graph highlights exactly this)
+    tx_begin: int | None = None  # 1-based mRNA start of the distinguishing sequence
     tx_end: int | None = None    # 1-based mRNA end
+    uniq_len: int | None = None  # its length in nt
 
 
 class JunctionOut(BaseModel):

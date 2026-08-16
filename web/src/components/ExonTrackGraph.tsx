@@ -3,7 +3,7 @@ import type { Exon, TranscriptVerdict } from "../lib/types";
 import { tierColorVar, tierLabel } from "../lib/tier";
 
 type Tip =
-  | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null; k: number }
+  | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null }
   | { kind: "junction"; x: number; y: number; label: string; t: TranscriptVerdict }
   | { kind: "partner"; x: number; y: number; exon: number; left: boolean; reverse: boolean }
   | null;
@@ -55,7 +55,7 @@ export function partnerIsReverse(partnerExon: number, acceptorOrder: number): bo
  * Hovering an exon / marker shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
-  transcripts, targetAccession, primerExon, chromosome = "", strand = "", k = 20,
+  transcripts, targetAccession, primerExon, chromosome = "", strand = "",
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
@@ -64,8 +64,6 @@ export default function ExonTrackGraph({
   /** "+" | "-" | "" — draws the 5′→3′ arrow over the axis. The axis itself is always
    *  genomic-ascending, so on a minus-strand gene transcription runs right-to-left. */
   strand?: string;
-  /** Primer-window length the uniqueness scan used — labels the exon tooltip's site count. */
-  k?: number;
 }) {
   const [tip, setTip] = useState<Tip>(null);
 
@@ -231,7 +229,7 @@ export default function ExonTrackGraph({
                       stroke={isPair ? "var(--amp-pair)" : "none"} strokeWidth={isPair ? 1.6 : 0}
                       onMouseMove={(ev) => { if (drag.current.active) return; setTip({
                         kind: "exon", x: ev.clientX, y: ev.clientY, exon: e, t, isTarget,
-                        primerExon: primerExon ?? null, k,
+                        primerExon: primerExon ?? null,
                       }); }} />
                     {hasSpan && (
                       // Full-height orange for just the unique window span, CLIPPED to the exon
@@ -335,23 +333,23 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
       </div>
     );
   }
-  const { exon: e, t, isTarget, primerExon, k } = tip;
+  const { exon: e, t, isTarget, primerExon } = tip;
   const primerHere = isTarget && primerExon === e.order;
   const pair = t.amplify_exon_pair;
   const pairRole = pair?.[0] === e.order ? "Forward" : pair?.[1] === e.order ? "Reverse" : null;
   const isPartner = t.partner_exon === e.order;
-  // mRNA (transcript) coordinates of the unique window span(s) within this exon, e.g. "100–200".
+  // The isoform difference itself: the mRNA stretch of this exon that no sibling carries.
   //
-  // NB this span is the PLACEMENT ENVELOPE for a k-nt primer, not a run of k-nt-unique
-  // bases. A window is target-specific as soon as it OVERLAPS the isoform difference, so
-  // even a 1-nt difference yields a span up to (k − 1) nt wider than the difference
-  // itself. Reading the span as "this much sequence is unique" overstates it by that
-  // margin — hence the explicit window count next to it. (APEX1 NM_001641.4 exon 1:
-  // 4 windows over mRNA 147–169, from a 5-nt alternative-donor difference.)
-  const uspan = t.unique_regions
-    .filter((r) => r.exon_order === e.order && r.tx_begin != null && r.tx_end != null)
-    .map((r) => `${r.tx_begin}–${r.tx_end}`)
-    .join(", ");
+  // What is deliberately NOT shown here is the count of k-nt windows placeable in the exon
+  // (e.unique_sites). That is a number of candidate primer positions, and reading it — or
+  // the envelope those positions span — as "how much sequence is unique" overstates the
+  // difference by up to k−1 nt on each side, because a window is target-specific as soon
+  // as it OVERLAPS the difference. APEX1 NM_001641.4 exon 1 is the case in point: a 5-nt
+  // alternative donor (mRNA 165–169) reported as 4 sites across mRNA 147–169.
+  const uregion = t.unique_regions.find(
+    (r) => r.exon_order === e.order && r.tx_begin != null && r.tx_end != null);
+  const uspan = uregion ? `${uregion.tx_begin}–${uregion.tx_end}` : "";
+  const ulen = uregion?.uniq_len ?? (uregion ? uregion.tx_end! - uregion.tx_begin! + 1 : 0);
   const sites = e.unique_sites;
   // The conventional exon of a junction+exon combo: NEEDS_EEJ, has a recommended junction, and
   // this exon is the (single) combo exon. Its target site is the distinguishing sub-region.
@@ -378,15 +376,15 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
           <div className="et-line et-good">EEJ + Exon combination</div>
           <div className="et-line et-good">Exon target sites: {uspan || `${e.tx_begin}–${e.tx_end}`}</div>
         </>
-      ) : sites > 0 ? (
+      ) : sites > 0 && uspan ? (
         <>
           <div className="et-line et-good">
-            <b className="et-num">{sites}</b>&nbsp;target-specific {k}-nt primer
-            site{sites !== 1 ? "s" : ""}
+            Unique sequence sites:&nbsp;mRNA&nbsp;<b className="et-num">{uspan}</b>
+            &nbsp;({ulen}&nbsp;nt)
           </div>
           <div className="et-line et-sub">
-            placeable across mRNA {uspan || `${e.tx_begin}–${e.tx_end}`} — each site
-            overlaps the isoform difference
+            the only part of this exon no other isoform carries — a primer is specific to
+            this transcript when it covers some of it
           </div>
         </>
       ) : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}

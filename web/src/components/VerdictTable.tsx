@@ -54,8 +54,14 @@ export default function VerdictTable({
 
 function mechanism(t: TranscriptVerdict): string {
   if (t.tier === "CONVENTIONAL") {
+    // How much sequence is unique, not how many k-nt primers fit in it — the latter is a
+    // placement count that reads as several times more unique sequence than exists.
     const r = t.unique_regions[0];
-    if (r) return `Unique region · exon ${r.exon_order} (${r.window_count} sites)`;
+    if (r) {
+      const nt = r.uniq_len ?? (r.tx_begin != null && r.tx_end != null
+        ? r.tx_end - r.tx_begin + 1 : null);
+      return `Unique region · exon ${r.exon_order}${nt != null ? ` (${nt} nt)` : ""}`;
+    }
     const p = t.amplify_exon_pair;
     return p ? `Exon pair · exon ${p[0]} + exon ${p[1]}` : "Conventional";
   }

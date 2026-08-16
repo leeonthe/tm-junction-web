@@ -23,6 +23,17 @@ class UniqueRegion:
     tx_end: int              # 0-based inclusive end
     window_count: int        # number of unique k-mers landing in this exon
     side: str                # "forward" | "reverse" | "either"
+    # The DISCRIMINATING sequence itself: the largest genomic (begin,end) sub-span of this
+    # exon that no sibling carries. This is the actual isoform difference, and it is what
+    # the UI reports and highlights.
+    #
+    # It is much smaller than [tx_start, tx_end], which is the k-mer PLACEMENT ENVELOPE —
+    # a window is target-specific as soon as it OVERLAPS the difference, so the envelope
+    # runs up to (k-1) nt wider on each side. Reporting the envelope as "the unique
+    # sequence" overstated a 5-nt alternative donor as a 23-nt unique stretch (APEX1
+    # NM_001641.4 exon 1: envelope mRNA 147-169, real difference mRNA 165-169).
+    # None only when sibling exon structures were not supplied.
+    uniq_span: tuple[int, int] | None = None
 
 
 @dataclass
@@ -182,22 +193,26 @@ def _junction_holders(target_exons: list[Interval], target_seq: str,
     return out
 
 
-def _combo_exon_region(
-    target_exons: list[Interval], exon_order: int, hold_exons: list[list[Interval]],
-) -> tuple[int, int] | None:
-    """Distinguishing genomic sub-span of a combo exon: the exon MINUS the parts covered by the
-    junction-holding siblings' exons at that locus (the siblings the conventional primer must
-    still exclude — the others are already excluded by the junction). Returns the largest
-    uncovered (begin,end), the whole exon if nothing overlaps, or None if fully covered."""
+def uncovered_spans(
+    target_exons: list[Interval], exon_order: int, other_exons: list[list[Interval]],
+) -> list[tuple[int, int]]:
+    """Genomic sub-spans of the target's exon that NONE of `other_exons` carries.
+
+    Isoforms of one gene are aligned to one genome, so "the sibling has this sequence" and
+    "the sibling has an exon at this locus" are the same statement — which makes subtracting
+    the siblings' exon coverage an exact way to find the sequence that distinguishes this
+    exon, with no k-mer window length in the answer. Returns the gaps 5'->3' in GENOMIC
+    order, or [(exon)] when nothing overlaps at all.
+    """
     b, e = target_exons[exon_order - 1]
     covered = []
-    for sib_exons in hold_exons:
+    for sib_exons in other_exons:
         for (sb, se) in sib_exons:
             lo, hi = max(sb, b), min(se, e)
             if lo <= hi:
                 covered.append((lo, hi))
     if not covered:
-        return (b, e)
+        return [(b, e)]
     covered.sort()
     merged = [list(covered[0])]
     for lo, hi in covered[1:]:
@@ -212,7 +227,25 @@ def _combo_exon_region(
         cur = max(cur, hi + 1)
     if cur <= e:
         gaps.append((cur, e))
+    return gaps
+
+
+def _largest_uncovered(
+    target_exons: list[Interval], exon_order: int, other_exons: list[list[Interval]],
+) -> tuple[int, int] | None:
+    """The widest uncovered sub-span, or None when the exon is fully covered. A primer only
+    has to OVERLAP unique sequence, so any gap works; the widest is the one worth naming."""
+    gaps = uncovered_spans(target_exons, exon_order, other_exons)
     return max(gaps, key=lambda g: g[1] - g[0]) if gaps else None
+
+
+def _combo_exon_region(
+    target_exons: list[Interval], exon_order: int, hold_exons: list[list[Interval]],
+) -> tuple[int, int] | None:
+    """Distinguishing genomic sub-span of a combo exon: the exon MINUS the parts covered by the
+    junction-holding siblings' exons at that locus (the siblings the conventional primer must
+    still exclude — the others are already excluded by the junction)."""
+    return _largest_uncovered(target_exons, exon_order, hold_exons)
 
 
 def discriminating_junction_exon(
@@ -307,9 +340,14 @@ def analyze_amplifiability(
         last = max(starts) + k - 1
         frac = (first / n) if n else 0.0
         side = "forward" if frac < 0.40 else ("reverse" if frac > 0.60 else "either")
+        # The sequence that actually distinguishes this exon, independent of k. An exon can
+        # only carry unique windows if some of it is uncovered, so this is normally present;
+        # it is None only without sibling exon structures to subtract.
+        uniq = (_largest_uncovered(target_exons, exon_order, sibling_exons)
+                if sibling_exons is not None else None)
         unique_regions.append(
             UniqueRegion(exon_order=exon_order, tx_start=first, tx_end=last,
-                         window_count=len(starts), side=side)
+                         window_count=len(starts), side=side, uniq_span=uniq)
         )
 
     unique_junctions = [

@@ -173,10 +173,18 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         partner_exon = _partner_exon(exons, recommended.donor_order, recommended.acceptor_order)
     uniq_out = []
     for r in amp.unique_regions:
-        gb, ge = _uniq_genomic(exons, r.tx_start, r.tx_end, r.exon_order)
+        # Report the DISCRIMINATING sequence (the exon minus what siblings carry), not the
+        # k-mer placement envelope — see UniqueRegionOut. Fall back to the envelope only
+        # when no sibling exon structures were available to subtract.
+        if r.uniq_span:
+            gb, ge = r.uniq_span
+            tb, te = _region_tx(exons, r.exon_order, gb, ge)
+        else:
+            gb, ge = _uniq_genomic(exons, r.tx_start, r.tx_end, r.exon_order)
+            tb, te = r.tx_start + 1, r.tx_end + 1
         uniq_out.append(UniqueRegionOut(exon_order=r.exon_order, window_count=r.window_count,
                                         side=r.side, begin=gb, end=ge,
-                                        tx_begin=r.tx_start + 1, tx_end=r.tx_end + 1))
+                                        tx_begin=tb, tx_end=te, uniq_len=te - tb + 1))
     # Junction+exon combo: only the distinguishing part of the combo exon is the target site.
     # Emit it as a sub-span (genomic + mRNA) so the graph paints just that slice yellow and
     # leaves the overlapped remainder the tier color (red). exon_pair_out keeps the exon for the
@@ -186,7 +194,8 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         gb, ge = amp.combo_exon_region
         tb, te = _region_tx(exons, ce, gb, ge)
         uniq_out.append(UniqueRegionOut(exon_order=ce, window_count=0, side="either",
-                                        begin=gb, end=ge, tx_begin=tb, tx_end=te))
+                                        begin=gb, end=ge, tx_begin=tb, tx_end=te,
+                                        uniq_len=te - tb + 1))
     return TranscriptVerdict(
         accession=acc,
         is_mane=is_mane,
