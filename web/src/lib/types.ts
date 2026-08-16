@@ -33,7 +33,8 @@ export interface TranscriptVerdict {
   combo_junctions?: number[][] | null;   // two-junction combo EEJ locations [[d1,a1],[d2,a2]]
   partner_exon?: number | null;          // original EEJ: nearest exon for the conventional partner primer
 }
-export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string }
+/** `strand` is "+" | "-", or "" when NCBI does not state one. */
+export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string; strand?: string }
 export interface GeneSummary {
   nm_count: number; conventional_count: number; needs_eej_count: number;
   hard_case_count: number; coord_non_unique_count: number;

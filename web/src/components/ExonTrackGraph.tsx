@@ -20,12 +20,15 @@ const CDS_LABEL: Record<Exon["cds"], string> = {
  * Hovering an exon / marker shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
-  transcripts, targetAccession, primerExon, chromosome = "", k = 20,
+  transcripts, targetAccession, primerExon, chromosome = "", strand = "", k = 20,
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
   primerExon?: number | null;
   chromosome?: string;
+  /** "+" | "-" | "" — draws the 5′→3′ arrow over the axis. The axis itself is always
+   *  genomic-ascending, so on a minus-strand gene transcription runs right-to-left. */
+  strand?: string;
   /** Primer-window length the uniqueness scan used — labels the exon tooltip's site count. */
   k?: number;
 }) {
@@ -86,7 +89,10 @@ export default function ExonTrackGraph({
   }
   const span = gmax - gmin || 1;
   const x = (p: number) => padL + ((p - gmin) / span) * (W - padL - padR);
-  const axisY = top + transcripts.length * rowH + 10;
+  // The strand arrow sits in the gap between the last row and the axis; widen that gap so
+  // its label cannot ride up into the last transcript's exons.
+  const showDir = strand === "+" || strand === "-";
+  const axisY = top + transcripts.length * rowH + 10 + (showDir ? 16 : 0);
   const height = axisY + 26;
   const ticks = [gmin, (gmin + gmax) / 2, gmax];
 
@@ -234,6 +240,26 @@ export default function ExonTrackGraph({
               textAnchor="middle" fill="var(--faint)">{(p / 1e6).toFixed(3)} Mb</text>
           </g>
         ))}
+        {/* Direction of transcription. The axis is genomic-ascending, so a minus-strand gene
+            is read right-to-left — without this the leftmost exon looks like exon 1 when it
+            is actually the last one. */}
+        {showDir && (() => {
+          const y = axisY - 9;
+          const [x1, x2] = strand === "+" ? [padL + 4, x(gmax) - 4] : [x(gmax) - 4, padL + 4];
+          const dir = strand === "+" ? 1 : -1;
+          return (
+            <g aria-hidden="true">
+              <line x1={x1} y1={y} x2={x2} y2={y} stroke="var(--faint)" strokeWidth={1}
+                strokeDasharray="3 4" />
+              <path d={`M${x2} ${y} L${x2 - 6 * dir} ${y - 3.2} L${x2 - 6 * dir} ${y + 3.2} Z`}
+                fill="var(--faint)" />
+              <text x={(x1 + x2) / 2} y={y - 4} fontSize={10} fontFamily="var(--mono)"
+                textAnchor="middle" fill="var(--faint)">
+                5′→3′ · {strand} strand
+              </text>
+            </g>
+          );
+        })()}
       </svg>
       {tip && !dragging && <Tooltip tip={tip} chromosome={chromosome} />}
     </div>

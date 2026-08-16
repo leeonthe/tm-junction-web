@@ -340,6 +340,12 @@ footer{border-top:1px solid var(--border);padding:24px 0;color:var(--muted);font
 .et-head b{font-size:14px;color:var(--ink);letter-spacing:-.01em}
 .et-badge{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--surface-3);
   border:1px solid var(--border);padding:1px 7px;border-radius:5px}
+/* Genomic strand of the gene, beside the exon-graph title. Neutral by design — it states a
+   fact about the locus, not a tier or a warning, so it must not read as either. */
+.strand-badge{margin-left:8px;vertical-align:middle;white-space:nowrap;
+  font-size:11px;font-weight:600;color:var(--muted);background:var(--surface-3);
+  border:1px solid var(--border);padding:1px 7px;border-radius:5px;cursor:help}
+.strand-badge .mono{font-family:var(--mono)}
 .et-tier{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
 .et-tier .d{width:7px;height:7px;border-radius:50%}
 .et-line{color:var(--text)}

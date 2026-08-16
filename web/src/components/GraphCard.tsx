@@ -140,7 +140,9 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
     <section className="card" style={overrides as React.CSSProperties}>
       <div className="card-head">
         <div>
-          <h3 className="card-title">Exon structure — all {gene.symbol} isoforms</h3>
+          <h3 className="card-title">
+            Exon structure — all {gene.symbol} isoforms <StrandBadge strand={gene.strand} />
+          </h3>
           <p className="sub">GRCh38 · colored by amplification tier · your target highlighted</p>
         </div>
         {/* Two rows: the three tiers on top, the two target-site markers (with ⓘ hints) below. */}
@@ -149,7 +151,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           <div className="legend-row">{LEGEND.slice(3).map(legendItem)}</div>
         </div>
       </div>
-      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} k={k} />
+      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} k={k} />
       <p className="g-note">
         The <BracketGlyph /> bracket joins the two exons of the recommended exon–exon junction
         primer — the primer spans that connection, so it marks a range, not one exact spot.{" "}
@@ -157,6 +159,25 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
         EEJ mate. Window size k={k}.
       </p>
     </section>
+  );
+}
+
+/**
+ * Which genomic strand the gene is transcribed from. Worth stating next to the graph
+ * because the axis is genomic-ascending in both cases: on a minus-strand gene exon 1 is
+ * the RIGHTMOST block, so a reader who assumes left-to-right reads the structure backwards.
+ * Renders nothing when NCBI states no orientation.
+ */
+function StrandBadge({ strand }: { strand?: string }) {
+  if (strand !== "+" && strand !== "-") return null;
+  const minus = strand === "-";
+  const label = minus
+    ? "Minus strand — transcribed right to left across this graph, so exon 1 is the rightmost block."
+    : "Plus strand — transcribed left to right across this graph, so exon 1 is the leftmost block.";
+  return (
+    <span className={`strand-badge${minus ? " minus" : ""}`} title={label} aria-label={label}>
+      <span className="mono">{strand}</span> strand {minus ? "←" : "→"}
+    </span>
   );
 }
 

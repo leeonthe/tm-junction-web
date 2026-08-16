@@ -33,7 +33,7 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
         raise AnalysisError("BAD_REQUEST", "Enter a gene name, e.g. GAPDH.")
     try:
         report = ncbi.get_product_report(name)
-        gene_id, sym, description, chromosome, transcripts = ncbi.nm_transcripts(report)
+        gene_id, sym, description, chromosome, strand, transcripts = ncbi.nm_transcripts(report)
     except ncbi.NotFound:
         raise AnalysisError("NOT_FOUND", f"No human gene found for “{name}”.")
     if not transcripts:
@@ -54,7 +54,8 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
         ))
     # MANE first, then longest transcript to shortest — a stable, useful reading order.
     out.sort(key=lambda x: (not x.is_mane, -x.length))
-    gene = GeneInfo(gene_id=gene_id, symbol=sym, description=description, chromosome=chromosome)
+    gene = GeneInfo(gene_id=gene_id, symbol=sym, description=description,
+                    chromosome=chromosome, strand=strand)
     return GeneLookupResponse(gene=gene, transcripts=out)
 
 
@@ -236,7 +237,7 @@ def analyze_events(accession: str, k: int = 20):
     try:
         symbol, _gid = ncbi.resolve_accession(accession)
         report = ncbi.get_product_report(symbol)
-        gene_id, symbol, description, chromosome, transcripts = ncbi.nm_transcripts(report)
+        gene_id, symbol, description, chromosome, strand, transcripts = ncbi.nm_transcripts(report)
     except ncbi.NotFound as e:
         raise AnalysisError("NOT_FOUND", str(e))
 
@@ -295,7 +296,8 @@ def analyze_events(accession: str, k: int = 20):
 
     response = AnalyzeResponse(
         target_accession=target_acc,
-        gene=GeneInfo(gene_id=gene_id, symbol=symbol, description=description, chromosome=chromosome),
+        gene=GeneInfo(gene_id=gene_id, symbol=symbol, description=description,
+                      chromosome=chromosome, strand=strand),
         target_verdict=tgt_verdict,
         target_mrna=seqs[target_acc],
         primer_design=PrimerDesignOut(

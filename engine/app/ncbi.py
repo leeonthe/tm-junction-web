@@ -129,6 +129,24 @@ def grch38_exons(transcript: dict) -> list[Interval] | None:
     return None
 
 
+def grch38_strand(transcript: dict) -> str:
+    """Genomic orientation of the transcript on GRCh38: "+", "-", or "" if unstated.
+
+    Taken from NCBI's explicit `orientation` rather than inferred from exon order, so a
+    single-exon transcript — where there is no exon order to read a direction from — still
+    reports its strand.
+    """
+    for loc in transcript.get("genomic_locations") or []:
+        if not str(loc.get("genomic_accession_version", "")).startswith(GRCH38_PREFIX):
+            continue
+        o = str((loc.get("genomic_range") or {}).get("orientation", "")).lower()
+        if not o:
+            ex = loc.get("exons") or []
+            o = str(ex[0].get("orientation", "")).lower() if ex else ""
+        return {"plus": "+", "minus": "-"}.get(o, "")
+    return ""
+
+
 def _chromosome_from_acc(gav: str) -> str:
     """GRCh38 genomic accession -> chromosome label. NC_000012 -> '12', 23 -> 'X', 24 -> 'Y'."""
     m = re.match(r"NC_0*(\d+)", gav or "")
@@ -148,8 +166,10 @@ def _grch38_chromosome(transcript: dict) -> str:
     return ""
 
 
-def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, list[dict]]:
-    """Return (gene_id, symbol, description, chromosome, [ {accession, is_mane, exons} ... ]) for NM only."""
+def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, str, list[dict]]:
+    """Return (gene_id, symbol, description, chromosome, strand, [ {accession, is_mane,
+    exons, strand} ... ]) for NM only. Gene strand = the first transcript's — every NM of a
+    gene is transcribed from the same strand."""
     reports = product_report.get("reports") or []
     if not reports:
         raise NotFound("Empty product report")
@@ -158,6 +178,7 @@ def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, list[dict]
     symbol = str(product.get("symbol", ""))
     description = str(product.get("description", ""))
     chromosome = ""
+    strand = ""
     out: list[dict] = []
     for t in product.get("transcripts") or []:
         acc = (t.get("accession_version") or "").strip()
@@ -168,13 +189,17 @@ def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, list[dict]
             continue
         if not chromosome:
             chromosome = _grch38_chromosome(t)
+        tx_strand = grch38_strand(t)
+        if not strand:
+            strand = tx_strand
         out.append({
             "accession": acc,
             "is_mane": t.get("select_category") == "MANE_SELECT",
             "exons": exons,
+            "strand": tx_strand,
             "cds": _cds_range(t),   # (begin, end) in 1-based transcript coords, or None
         })
-    return gene_id, symbol, description, chromosome, out
+    return gene_id, symbol, description, chromosome, strand, out
 
 
 def _cds_range(transcript: dict) -> tuple[int, int] | None:

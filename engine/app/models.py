@@ -98,6 +98,9 @@ class GeneInfo(BaseModel):
     description: str
     assembly: str = "GRCh38"
     chromosome: str = ""      # e.g. "12", "X"
+    # Genomic strand the gene is transcribed from: "+", "-", or "" when NCBI does not say.
+    # On a minus-strand gene the mRNA runs right-to-left across the genomic exon graph.
+    strand: str = ""
 
 
 class AnalyzeResponse(BaseModel):
