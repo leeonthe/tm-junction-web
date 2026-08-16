@@ -213,6 +213,66 @@ function hasRoom(a: PartnerArgs, side: Side): boolean {
   return false;
 }
 
+/** The amplicon lengths that are geometrically possible for a selection, bp. */
+export interface FeasibleAmplicons {
+  side: Side;
+  /** Shortest achievable amplicon, bp. */
+  min: number;
+  /** Longest achievable amplicon, bp. */
+  max: number;
+}
+
+/**
+ * The full range of amplicon lengths that are geometrically POSSIBLE for this
+ * selection, ignoring the user's window — the same index arithmetic as hasRoom,
+ * swept over the hard [AMP_FLOOR, AMP_CEIL] bounds. Pure geometry, no Tm: the UI
+ * consults this when the requested window yields nothing, to tell "no product can
+ * exist in this window — the nearest one is N bp" (auto-widen the window) apart
+ * from "products exist but none is Tm-matched" (say "loosen the Tm match").
+ * A combo exon's distinguishing region far from the junction is the typical way
+ * the minimum blows past the default window: the partner must overlap that
+ * region, so no product shorter than the gap to it can exist.
+ * Side preference mirrors findPartnerOptions: a forced side is obeyed; otherwise
+ * downstream wins whenever it is feasible at all, upstream is the fallback.
+ */
+export function feasibleAmplicons(a: {
+  mrna: string;
+  eejS: number;
+  eejE: number;
+  side?: Side | null;
+  region?: { lo: number; hi: number } | null;
+}): FeasibleAmplicons | null {
+  const overlaps = (s: number, e: number) =>
+    !a.region || (s < a.region.hi && e > a.region.lo);
+  const range = (side: Side): FeasibleAmplicons | null => {
+    let min = Infinity, max = -Infinity;
+    if (side === "downstream") {
+      const reLo = Math.max(a.eejE + PARTNER_LEN_MIN, a.eejS + AMP_FLOOR);
+      const reHi = Math.min(a.mrna.length, a.eejS + AMP_CEIL);
+      for (let re = reLo; re <= reHi; re++)
+        for (let len = PARTNER_LEN_MIN; len <= PARTNER_LEN_MAX; len++)
+          if (re - len >= a.eejE && overlaps(re - len, re)) {
+            min = Math.min(min, re - a.eejS);
+            max = Math.max(max, re - a.eejS);
+            break;
+          }
+    } else {
+      const fsLo = Math.max(0, a.eejE - AMP_CEIL);
+      const fsHi = a.eejE - AMP_FLOOR;
+      for (let fs = fsLo; fs <= fsHi; fs++)
+        for (let len = PARTNER_LEN_MIN; len <= PARTNER_LEN_MAX; len++)
+          if (fs + len <= a.eejS && overlaps(fs, fs + len)) {
+            min = Math.min(min, a.eejE - fs);
+            max = Math.max(max, a.eejE - fs);
+            break;
+          }
+    }
+    return min === Infinity ? null : { side, min, max };
+  };
+  if (a.side) return range(a.side);
+  return range("downstream") ?? range("upstream");
+}
+
 /**
  * Find partner-primer options for the current EEJ selection.
  *

@@ -7,7 +7,7 @@ import {
 import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_AMP_MAX, DEFAULT_AMP_MIN,
   DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR,
-  findPartnerOptions, revComp, type PartnerOption, type Side,
+  feasibleAmplicons, findPartnerOptions, revComp, type PartnerOption, type Side,
 } from "../lib/partner";
 import { numStr } from "../lib/format";
 import type { TmConditions, WindowEval } from "../lib/tm";
@@ -255,15 +255,20 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
   const [ampMax, setAmpMax] = useState(DEFAULT_AMP_MAX);
   const [minStr, setMinStr] = useState(String(DEFAULT_AMP_MIN));
   const [maxStr, setMaxStr] = useState(String(DEFAULT_AMP_MAX));
+  // Has the user ever edited the amplicon inputs? Until then the window is ours to
+  // auto-stretch when no product can physically fit it (see `auto` below).
+  const [ampTouched, setAmpTouched] = useState(false);
   const [dTmMax, setDTmMax] = useState(DEFAULT_DTM_MAX);
   const [dTmStr, setDTmStr] = useState(numStr(DEFAULT_DTM_MAX));
   const [selId, setSelId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   function editMin(raw: string) {
+    takeOver();
     setMinStr(raw);
     const v = parseInt(raw, 10);
-    if (!Number.isNaN(v) && v >= AMP_FLOOR && v < ampMax) setAmpMin(v);
+    const cap = auto?.max ?? ampMax;
+    if (!Number.isNaN(v) && v >= AMP_FLOOR && v < cap) setAmpMin(v);
   }
   function commitMin() {
     const v = parseInt(minStr, 10);
@@ -271,14 +276,25 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
     setAmpMin(c); setMinStr(String(c));
   }
   function editMax(raw: string) {
+    takeOver();
     setMaxStr(raw);
     const v = parseInt(raw, 10);
-    if (!Number.isNaN(v) && v > ampMin && v <= AMP_CEIL) setAmpMax(v);
+    const floor = auto?.min ?? ampMin;
+    if (!Number.isNaN(v) && v > floor && v <= AMP_CEIL) setAmpMax(v);
   }
   function commitMax() {
     const v = parseInt(maxStr, 10);
     const c = Number.isNaN(v) ? ampMax : Math.min(AMP_CEIL, Math.max(v, ampMin + 1));
     setAmpMax(c); setMaxStr(String(c));
+  }
+  /** First manual edit of either amplicon input: bake any auto-stretched window into
+   *  state (so the OTHER bound survives the edit) and hand control to the user. */
+  function takeOver() {
+    if (auto) {
+      setAmpMin(auto.min); setMinStr(String(auto.min));
+      setAmpMax(auto.max); setMaxStr(String(auto.max));
+    }
+    setAmpTouched(true);
   }
   function editDTm(raw: string) {
     setDTmStr(raw);
@@ -294,14 +310,47 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
 
   // The search re-runs live: every drag of the EEJ selection, every amplicon or
   // buffer edit. ~1k Tm evaluations — cheap enough to stay synchronous.
-  const search = useMemo(() => {
-    if (!ev?.spans) return null;
-    return findPartnerOptions({
+  //
+  // Until the user edits the amplicon inputs, an empty window is OUR problem to fix:
+  // when no product can physically exist in [ampMin, ampMax] (a distinguishing region
+  // far from the junction, say — TCF7L2's shortest product is 669 bp against the
+  // 150–250 default), the window is stretched to the nearest possible product and the
+  // search re-run, instead of showing a dead panel. A Tm-empty result (room exists,
+  // nothing melts in tolerance) is NOT stretched — that case must keep telling the
+  // user to loosen the Tm match.
+  const { search, auto } = useMemo(() => {
+    if (!ev?.spans) return { search: null, auto: null };
+    const args = {
       mrna, eejS: ev.s, eejE: ev.e, eejTm: ev.whole.tm,
-      ampMin, ampMax, dTmMax, cond, side: force?.side, region: force?.region,
-    });
+      dTmMax, cond, side: force?.side, region: force?.region,
+    };
+    const base = findPartnerOptions({ ...args, ampMin, ampMax });
+    if (ampTouched || base.options.length > 0) return { search: base, auto: null };
+    const geom = { mrna, eejS: ev.s, eejE: ev.e, region: force?.region };
+    // Room in the current window on the side that was searched? Then this is a Tm
+    // problem, not a geometry problem — leave the window alone.
+    const searched = feasibleAmplicons({ ...geom, side: base.side });
+    if (searched && searched.min <= ampMax && searched.max >= ampMin)
+      return { search: base, auto: null };
+    const feas = feasibleAmplicons({ ...geom, side: force?.side ?? null });
+    // Stretch PAST the nearest feasible product by the window's own width: pinning the
+    // bound to feas.min exactly would leave a single partner placement, which the ±dTm
+    // cap then usually empties. The extra band gives the Tm matcher real candidates.
+    const width = ampMax - ampMin;
+    const auto =
+      feas && feas.min > ampMax
+        ? { min: ampMin, max: Math.min(feas.min + width, feas.max), nearest: feas.min }
+      : feas && feas.max < ampMin
+        ? { min: Math.max(feas.max - width, feas.min), max: ampMax, nearest: feas.max }
+      : null;
+    if (!auto) return { search: base, auto: null };
+    return { search: findPartnerOptions({ ...args, ampMin: auto.min, ampMax: auto.max }), auto };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mrna, ev?.s, ev?.e, ev?.whole.tm, ampMin, ampMax, dTmMax, cond, force]);
+  }, [mrna, ev?.s, ev?.e, ev?.whole.tm, ampMin, ampMax, ampTouched, dTmMax, cond, force]);
+
+  /** The window actually in effect (auto-stretched or user-set). */
+  const effMin = auto?.min ?? ampMin;
+  const effMax = auto?.max ?? ampMax;
 
   const options = search?.options ?? [];
   const chosen: PartnerOption | null = options.find((o) => o.id === selId) ?? options[0] ?? null;
@@ -348,10 +397,12 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
         </div>
         <div className="jd-range pp-amp">
           <label>Amplicon
-            <input type="number" value={minStr} min={AMP_FLOOR} max={ampMax - 1} inputMode="numeric"
+            <input type="number" value={auto ? String(effMin) : minStr} min={AMP_FLOOR}
+              max={effMax - 1} inputMode="numeric"
               onChange={(e) => editMin(e.target.value)} onBlur={commitMin} onKeyDown={enterBlur} />
             <span className="dash">–</span>
-            <input type="number" value={maxStr} min={ampMin + 1} max={AMP_CEIL} inputMode="numeric"
+            <input type="number" value={auto ? String(effMax) : maxStr} min={effMin + 1}
+              max={AMP_CEIL} inputMode="numeric"
               onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
             <span className="unit">bp</span>
           </label>
@@ -371,6 +422,16 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
           reverse={eejIsForward ? partnerSpan : eejSpan} />
       )}
 
+      {auto && (
+        <p className="sub pp-idle">
+          No product fits the default {ampMin}–{ampMax} bp window here
+          {force ? <> — exon {force.exonOrder}'s distinguishing region sits too far from
+            the junction</> : null}: the nearest possible amplicon is{" "}
+          <b>{auto.nearest} bp</b>, so the window was stretched to {effMin}–{effMax} bp
+          automatically. Edit the amplicon inputs to take over.
+        </p>
+      )}
+
       {!ev?.spans ? (
         <p className="sub pp-idle">
           Drag a junction-spanning selection above to get second-primer options.
@@ -378,7 +439,7 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
       ) : options.length === 0 ? (
         <p className="sub pp-idle">
           No partner primer melts within <b>±{numStr(dTmMax)} °C</b> of the EEJ primer{" "}
-          ({ev.whole.tm.toFixed(1)} °C) across a {ampMin}–{ampMax} bp amplicon
+          ({ev.whole.tm.toFixed(1)} °C) across a {effMin}–{effMax} bp amplicon
           {force ? <> inside exon {force.exonOrder}'s distinguishing region</> : null} —
           loosen the Tm match, widen the amplicon window
           {force ? "" : ", or move the EEJ selection"}.

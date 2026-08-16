@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR, MAX_OPTIONS,
-  PARTNER_LEN_MAX, PARTNER_LEN_MIN, findPartnerOptions, revComp,
+  PARTNER_LEN_MAX, PARTNER_LEN_MIN, feasibleAmplicons, findPartnerOptions, revComp,
 } from "./partner";
 import { DEFAULT_CONDITIONS, tm } from "./tm";
 
@@ -136,6 +136,64 @@ describe("findPartnerOptions", () => {
       cond: DEFAULT_CONDITIONS,
     });
     expect(r.options).toHaveLength(0);
+  });
+});
+
+/**
+ * feasibleAmplicons is what lets the UI auto-stretch the amplicon window when the
+ * default one is geometrically impossible (ticket case: TCF7L2's distinguishing
+ * region forces a 669 bp minimum product against the 150–250 bp default). What is
+ * pinned: its bounds are ACHIEVABLE (the sweep really returns options when the
+ * window is pinned to them) and TIGHT (nothing exists outside them).
+ */
+describe("feasibleAmplicons", () => {
+  const geom = { mrna: MRNA, eejS: EEJ_S, eejE: EEJ_E };
+
+  it("brackets exactly what the sweep can produce", () => {
+    const f = feasibleAmplicons(geom)!;
+    expect(f.side).toBe("downstream");
+    // Shortest product: EEJ selection + shortest partner end to end, or the hard floor.
+    expect(f.min).toBe(Math.max(EEJ_E - EEJ_S + PARTNER_LEN_MIN, AMP_FLOOR));
+    // Longest: the partner's 3′-most placement, capped by the sequence end.
+    expect(f.max).toBe(MRNA.length - EEJ_S);
+    // The bounds are geometric, not Tm-aware: every option a wide-open window yields
+    // lies inside them (a bound itself may still be Tm-filtered — here the max is not).
+    const wide = run({ ampMin: AMP_FLOOR, ampMax: 2000 }).options;
+    expect(wide.length).toBeGreaterThan(0);
+    for (const o of wide) {
+      expect(o.ampLen).toBeGreaterThanOrEqual(f.min);
+      expect(o.ampLen).toBeLessThanOrEqual(f.max);
+    }
+    expect(run({ ampMin: f.max, ampMax: f.max }).options.length).toBeGreaterThan(0);
+  });
+
+  it("reports the long minimum a far distinguishing region forces (the TCF7L2 case)", () => {
+    const region = { lo: 500, hi: 540 };
+    const f = feasibleAmplicons({ ...geom, side: "downstream", region })!;
+    // The partner must overlap the region, so the product must reach past its start...
+    expect(f.min).toBe(region.lo + 1 - EEJ_S);
+    // ...and can at most poke PARTNER_LEN_MAX − 1 bases beyond its end.
+    expect(f.max).toBe(region.hi + PARTNER_LEN_MAX - 1 - EEJ_S);
+    // The default window really is dead, and a window stretched to f.min revives it.
+    expect(run({ side: "downstream", region }).options).toHaveLength(0);
+    expect(run({ side: "downstream", region, ampMax: f.min }).options.length)
+      .toBeGreaterThan(0);
+  });
+
+  it("falls back to upstream when no downstream product can exist", () => {
+    // Junction 40 nt from the 3′ end: even the shortest downstream product (50 bp
+    // from the EEJ primer's 5′ start) would run off the sequence.
+    const near = MRNA.length - 40;
+    const f = feasibleAmplicons({ mrna: MRNA, eejS: near, eejE: near + 22 })!;
+    expect(f.side).toBe("upstream");
+    expect(f.min).toBeGreaterThanOrEqual(AMP_FLOOR);
+    expect(f.max).toBe(near + 22);   // forward partner at position 0
+  });
+
+  it("returns null when no partner fits anywhere", () => {
+    // 60 nt total with a 40 nt selection: no side has room for an 18 nt partner
+    // inside the 50 bp amplicon floor.
+    expect(feasibleAmplicons({ mrna: MRNA.slice(0, 60), eejS: 10, eejE: 50 })).toBeNull();
   });
 });
 
