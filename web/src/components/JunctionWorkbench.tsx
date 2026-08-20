@@ -362,7 +362,7 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
  * selected sense window — the sequence highlighted on the strip is the template it binds,
  * not the thing you buy.
  */
-function orderedOligo(ev: WindowEval, reverse: boolean): string {
+export function orderedOligo(ev: WindowEval, reverse: boolean): string {
   return reverse ? revComp(ev.whole.seq) : ev.whole.seq;
 }
 

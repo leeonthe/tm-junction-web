@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import {
-  Conditions, JunctionWorkbench, TmRangeControls, useJunctionSettings,
+  Conditions, JunctionWorkbench, TmRangeControls, orderedOligo, useJunctionSettings,
   type JunctionGeom, type JunctionSettings,
 } from "./JunctionWorkbench";
 import {
@@ -139,6 +139,17 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   // property of the PAIR: neither box can compute it alone. Indexed by box.
   const [evs, setEvs] = useState<(WindowEval | null)[]>([]);
   const ampLen = combo ? comboAmpliconLen(evs[0] ?? null, evs[1] ?? null) : null;
+  // The pair as ordered oligos. Box 1 runs forward, box 2 reverse — same call the boxes
+  // themselves make, so the summary can never disagree with the sequence shown above it.
+  const fwdOligo = combo && evs[0] ? orderedOligo(evs[0], false) : null;
+  const revOligo = combo && evs[1] ? orderedOligo(evs[1], true) : null;
+  const [copied, setCopied] = useState(false);
+  function copyPair() {
+    if (!fwdOligo || !revOligo) return;
+    navigator.clipboard?.writeText(`forward\t${fwdOligo}\nreverse\t${revOligo}`);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  }
 
   // Junction+exon combo (recommended junction + a single distinguishing exon slice):
   // the partner primer is not free — it must overlap that slice to keep the pair specific.
@@ -201,6 +212,20 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
               5′ end — and re-measures as you drag either selection.
             </>}
           </p>
+          {/* The orderable pair, in the same shape the single-junction case uses for its
+              EEJ + partner pair. Both rows are marked EEJ here: unlike that case, BOTH
+              primers span a junction — that is what makes the combination specific. */}
+          {fwdOligo && revOligo && (
+            <div className="pp-foot jd-pair">
+              <div className="pp-pair mono">
+                <span><b className="pp-tag f">F</b> 5′-{fwdOligo}-3′<i className="pp-eej"> EEJ</i></span>
+                <span><b className="pp-tag r">R</b> 5′-{revOligo}-3′<i className="pp-eej"> EEJ</i></span>
+              </div>
+              <button className="btn btn-ghost" onClick={copyPair}>
+                <Copy /> {copied ? "✓ Copied" : "Copy pair"}
+              </button>
+            </div>
+          )}
           <Conditions s={s} onMethod={onMethod} />
         </section>
       )}
