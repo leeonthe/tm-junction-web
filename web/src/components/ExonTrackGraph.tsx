@@ -12,27 +12,48 @@ const CDS_LABEL: Record<Exon["cds"], string> = {
   "5utr": "5′ UTR", cds: "CDS", "3utr": "3′ UTR", noncoding: "non-coding",
 };
 
+/** Narrowest an exon block is ever painted, px — below this a short exon would vanish. */
+export const MIN_EXON_W = 2.5;
+
 /**
- * The two GRCh38 coordinates an EEJ bracket must join: the donor exon's 3′ end and the
- * acceptor exon's 5′ start — the edges that FACE each other across the intron the
- * junction primer reads through.
+ * The horizontal extent an exon block actually OCCUPIES on screen, [left, right] px.
  *
- * Which genomic edge is which depends on the direction of transcription, and the graph's
- * axis is always coordinate-ascending. On a plus-strand transcript the donor is the left
- * block, so its 3′ end is its genomic `end` and the acceptor's 5′ start is its `begin`.
- * On a minus-strand one the donor sits to the RIGHT of the acceptor and both invert.
- * Taking `end`/`begin` unconditionally therefore picked the two OUTER edges on a minus-
- * strand transcript, drawing the bracket across both whole exons rather than the gap
- * between them (CHCHD2 NM_016139.4).
- *
- * Direction is read from the pair itself rather than from the gene's strand, so the
- * bracket is right even if a strand is unstated upstream.
+ * Not simply x(begin)…x(end): a short exon is widened to MIN_EXON_W so it stays visible,
+ * which pushes its painted right edge past its true coordinate. Anything that has to line
+ * up with the block — the bracket legs — must measure against this, not against x(end),
+ * or it lands inside the block it is supposed to touch.
  */
-export function junctionEdges(
+export function exonBoxPx(
+  e: { begin: number; end: number }, x: (p: number) => number,
+): [number, number] {
+  const lo = x(e.begin);
+  return [lo, lo + Math.max(MIN_EXON_W, x(e.end) - lo)];
+}
+
+/**
+ * The EEJ bracket's [x1, x2]: the two blocks' FACING painted edges — the right side of the
+ * left block to the left side of the right block — so it spans the gap and nothing else.
+ *
+ * Which genomic edge faces the junction depends on the direction of transcription, and the
+ * axis is always coordinate-ascending. On a plus-strand transcript the donor is the left
+ * block, so its 3′ end is its genomic `end` and the acceptor's 5′ start is its `begin`; on
+ * a minus-strand one the donor sits to the RIGHT of the acceptor and both invert. Direction
+ * is read from the pair itself, so this is right even if the gene's strand is unstated.
+ *
+ * The span is never widened to a minimum: padding it out symmetrically (as a
+ * "keep it visible" floor once did) walks both legs back over the exons, which is exactly
+ * the overhang the bracket is supposed to avoid. A junction whose intron is sub-pixel here
+ * simply draws a narrow staple; the hover target is padded separately, being invisible.
+ */
+export function bracketSpanPx(
   donor: { begin: number; end: number }, acceptor: { begin: number; end: number },
+  x: (p: number) => number,
 ): [number, number] {
   const rtl = donor.begin > acceptor.begin;   // this junction runs right-to-left
-  return [rtl ? donor.begin : donor.end, rtl ? acceptor.end : acceptor.begin];
+  const d = exonBoxPx(donor, x), a = exonBoxPx(acceptor, x);
+  const dEdge = rtl ? d[0] : d[1];            // donor 3′ end, as painted
+  const aEdge = rtl ? a[1] : a[0];            // acceptor 5′ start, as painted
+  return dEdge <= aEdge ? [dEdge, aEdge] : [aEdge, dEdge];
 }
 
 /**
@@ -158,11 +179,7 @@ export default function ExonTrackGraph({
           const junctionSpanX = (d: number, a: number): [number, number] | null => {
             const donor = t.exons[d - 1], acceptor = t.exons[a - 1];
             if (!donor || !acceptor) return null;
-            const [dg, ag] = junctionEdges(donor, acceptor);
-            let lo = Math.min(x(dg), x(ag));
-            let hi = Math.max(x(dg), x(ag));
-            if (hi - lo < 12) { const m = (hi + lo) / 2; lo = m - 6; hi = m + 6; }
-            return [lo, hi];
+            return bracketSpanPx(donor, acceptor, x);
           };
           const brackets: { x1: number; x2: number; magenta: boolean; label: string }[] = [];
           const rj = t.recommended_junction;
@@ -219,11 +236,13 @@ export default function ExonTrackGraph({
                 const ur = uniqByExon.get(e.order);
                 const hasSpan = ur?.begin != null && ur?.end != null;
                 const isPair = (!!t.amplify_exon_pair?.includes(e.order) || t.partner_exon === e.order) && !hasSpan;
-                const exW = Math.max(2.5, x(e.end) - x(e.begin));
+                // Same painted box the bracket measures against, so the two cannot drift.
+                const [exX, exRight] = exonBoxPx(e, x);
+                const exW = exRight - exX;
                 const clipId = `exclip-${i}-${ei}`;
                 return (
                   <g key={ei}>
-                    <rect x={x(e.begin)} y={cy - exH / 2}
+                    <rect x={exX} y={cy - exH / 2}
                       width={exW} height={exH} rx={2.5}
                       fill={isPair ? "var(--amp-pair)" : color} style={{ cursor: "inherit" }}
                       stroke={isPair ? "var(--amp-pair)" : "none"} strokeWidth={isPair ? 1.6 : 0}
@@ -236,7 +255,7 @@ export default function ExonTrackGraph({
                       // rect so it can never spill past the exon's (rounded) edges sideways.
                       <>
                         <clipPath id={clipId}>
-                          <rect x={x(e.begin)} y={cy - exH / 2} width={exW} height={exH} rx={2.5} />
+                          <rect x={exX} y={cy - exH / 2} width={exW} height={exH} rx={2.5} />
                         </clipPath>
                         <rect x={x(ur!.begin!)} y={cy - exH / 2}
                           width={Math.max(2, x(ur!.end!) - x(ur!.begin!))} height={exH}
@@ -254,8 +273,14 @@ export default function ExonTrackGraph({
                     <path d={`M${c.x1} ${yb + 5} L${c.x1} ${yb} L${c.x2} ${yb} L${c.x2} ${yb + 5}`}
                       fill="none" stroke={c.magenta ? "var(--eej-combo)" : "var(--eej)"}
                       strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    {/* invisible, slightly larger hover target for the tooltip */}
-                    <rect x={c.x1 - 3} y={yb - 4} width={c.x2 - c.x1 + 6} height={12} fill="transparent" />
+                    {/* Invisible hover target for the tooltip. It gets a minimum width the
+                        DRAWN bracket must not have: overhanging exons is only a problem when
+                        you can see it, and a hairline bracket still needs to be hoverable. */}
+                    {(() => {
+                      const w = Math.max(12, c.x2 - c.x1 + 6);
+                      return <rect x={(c.x1 + c.x2) / 2 - w / 2} y={yb - 4} width={w} height={12}
+                        fill="transparent" />;
+                    })()}
                   </g>
                 );
               })}
