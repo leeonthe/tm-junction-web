@@ -519,6 +519,15 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .pp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
 /* amplicon sizes run to four digits — wider than the two-digit Tm bounds */
 .pp-amp input{width:66px}
+/* The product sizes a target can actually make, beside the amplicon box. Sits at label
+   scale but reads as data, not as a third input — and only offers "use all" when the
+   current window is narrower than what is available. */
+.amp-hint{font-size:11px;color:var(--faint);background:none;border:0;padding:0;cursor:pointer;
+  font-family:var(--mono);line-height:1.4}
+.amp-hint b{color:var(--muted);font-weight:600}
+.amp-hint:hover{color:var(--muted)}
+.amp-hint:hover b,.amp-hint:hover .amp-hint-go{color:var(--brand)}
+.amp-hint-go{font-family:var(--sans);font-weight:600;color:var(--faint)}
 .pp-sub{margin:5px 0 0;font-size:12.5px;color:var(--muted);max-width:62ch}
 .pp-idle{margin:0;font-size:13px;color:var(--muted)}
 .pp-options{display:flex;flex-direction:column;gap:8px}

@@ -138,6 +138,12 @@ export default function ConventionalDesigner({ mrna, verdict, k, onMethod }: {
     const c = Number.isNaN(v) ? ampMax : Math.min(AMP_CEIL, Math.max(v, ampMin + 1));
     setAmpMax(c); setMaxStr(String(c));
   }
+  /** Widen to everything this target can produce — the fastest way out of an empty list. */
+  function useFullRange() {
+    if (!feasible) return;
+    setAmpMin(feasible.min); setMinStr(String(feasible.min));
+    setAmpMax(feasible.max); setMaxStr(String(feasible.max));
+  }
   function editDTm(raw: string) {
     setDTmStr(raw);
     const v = parseFloat(raw);
@@ -177,6 +183,16 @@ export default function ConventionalDesigner({ mrna, verdict, k, onMethod }: {
               onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
             <span className="unit">bp</span>
           </label>
+          {/* What this target can physically produce. Without it the amplicon box is a
+              guess: an exon pair ten exons apart has no 150 bp product, and nothing on
+              screen said so until the search came back empty. Click to take the lot. */}
+          {feasible && (
+            <button type="button" className="amp-hint" onClick={useFullRange}
+              title="Search every product size this target can make">
+              possible <b>{feasible.min}–{feasible.max}</b> bp
+              {(ampMin > feasible.min || ampMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
+            </button>
+          )}
           <label title="Discard any pair whose two primers melt further apart than this">
             Tm match <span className="dash">±</span>
             <input type="number" value={dTmStr} min={DTM_MAX_FLOOR} max={DTM_MAX_CEIL}

@@ -467,6 +467,20 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
   const effMin = auto?.min ?? ampMin;
   const effMax = auto?.max ?? ampMax;
 
+  // Every product size this selection could yield, shown beside the input so the amplicon
+  // box is not a guess. The auto-stretch above rescues the common failure; this stops the
+  // user walking into it in the first place, and gives them one click back out.
+  const feasible = useMemo(() => (ev?.spans
+    ? feasibleAmplicons({ mrna, eejS: ev.s, eejE: ev.e, side: force?.side ?? null,
+                          region: force?.region })
+    : null), [mrna, ev?.s, ev?.e, ev?.spans, force]);
+  function useFullRange() {
+    if (!feasible) return;
+    takeOver();
+    setAmpMin(feasible.min); setMinStr(String(feasible.min));
+    setAmpMax(feasible.max); setMaxStr(String(feasible.max));
+  }
+
   const options = search?.options ?? [];
   const chosen: PartnerOption | null = options.find((o) => o.id === selId) ?? options[0] ?? null;
 
@@ -521,6 +535,13 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
               onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
             <span className="unit">bp</span>
           </label>
+          {feasible && (
+            <button type="button" className="amp-hint" onClick={useFullRange}
+              title="Search every product size this junction can make">
+              possible <b>{feasible.min}–{feasible.max}</b> bp
+              {(effMin > feasible.min || effMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
+            </button>
+          )}
           <label title="Discard any partner whose Tm sits further than this from the EEJ primer's">
             Tm match <span className="dash">±</span>
             <input type="number" value={dTmStr} min={DTM_MAX_FLOOR} max={DTM_MAX_CEIL}
