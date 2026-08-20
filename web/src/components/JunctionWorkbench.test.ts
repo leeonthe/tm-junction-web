@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { comboAmpliconLen } from "./JunctionDesigner";
 import { revComp } from "../lib/partner";
 import { DEFAULT_CONDITIONS, tm } from "../lib/tm";
 
@@ -82,5 +83,38 @@ describe("primer role labelling", () => {
     expect(ordered(roleFor(true, 0), SECOND_SEL)).toBe(SECOND_SEL);
     expect(ordered(roleFor(true, 1), SECOND_SEL)).toBe(EXPECTED_ORDER);
     expect(ordered(roleFor(false, 0), SECOND_SEL)).toBe(SECOND_SEL);
+  });
+});
+
+/**
+ * The amplicon of a two-junction combo belongs to the PAIR — neither designer box can show
+ * it alone, so it is computed from both live selections. Measured 5′ end to 5′ end on the
+ * template (forward primer's start → reverse primer's binding-site end), the same convention
+ * lib/partner uses for a conventional partner, which keeps the two comparable.
+ */
+describe("comboAmpliconLen", () => {
+  const win = (s: number, e: number) => ({ s, e }) as never;
+
+  it("spans from the forward primer's 5′ end to the reverse primer's", () => {
+    // TCF7L2 NM_001146284.2: box 1 at mRNA 1216-1236, box 2 at 1834-1862 (0-based).
+    expect(comboAmpliconLen(win(1216, 1236), win(1834, 1862))).toBe(646);
+  });
+
+  it("counts the whole product, not the gap between the primers", () => {
+    // 100..120 forward, 400..430 reverse -> 330 bp, i.e. both primers are inside it.
+    const len = comboAmpliconLen(win(100, 120), win(400, 430))!;
+    expect(len).toBe(330);
+    expect(len).toBeGreaterThan(430 - 120);   // strictly more than the gap
+  });
+
+  it("is null until both boxes have a selection", () => {
+    expect(comboAmpliconLen(null, win(400, 430))).toBeNull();
+    expect(comboAmpliconLen(win(100, 120), null)).toBeNull();
+    expect(comboAmpliconLen(null, null)).toBeNull();
+  });
+
+  it("refuses inverted geometry rather than reporting a negative length", () => {
+    expect(comboAmpliconLen(win(400, 430), win(100, 120))).toBeNull();
+    expect(comboAmpliconLen(win(400, 430), win(400, 400))).toBeNull();
   });
 });

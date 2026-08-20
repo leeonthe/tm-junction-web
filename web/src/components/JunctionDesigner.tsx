@@ -61,6 +61,26 @@ interface PartnerForce {
   exonOrder: number;
 }
 
+/**
+ * Product size of a two-junction combo, bp — the one number the two designer boxes cannot
+ * show individually, because it belongs to the pair.
+ *
+ * Measured 5′ end to 5′ end on the template: from where the forward primer starts to where
+ * the reverse primer's binding site ends, which is the same convention the conventional
+ * partner search reports (lib/partner ampLen). Both selections are sense-strand windows, so
+ * this holds even though the reverse primer is ordered reverse-complemented.
+ *
+ * null when either selection is missing, or when the geometry is inverted — better to show
+ * nothing than a negative or nonsense length.
+ */
+export function comboAmpliconLen(
+  forward: WindowEval | null, reverse: WindowEval | null,
+): number | null {
+  if (!forward || !reverse) return null;
+  const len = reverse.e - forward.s;
+  return len > 0 ? len : null;
+}
+
 export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   mrna: string;
   verdict: TranscriptVerdict;
@@ -115,6 +135,11 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
   // either box — they move out to their own card below the two designers.
   const combo = designs.length > 1;
 
+  // Live selections of the two combo boxes, lifted here because the amplicon they make is a
+  // property of the PAIR: neither box can compute it alone. Indexed by box.
+  const [evs, setEvs] = useState<(WindowEval | null)[]>([]);
+  const ampLen = combo ? comboAmpliconLen(evs[0] ?? null, evs[1] ?? null) : null;
+
   // Junction+exon combo (recommended junction + a single distinguishing exon slice):
   // the partner primer is not free — it must overlap that slice to keep the pair specific.
   //
@@ -157,16 +182,24 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
           key={`${d.donor.order}-${d.acceptor.order}`}
           d={d} s={s} verdict={verdict} index={i} total={designs.length}
           force={force} onMethod={combo ? undefined : onMethod}
+          onEval={combo ? (ev) => setEvs((p) => { const n = [...p]; n[i] = ev; return n; }) : undefined}
         />
       ))}
       {combo && (
         <section className="card elevated jd">
           <div className="card-head">
             <p className="card-label" style={{ margin: 0 }}>Both EEJ primers · one reaction</p>
+            {ampLen != null && (
+              <span className="jd-badge neutral">amplicon {ampLen} bp</span>
+            )}
           </div>
           <p className="sub jd-intro">
             The two primers above run in the same tube, so they share one buffer and one Tm
             window — editing anything here re-tunes both designers.
+            {ampLen != null && <>
+              {" "}Their product spans both junctions — <b>{ampLen} bp</b>, measured 5′ end to
+              5′ end — and re-measures as you drag either selection.
+            </>}
           </p>
           <Conditions s={s} onMethod={onMethod} />
         </section>
@@ -176,7 +209,7 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
 }
 
 /** One junction = one designer box. */
-function DesignerCard({ d, s, verdict, index, total, force, onMethod }: {
+function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: {
   d: Design;
   s: JunctionSettings;
   verdict: TranscriptVerdict;
@@ -184,6 +217,8 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod }: {
   total: number;
   force: PartnerForce | null;
   onMethod?: () => void;
+  /** Report this box's live selection upward — a combo needs both to size the amplicon. */
+  onEval?: (ev: WindowEval | null) => void;
 }) {
   const { g, donor, acceptor } = d;
   const combo = total > 1;
@@ -215,7 +250,7 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod }: {
       <JunctionWorkbench
         geom={g} s={s} reseedKey={`${accession}:${donor.order}-${acceptor.order}`}
         role={role}
-        onEval={partnerOn ? setEv : undefined}
+        onEval={(e) => { if (partnerOn) setEv(e); onEval?.(e); }}
         legendExtra={partnerOn ? (
           <button className="btn btn-ghost jd-full" onClick={() => setShowCdna((v) => !v)}>
             {showCdna ? "Hide cDNA view" : "Full cDNA view"}
