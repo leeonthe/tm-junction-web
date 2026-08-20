@@ -191,7 +191,8 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod }: {
   // forward. The junctions arrive upstream-first, so box 1 is the forward primer and box 2
   // is the reverse one — and a reverse primer's ordered oligo is the reverse complement of
   // the sense window the strip highlights.
-  const reversePrimer = combo && index > 0;
+  const role = combo ? (index > 0 ? "reverse" : "forward") : null;
+  const reversePrimer = role === "reverse";
   const accession = verdict.accession;
   // A combo target already yields two EEJ primers — only the single-junction case
   // needs the second (conventional) primer designed here.
@@ -213,7 +214,7 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod }: {
 
       <JunctionWorkbench
         geom={g} s={s} reseedKey={`${accession}:${donor.order}-${acceptor.order}`}
-        reverse={reversePrimer}
+        role={role}
         onEval={partnerOn ? setEv : undefined}
         legendExtra={partnerOn ? (
           <button className="btn btn-ghost jd-full" onClick={() => setShowCdna((v) => !v)}>

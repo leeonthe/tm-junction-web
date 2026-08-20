@@ -48,4 +48,39 @@ describe("second EEJ primer of a two-junction combo", () => {
     // Box 1 orders the selection as-is; only box 2 flips, and flipping twice is identity.
     expect(revComp(revComp(SECOND_SEL))).toBe(SECOND_SEL);
   });
+
+  it("holds for OPA1 NM_130831.3's exon 4–5 junction too", () => {
+    // A second reported case, on a different gene, of the same box-2 selection.
+    expect(revComp("AGCATTTTAGAAAGGTGTCAGACAAAG"))
+      .toBe("CTTTGTCTGACACCTTTCTAAAATGCT");
+  });
+});
+
+/**
+ * Both oligos of a combo carry their direction. Leaving the forward one unlabelled makes
+ * the reader infer it from the absence of a REVERSE tag, and the whole point of tagging is
+ * that a bare string of bases does not say which strand it is.
+ */
+describe("primer role labelling", () => {
+  const roleFor = (combo: boolean, index: number) =>
+    combo ? (index > 0 ? "reverse" : "forward") : null;
+
+  it("labels both boxes of a two-junction combo", () => {
+    expect(roleFor(true, 0)).toBe("forward");
+    expect(roleFor(true, 1)).toBe("reverse");
+  });
+
+  it("labels nothing when the direction is not fixed by the design", () => {
+    // A single-junction EEJ takes its direction from where its partner primer lands, which
+    // the partner panel decides and states; asserting one here could contradict it.
+    expect(roleFor(false, 0)).toBeNull();
+  });
+
+  it("flips the oligo only for the reverse role", () => {
+    const ordered = (role: string | null, seq: string) =>
+      role === "reverse" ? revComp(seq) : seq;
+    expect(ordered(roleFor(true, 0), SECOND_SEL)).toBe(SECOND_SEL);
+    expect(ordered(roleFor(true, 1), SECOND_SEL)).toBe(EXPECTED_ORDER);
+    expect(ordered(roleFor(false, 0), SECOND_SEL)).toBe(SECOND_SEL);
+  });
 });

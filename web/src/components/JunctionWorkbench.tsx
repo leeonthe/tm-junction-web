@@ -214,7 +214,7 @@ export function Conditions({ s, onMethod }: { s: JunctionSettings; onMethod?: ()
  * Deliberately NOT keyed on the reaction conditions: keeping the user's window lets them
  * watch the same primer move as they retune salt or primer concentration.
  */
-export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEval, reverse = false }: {
+export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEval, role = null }: {
   geom: JunctionGeom;
   s: JunctionSettings;
   reseedKey: string;
@@ -224,13 +224,21 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
   /** Live report of the current selection's evaluation — lets a parent design a partner. */
   onEval?: (ev: WindowEval | null) => void;
   /**
-   * This junction's primer runs as the pair's REVERSE primer, so the oligo to order is the
-   * reverse complement of the selected sense window. Only the ordered sequence flips — the
-   * strip, the arms and every Tm stay sense-oriented, and the numbers are unaffected because
-   * a duplex melts at the same temperature read from either strand.
+   * Which primer of a pair this junction's oligo is, when that is already decided (a
+   * two-junction combo fixes both). Set it and the ordered sequence is labelled FORWARD or
+   * REVERSE, so nobody has to infer a direction from an unmarked string of bases.
+   *
+   * "reverse" additionally flips the ordered oligo to the reverse complement of the selected
+   * sense window. Only that sequence flips — the strip, the arms and every Tm stay
+   * sense-oriented, and the numbers are unaffected because a duplex melts at the same
+   * temperature read from either strand.
+   *
+   * null when the direction is not fixed here (a single-junction EEJ takes its direction
+   * from whichever side its partner primer lands on, which the partner panel states).
    */
-  reverse?: boolean;
+  role?: "forward" | "reverse" | null;
 }) {
+  const reverse = role === "reverse";
   const { seq, jx, leftBound, rightBound, winStart, winEnd } = geom;
   const [sel, setSel] = useState<{ s: number; e: number } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -344,7 +352,7 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
       </div>
 
       {ev && <Readout ev={ev} tmMin={s.tmMin} tmMax={s.tmMax}
-        leftLabel={geom.leftLabel} rightLabel={geom.rightLabel} reverse={reverse} />}
+        leftLabel={geom.leftLabel} rightLabel={geom.rightLabel} role={role} />}
     </>
   );
 }
@@ -358,10 +366,11 @@ function orderedOligo(ev: WindowEval, reverse: boolean): string {
   return reverse ? revComp(ev.whole.seq) : ev.whole.seq;
 }
 
-function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel, reverse }: {
+function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel, role }: {
   ev: WindowEval; tmMin: number; tmMax: number; leftLabel: string; rightLabel: string;
-  reverse: boolean;
+  role: "forward" | "reverse" | null;
 }) {
+  const reverse = role === "reverse";
   function copy() { navigator.clipboard?.writeText(orderedOligo(ev, reverse)); }
   // Reverse-complementing swaps which arm leads: revComp(left+right) = revComp(right)+revComp(left),
   // so the acceptor arm becomes the oligo's 5′ end and the junction mark moves with it.
@@ -396,7 +405,7 @@ function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel, reverse }: {
 
       <div className="jd-foot">
         <div className="jd-primer mono">
-          {reverse && <span className="jd-rev-tag">reverse</span>}
+          {role && <span className={`jd-role-tag ${role}`}>{role}</span>}
           5′-{oligo5}<span className="jd-split" />{oligo3}-3′
         </div>
         <button className="btn btn-ghost" onClick={copy}><Copy /> Copy primer</button>

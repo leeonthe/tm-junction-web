@@ -484,12 +484,18 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-primer{font-size:15px;color:var(--ink);letter-spacing:.02em;word-break:break-all}
 .jd-primer .jd-split{display:inline-block;width:2px;height:1.1em;background:var(--jx-line);
   margin:0 2px;vertical-align:-2px;border-radius:2px}
-/* A reverse-primer oligo reads opposite to the strip above it, so it is tagged and
-   explained — an unlabelled flipped sequence looks like a rendering bug. */
-.jd-rev-tag{font-family:var(--sans);font-size:10.5px;font-weight:700;letter-spacing:.04em;
-  text-transform:uppercase;color:var(--muted);background:var(--surface-3);
-  border:1px solid var(--border);padding:1px 6px;border-radius:5px;margin-right:8px;
-  vertical-align:2px}
+/* Which primer of the pair this oligo is. Both directions are tagged, not just the flipped
+   one: an unlabelled sequence leaves the reader to infer a direction, and the reverse one
+   additionally reads opposite to the strip above it, which looks like a rendering bug. The
+   two share a shape and differ only in tint, so they read as one scale, not two states. */
+.jd-role-tag{font-family:var(--sans);font-size:10.5px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;padding:1px 6px;border-radius:5px;margin-right:8px;
+  vertical-align:2px;border:1px solid var(--border);color:var(--muted);
+  background:var(--surface-3)}
+.jd-role-tag.forward{color:var(--conv);background:color-mix(in srgb,var(--conv) 12%,transparent);
+  border-color:color-mix(in srgb,var(--conv) 30%,transparent)}
+.jd-role-tag.reverse{color:var(--eej);background:color-mix(in srgb,var(--eej) 12%,transparent);
+  border-color:color-mix(in srgb,var(--eej) 30%,transparent)}
 .jd-rev-note{margin:8px 0 0}
 
 /* 5'/3' orientation labels pinned inside the top corners of the drag strip */
