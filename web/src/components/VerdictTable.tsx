@@ -37,11 +37,17 @@ export default function VerdictTable({
                   </span>
                 </td>
                 <td>{mechanism(t)}</td>
-                <td>{t.recommended_junction
-                  ? <span className="jx">{t.recommended_junction.label}</span>
-                  : t.tier === "NO_SINGLE_UNIQUE_JUNCTION"
-                    ? <span className="dash">needs junction combination</span>
-                    : <span className="dash">—</span>}</td>
+                <td>{(() => {
+                  // One source of truth with the mechanism cell, so the two can never
+                  // describe different designs for the same row. Anything with no junction
+                  // to name — conventional, and hard cases, which have no design at all —
+                  // gets a dash rather than prose in a coordinates column.
+                  const p = eejPlan(t);
+                  if (!p) return <span className="dash">—</span>;
+                  return p.junctions.map((j) => (
+                    <span key={j} className="jx jx-line">{j}</span>
+                  ));
+                })()}</td>
                 <td><span className="annot">{t.coord_non_unique ? "coord. non-unique" : "unique"}</span></td>
               </tr>
             );
@@ -52,7 +58,44 @@ export default function VerdictTable({
   );
 }
 
-function mechanism(t: TranscriptVerdict): string {
+/**
+ * Which EEJ design a transcript takes, and the junction(s) it is built on — the single
+ * classification both the Mechanism and EEJ-location columns read, so a row cannot name a
+ * design in one column and a different one in the other.
+ *
+ * "Junction-spanning primer" used to cover all three EEJ designs at once, which hid the
+ * thing a reader most needs from this table: whether the transcript costs one primer, two,
+ * or one plus a conventional partner. null for anything with no EEJ design at all.
+ */
+type EejPlan = { kind: "one" | "two" | "combo"; junctions: string[] };
+
+export function eejPlan(t: TranscriptVerdict): EejPlan | null {
+  if (t.tier !== "NEEDS_EEJ") return null;
+  if (t.combo_junctions?.length) {
+    return { kind: "two", junctions: t.combo_junctions.map(([d, a]) => `exon ${d}–exon ${a}`) };
+  }
+  if (!t.recommended_junction) return null;
+  const junctions = [t.recommended_junction.label];
+  // A junction+exon combination pins exactly ONE distinguishing exon beside the junction.
+  // The 7c conventional pair also uses amplify_exon_pair but carries two exons and no
+  // junction, so requiring a junction AND a single exon separates them cleanly.
+  if (t.amplify_exon_pair?.length === 1) return { kind: "combo", junctions };
+  return { kind: "one", junctions };
+}
+
+const EEJ_MECHANISM: Record<EejPlan["kind"], string> = {
+  one: "One EEJ primer",
+  two: "Two EEJ primers",
+  combo: "EEJ + exon combination",
+};
+
+export function mechanism(t: TranscriptVerdict): string {
+  if (t.tier === "NEEDS_EEJ") {
+    const p = eejPlan(t);
+    // A NEEDS_EEJ transcript always has a junction to name; if one ever lacks both, say the
+    // generic thing rather than assert a primer count that was never computed.
+    return p ? EEJ_MECHANISM[p.kind] : "Junction-spanning primer";
+  }
   if (t.tier === "CONVENTIONAL") {
     // How much sequence is unique, not how many k-nt primers fit in it — the latter is a
     // placement count that reads as several times more unique sequence than exists.
@@ -65,6 +108,5 @@ function mechanism(t: TranscriptVerdict): string {
     const p = t.amplify_exon_pair;
     return p ? `Exon pair · exon ${p[0]} + exon ${p[1]}` : "Conventional";
   }
-  if (t.tier === "NEEDS_EEJ") return "Junction-spanning primer";
   return "No single unique feature";
 }
