@@ -12,7 +12,7 @@ export default function VerdictTable({
     <div className="scroll-x">
       <table>
         <thead>
-          <tr><th>Transcript</th><th>Tier</th><th>Mechanism</th><th>EEJ location</th><th>Structural note</th></tr>
+          <tr><th>Transcript</th><th>Tier</th><th>Mechanism</th><th>Primer location</th><th>Structural note</th></tr>
         </thead>
         <tbody>
           {transcripts.map((t) => {
@@ -39,14 +39,19 @@ export default function VerdictTable({
                 <td>{mechanism(t)}</td>
                 <td>{(() => {
                   // One source of truth with the mechanism cell, so the two can never
-                  // describe different designs for the same row. Anything with no junction
-                  // to name — conventional, and hard cases, which have no design at all —
-                  // gets a dash rather than prose in a coordinates column.
+                  // describe different designs for the same row. Anything with no location
+                  // to name — hard cases, which have no design at all — gets a dash rather
+                  // than prose in a coordinates column.
                   const p = eejPlan(t);
                   if (!p) return <span className="dash">—</span>;
-                  return p.junctions.map((j) => (
-                    <span key={j} className="jx jx-line">{j}</span>
-                  ));
+                  return <>
+                    {p.junctions.map((j) => <span key={j} className="jx jx-line">{j}</span>)}
+                    {/* A combination is only specific with BOTH halves, so naming just the
+                        junction would describe half a design. */}
+                    {p.exon != null && (
+                      <span className="jx jx-line jx-plus">+ exon {p.exon}</span>
+                    )}
+                  </>;
                 })()}</td>
                 <td><span className="annot">{t.coord_non_unique ? "coord. non-unique" : "unique"}</span></td>
               </tr>
@@ -67,7 +72,12 @@ export default function VerdictTable({
  * thing a reader most needs from this table: whether the transcript costs one primer, two,
  * or one plus a conventional partner. null for anything with no EEJ design at all.
  */
-type EejPlan = { kind: "one" | "two" | "combo"; junctions: string[] };
+type EejPlan = {
+  kind: "one" | "two" | "combo";
+  junctions: string[];
+  /** The combination's other half: the exon its conventional primer must sit in. */
+  exon?: number;
+};
 
 export function eejPlan(t: TranscriptVerdict): EejPlan | null {
   if (t.tier !== "NEEDS_EEJ") return null;
@@ -79,7 +89,8 @@ export function eejPlan(t: TranscriptVerdict): EejPlan | null {
   // A junction+exon combination pins exactly ONE distinguishing exon beside the junction.
   // The 7c conventional pair also uses amplify_exon_pair but carries two exons and no
   // junction, so requiring a junction AND a single exon separates them cleanly.
-  if (t.amplify_exon_pair?.length === 1) return { kind: "combo", junctions };
+  if (t.amplify_exon_pair?.length === 1)
+    return { kind: "combo", junctions, exon: t.amplify_exon_pair[0] };
   return { kind: "one", junctions };
 }
 

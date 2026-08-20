@@ -152,11 +152,17 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
         </div>
       </div>
       <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} />
+      {/* A key, not a paragraph: each marker gets the short name of what it means, drawn in
+          the same ink it uses on the track. The long explanation of WHY a bracket marks a
+          range rather than a spot lives in the marker's own hover text on the graph. */}
       <p className="g-note">
-        The <BracketGlyph /> bracket joins the two exons of the recommended exon–exon junction
-        primer — the primer spans that connection, so it marks a range, not one exact spot.{" "}
-        <TriangleGlyph /> marks the conventional partner primer's exon and points toward its
-        EEJ mate. Window size k={k}.
+        <BracketGlyph /> single junction primer
+        <span className="g-sep">·</span>
+        <BracketGlyph combo /> double junction primer
+        <span className="g-sep">·</span>
+        <TriangleGlyph /> conventional partner primer
+        <span className="g-sep">·</span>
+        window size k={k}
       </p>
     </section>
   );
@@ -181,12 +187,16 @@ function StrandBadge({ strand }: { strand?: string }) {
   );
 }
 
-/* The two graph markers, drawn the same way in the note as on the track — a text glyph
-   (⌐¬, ⏴) renders too inconsistently across fonts to stand in for them. */
-function BracketGlyph() {
+/* The graph markers, drawn the same way in the key as on the track — a text glyph
+   (⌐¬, ⏴) renders too inconsistently across fonts to stand in for them. The bracket takes
+   the colour of the design it marks: one junction (red) or a two-junction pair (magenta),
+   matching the tokens the track itself strokes them with. */
+function BracketGlyph({ combo = false }: { combo?: boolean }) {
   return (
-    <svg className="g-glyph" width="20" height="9" viewBox="0 0 20 9" aria-label="bracket" role="img">
-      <path d="M2 8 L2 2 L18 2 L18 8" fill="none" stroke="var(--eej)" strokeWidth="2"
+    <svg className="g-glyph" width="20" height="9" viewBox="0 0 20 9" role="img"
+      aria-label={combo ? "magenta bracket" : "red bracket"}>
+      <path d="M2 8 L2 2 L18 2 L18 8" fill="none"
+        stroke={combo ? "var(--eej-combo)" : "var(--eej)"} strokeWidth="2"
         strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

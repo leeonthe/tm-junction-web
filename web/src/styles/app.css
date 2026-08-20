@@ -241,6 +241,9 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
 .g-note{font-size:12.5px;color:var(--faint);margin:14px 0 0}
 /* marker glyphs drawn inline in the note, sitting on the text baseline */
 .g-note .g-glyph{vertical-align:-1px;margin:0 1px}
+/* Separator between the key's entries — spaced enough that each glyph reads with its own
+   label rather than the run blurring into one sentence. */
+.g-note .g-sep{margin:0 10px;color:var(--border-2)}
 
 /* table */
 table{width:100%;border-collapse:collapse;font-size:14px}
@@ -260,6 +263,9 @@ td .tacc{font-family:var(--mono);font-weight:600;color:var(--ink)}
    column past the two that matter more and read as a single long coordinate. */
 .jx-line{display:block;white-space:nowrap}
 .jx-line + .jx-line{margin-top:2px}
+/* The exon half of a junction+exon combination — same column, but it is a target site
+   rather than a junction, so it is toned back from the coordinates above it. */
+.jx-plus{color:var(--muted);font-weight:400}
 .dash{color:var(--faint)}
 
 footer{border-top:1px solid var(--border);padding:24px 0;color:var(--muted);font-size:13px}

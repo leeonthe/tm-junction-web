@@ -36,11 +36,18 @@ describe("eejPlan", () => {
     expect(p.junctions).toEqual(["exon 6–exon 7", "exon 12–exon 13"]);
   });
 
-  it("junction + one distinguishing exon → the combination", () => {
-    // TCF7L2 NM_001198527.2: recommended exon 6–7 plus exon 14.
+  it("junction + one distinguishing exon → the combination, and BOTH its halves", () => {
+    // TCF7L2 NM_001198527.2: recommended exon 6–7 plus exon 14. The pair is only specific
+    // together, so the location column has to name the exon as well as the junction.
     const p = eejPlan(v({ recommended_junction: jx(6, 7), amplify_exon_pair: [14] }))!;
     expect(p.kind).toBe("combo");
     expect(p.junctions).toEqual(["exon 6–exon 7"]);
+    expect(p.exon).toBe(14);
+  });
+
+  it("carries no exon for designs that are junctions only", () => {
+    expect(eejPlan(v({ recommended_junction: jx(11, 12) }))!.exon).toBeUndefined();
+    expect(eejPlan(v({ combo_junctions: [[6, 7], [12, 13]] }))!.exon).toBeUndefined();
   });
 
   it("does not mistake a 7c conventional exon PAIR for a junction+exon combo", () => {
