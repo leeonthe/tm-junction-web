@@ -31,6 +31,14 @@ class UniqueRegionOut(BaseModel):
     tx_begin: int | None = None  # 1-based mRNA start of the distinguishing sequence
     tx_end: int | None = None    # 1-based mRNA end
     uniq_len: int | None = None  # its length in nt
+    # Where a target-specific k-mer window may START, as 1-based inclusive mRNA ranges.
+    #
+    # This is the engine's own specificity test, published so a client can design primers
+    # against exactly it: an oligo is specific iff it fully CONTAINS one of these windows,
+    # because a window absent from every sibling makes any oligo containing it absent too.
+    # Sent as runs rather than positions — they are contiguous, and a long unique region
+    # would otherwise ship hundreds of integers to say one thing.
+    window_starts: list[list[int]] = []
 
 
 class JunctionOut(BaseModel):

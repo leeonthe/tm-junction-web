@@ -2,6 +2,7 @@ import type { AnalyzeResponse } from "../lib/types";
 import VerdictBanner from "./VerdictBanner";
 import PrimerCard from "./PrimerCard";
 import JunctionDesigner from "./JunctionDesigner";
+import ConventionalDesigner from "./ConventionalDesigner";
 import GeneOverview from "./GeneOverview";
 import GraphCard from "./GraphCard";
 import VerdictTable from "./VerdictTable";
@@ -22,6 +23,11 @@ export default function Summary({
       {!result.target_verdict.recommended_junction &&
         (result.primer_design.forward || result.target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION") && (
         <PrimerCard design={result.primer_design} mrna={result.target_mrna} verdict={result.target_verdict} />
+      )}
+      {/* Summary is the everything view, so the tunable pair list belongs here too. */}
+      {result.target_verdict.tier === "CONVENTIONAL" && (
+        <ConventionalDesigner mrna={result.target_mrna} verdict={result.target_verdict}
+          k={Number(result.meta.k) || 20} />
       )}
       <JunctionDesigner mrna={result.target_mrna} verdict={result.target_verdict} />
       <GeneOverview result={result} />

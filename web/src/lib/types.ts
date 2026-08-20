@@ -16,7 +16,10 @@ export interface Exon {
  * runs up to k-1 nt wider each side. `window_count` counts those placements — a primer
  * count, never a measure of how much sequence is unique.
  */
-export interface UniqueRegion { exon_order: number; window_count: number; side: string; begin?: number | null; end?: number | null; tx_begin?: number | null; tx_end?: number | null; uniq_len?: number | null }
+export interface UniqueRegion { exon_order: number; window_count: number; side: string; begin?: number | null; end?: number | null; tx_begin?: number | null; tx_end?: number | null; uniq_len?: number | null;
+  /** 1-based inclusive [lo,hi] runs of positions where a target-specific k-mer window may
+   *  START. An oligo is specific iff it fully contains one — the engine's own test. */
+  window_starts?: number[][] }
 export interface Junction { donor_order: number; acceptor_order: number; label: string }
 
 export interface Primer {

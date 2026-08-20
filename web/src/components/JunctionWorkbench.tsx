@@ -138,10 +138,17 @@ const enterBlur = (e: KeyboardEvent<HTMLInputElement>) => {
 };
 
 /** The whole-primer Tm range, the arm-cap reminder, and the buffer summary chip. */
-export function TmRangeControls({ s, showChip = true }: { s: JunctionSettings; showChip?: boolean }) {
+/**
+ * `showArmCap` off for a CONVENTIONAL pair: the arm rule is what makes a junction primer
+ * junction-specific, and a primer that spans no junction has no arms. Showing it there
+ * would state a constraint the design does not have.
+ */
+export function TmRangeControls({ s, showChip = true, showArmCap = true }: {
+  s: JunctionSettings; showChip?: boolean; showArmCap?: boolean;
+}) {
   return (
     <div className="jd-range">
-      <label>Whole-primer Tm
+      <label>{showArmCap ? "Whole-primer Tm" : "Primer Tm"}
         <input type="number" value={s.minStr} min={TM_FLOOR} max={s.tmMax - 1} inputMode="numeric"
           onChange={(e) => s.editMin(e.target.value)} onBlur={s.commitMin} onKeyDown={enterBlur} />
         <span className="dash">–</span>
@@ -149,7 +156,9 @@ export function TmRangeControls({ s, showChip = true }: { s: JunctionSettings; s
           onChange={(e) => s.editMax(e.target.value)} onBlur={s.commitMax} onKeyDown={enterBlur} />
         <span className="unit">°C</span>
       </label>
-      <span className="jd-cap">each arm Tm ≤ <b>whole-primer Tm − {ARM_GAP} °C</b></span>
+      {showArmCap && (
+        <span className="jd-cap">each arm Tm ≤ <b>whole-primer Tm − {ARM_GAP} °C</b></span>
+      )}
       {showChip && (
         <button type="button" onClick={s.focusConditions}
           className={`jd-cond-chip ${isDefaultConditions(s.cond) ? "" : "mod"}`}

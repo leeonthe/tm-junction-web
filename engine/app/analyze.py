@@ -92,6 +92,17 @@ def _junction_label(donor: int, acceptor: int) -> str:
     return f"exon {donor}–exon {acceptor}"
 
 
+def _runs(positions: list[int]) -> list[list[int]]:
+    """Sorted 0-based positions -> 1-based inclusive [lo, hi] runs of consecutive values."""
+    out: list[list[int]] = []
+    for p in sorted(positions):
+        if out and p == out[-1][1]:      # out[-1][1] holds the 1-based end == next 0-based
+            out[-1][1] = p + 1
+        else:
+            out.append([p + 1, p + 1])
+    return out
+
+
 def _uniq_genomic(exons: list[tuple[int, int]], tx_start: int, tx_end: int,
                   exon_order: int) -> tuple[int, int]:
     """Map a unique window span [tx_start, tx_end] (0-based mRNA) to its genomic (begin,end)
@@ -182,9 +193,10 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         else:
             gb, ge = _uniq_genomic(exons, r.tx_start, r.tx_end, r.exon_order)
             tb, te = r.tx_start + 1, r.tx_end + 1
-        uniq_out.append(UniqueRegionOut(exon_order=r.exon_order, window_count=r.window_count,
-                                        side=r.side, begin=gb, end=ge,
-                                        tx_begin=tb, tx_end=te, uniq_len=te - tb + 1))
+        uniq_out.append(UniqueRegionOut(
+            exon_order=r.exon_order, window_count=r.window_count, side=r.side,
+            begin=gb, end=ge, tx_begin=tb, tx_end=te, uniq_len=te - tb + 1,
+            window_starts=_runs(amp.internal_starts.get(r.exon_order, []))))
     # Junction+exon combo: only the distinguishing part of the combo exon is the target site.
     # Emit it as a sub-span (genomic + mRNA) so the graph paints just that slice yellow and
     # leaves the overlapped remainder the tier color (red). exon_pair_out keeps the exon for the

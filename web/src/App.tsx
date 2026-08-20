@@ -6,6 +6,7 @@ import Hero from "./components/Hero";
 import GeneTranscriptPicker from "./components/GeneTranscriptPicker";
 import VerdictBanner from "./components/VerdictBanner";
 import PrimerCard from "./components/PrimerCard";
+import ConventionalDesigner from "./components/ConventionalDesigner";
 import JunctionDesigner from "./components/JunctionDesigner";
 import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
@@ -232,6 +233,12 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
           {!target_verdict.recommended_junction &&
             (primer_design.forward || target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION") && (
             <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
+          )}
+          {/* The engine's pick is one QC'd pair; this is where the user re-searches it with
+              their own product size and Tm range, and picks from alternatives. */}
+          {target_verdict.tier === "CONVENTIONAL" && (
+            <ConventionalDesigner mrna={result.target_mrna} verdict={target_verdict}
+              k={Number(result.meta.k) || 20} onMethod={onMethod} />
           )}
           <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} onMethod={onMethod} />
         </div>
