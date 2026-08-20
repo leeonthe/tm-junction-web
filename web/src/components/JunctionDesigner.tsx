@@ -111,6 +111,33 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
     return out;
   }, [verdict, mrna]);
 
+  // A combination target needs BOTH primers, so the conditions belong to the pair, not to
+  // either box — they move out to their own card below the two designers.
+  const combo = designs.length > 1;
+
+  // Junction+exon combo (recommended junction + a single distinguishing exon slice):
+  // the partner primer is not free — it must overlap that slice to keep the pair specific.
+  //
+  // This memo MUST stay above the no-designs early return below. It used to sit after it,
+  // so a transcript with no EEJ design rendered one hook fewer — and switching from such a
+  // transcript to one WITH a design (routine on a multi-isoform gene: TCF7L2's MANE is an
+  // exon-pair target, its siblings are EEJ ones) grew the hook count mid-mount. React
+  // throws "Rendered more hooks than during the previous render" for that and unmounts the
+  // tree, so the whole page went blank until a reload.
+  const force = useMemo<PartnerForce | null>(() => {
+    if (!designs.length || combo || verdict.amplify_exon_pair?.length !== 1
+        || !verdict.recommended_junction) return null;
+    const order = verdict.amplify_exon_pair[0];
+    const r = verdict.unique_regions.find(
+      (u) => u.exon_order === order && u.tx_begin != null && u.tx_end != null);
+    const ex = verdict.exons.find((e) => e.order === order);
+    const lo = (r?.tx_begin ?? ex?.tx_begin ?? 1) - 1;   // 1-based inclusive → 0-based
+    const hi = r?.tx_end ?? ex?.tx_end ?? lo;            // 1-based inclusive → 0-based exclusive
+    if (hi <= lo) return null;
+    const jx = designs[0].g.jx;
+    return { side: lo >= jx ? "downstream" : "upstream", region: { lo, hi }, exonOrder: order };
+  }, [combo, verdict, designs]);
+
   if (!designs.length) {
     return (
       <section className="card jd-empty">
@@ -122,25 +149,6 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
       </section>
     );
   }
-
-  // A combination target needs BOTH primers, so the conditions belong to the pair, not to
-  // either box — they move out to their own card below the two designers.
-  const combo = designs.length > 1;
-
-  // Junction+exon combo (recommended junction + a single distinguishing exon slice):
-  // the partner primer is not free — it must overlap that slice to keep the pair specific.
-  const force = useMemo<PartnerForce | null>(() => {
-    if (combo || verdict.amplify_exon_pair?.length !== 1 || !verdict.recommended_junction) return null;
-    const order = verdict.amplify_exon_pair[0];
-    const r = verdict.unique_regions.find(
-      (u) => u.exon_order === order && u.tx_begin != null && u.tx_end != null);
-    const ex = verdict.exons.find((e) => e.order === order);
-    const lo = (r?.tx_begin ?? ex?.tx_begin ?? 1) - 1;   // 1-based inclusive → 0-based
-    const hi = r?.tx_end ?? ex?.tx_end ?? lo;            // 1-based inclusive → 0-based exclusive
-    if (hi <= lo) return null;
-    const jx = designs[0].g.jx;
-    return { side: lo >= jx ? "downstream" : "upstream", region: { lo, hi }, exonOrder: order };
-  }, [combo, verdict, designs]);
 
   return (
     <>

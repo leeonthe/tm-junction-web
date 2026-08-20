@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { analyzeStream, lookupGene, AnalyzeError, type Progress } from "./lib/api";
 import type { AnalyzeResponse, GeneLookupResponse } from "./lib/types";
 import Nav from "./components/Nav";
@@ -50,8 +50,32 @@ export default function App() {
   const [mode, setMode] = useState<Mode>(DEFAULT_MODE);
   const [arms, setArms] = useState<Arms>(EMPTY_ARMS);
 
+  /**
+   * Which analysis the UI is currently showing. Switching transcripts starts a new
+   * request without the previous one having finished, and the two do NOT come back in
+   * order — a warm-cache isoform can overtake a cold one. Without this, the slower
+   * earlier request lands last and overwrites the transcript the user actually asked
+   * for, which reads as "clicking a different transcript did nothing".
+   *
+   * Every start takes the next ticket; only the holder of the latest ticket is allowed
+   * to touch state. The previous request is also aborted, so the engine stops work
+   * nobody is waiting for.
+   */
+  const runSeq = useRef(0);
+  const inFlight = useRef<AbortController | null>(null);
+
+  /** Supersede whatever is running; returns a predicate for "am I still the current run?". */
+  function claimRun(): { signal: AbortSignal; isCurrent: () => boolean } {
+    inFlight.current?.abort();
+    const ac = new AbortController();
+    inFlight.current = ac;
+    const seq = ++runSeq.current;
+    return { signal: ac.signal, isCurrent: () => seq === runSeq.current };
+  }
+
   async function geneSearch(symbol: string) {
     if (!symbol) return;
+    const { isCurrent } = claimRun();   // a gene search also supersedes a running analysis
     setLoading(true);
     setError(null);
     setResult(null);
@@ -59,26 +83,30 @@ export default function App() {
     setShowMethod(false);
     try {
       const g = await lookupGene(symbol);
+      if (!isCurrent()) return;
       setGene(g);
       setGeneHistory((h) => pushStored(GENE_HISTORY_KEY, g.gene.symbol, h));   // canonical symbol
     } catch (e) {
+      if (!isCurrent()) return;
       const err = e as AnalyzeError;
       setError({ code: err.code ?? "ERROR", message: err.message });
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }
 
   async function run(accession: string, opts: RunOpts = {}) {
     const { keepTab = false, soft = false, silent = false, fromGene = false } = opts;
     if (!accession) return;
+    const { signal, isCurrent } = claimRun();
     // A fresh accession search leaves the gene picker; picking a variant from it keeps the picker.
     if (!soft && !fromGene) setGene(null);
     if (!soft) setProgress({ pct: 0, detail: "Starting…" });
     soft ? setBusy(true) : setLoading(true);
     setError(null);
     try {
-      const r = await analyzeStream(accession, (p) => { if (!soft) setProgress(p); });
+      const r = await analyzeStream(accession, (p) => { if (!soft && isCurrent()) setProgress(p); }, signal);
+      if (!isCurrent()) return;
       setResult(r);
       if (!keepTab) setTab("summary");   // a fresh search lands on the everything view
       // recent searches (persisted, ≤3) — not for the initial demo or isoform re-targets
@@ -86,11 +114,15 @@ export default function App() {
         setHistory((h) => pushStored(HISTORY_KEY, r.target_accession, h));
       }
     } catch (e) {
+      // A superseded run reports nothing: its failure (an abort included) is not the
+      // user's problem, and an error box from it would sit over the transcript that
+      // actually loaded.
+      if (!isCurrent()) return;
       const err = e as AnalyzeError;
       setError({ code: err.code ?? "ERROR", message: err.message });
       if (!soft) setResult(null);
     } finally {
-      soft ? setBusy(false) : setLoading(false);
+      if (isCurrent()) soft ? setBusy(false) : setLoading(false);
     }
   }
 
@@ -101,6 +133,7 @@ export default function App() {
 
   // Return to the empty landing state (logo / brand click).
   function reset() {
+    claimRun();          // drop anything in flight so it cannot repopulate the page
     setResult(null);
     setGene(null);
     setError(null);
