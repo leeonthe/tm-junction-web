@@ -187,6 +187,11 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod }: {
 }) {
   const { g, donor, acceptor } = d;
   const combo = total > 1;
+  // Two-junction combo: the pair is one PCR, so only one of its two EEJ primers can run
+  // forward. The junctions arrive upstream-first, so box 1 is the forward primer and box 2
+  // is the reverse one — and a reverse primer's ordered oligo is the reverse complement of
+  // the sense window the strip highlights.
+  const reversePrimer = combo && index > 0;
   const accession = verdict.accession;
   // A combo target already yields two EEJ primers — only the single-junction case
   // needs the second (conventional) primer designed here.
@@ -208,6 +213,7 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod }: {
 
       <JunctionWorkbench
         geom={g} s={s} reseedKey={`${accession}:${donor.order}-${acceptor.order}`}
+        reverse={reversePrimer}
         onEval={partnerOn ? setEv : undefined}
         legendExtra={partnerOn ? (
           <button className="btn btn-ghost jd-full" onClick={() => setShowCdna((v) => !v)}>
@@ -224,7 +230,8 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod }: {
             {combo && <>
               {" "}This junction is <b>not</b> unique on its own: it takes both EEJ primers
               together to isolate <span className="mono">{accession}</span>, so this one is
-              only half the design.
+              only half the design — and it is the pair's{" "}
+              <b>{reversePrimer ? "reverse" : "forward"}</b> primer.
             </>}
           </p>
         }

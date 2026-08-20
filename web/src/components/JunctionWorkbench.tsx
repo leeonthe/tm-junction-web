@@ -7,6 +7,7 @@ import {
   armTmText, autoPick, evalWindow, isDefaultConditions,
   type TmConditions, type WindowEval,
 } from "../lib/tm";
+import { revComp } from "../lib/partner";
 import { numStr } from "../lib/format";
 import { Copy } from "./icons";
 
@@ -213,7 +214,7 @@ export function Conditions({ s, onMethod }: { s: JunctionSettings; onMethod?: ()
  * Deliberately NOT keyed on the reaction conditions: keeping the user's window lets them
  * watch the same primer move as they retune salt or primer concentration.
  */
-export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEval }: {
+export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEval, reverse = false }: {
   geom: JunctionGeom;
   s: JunctionSettings;
   reseedKey: string;
@@ -222,6 +223,13 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
   legendExtra?: ReactNode;
   /** Live report of the current selection's evaluation — lets a parent design a partner. */
   onEval?: (ev: WindowEval | null) => void;
+  /**
+   * This junction's primer runs as the pair's REVERSE primer, so the oligo to order is the
+   * reverse complement of the selected sense window. Only the ordered sequence flips — the
+   * strip, the arms and every Tm stay sense-oriented, and the numbers are unaffected because
+   * a duplex melts at the same temperature read from either strand.
+   */
+  reverse?: boolean;
 }) {
   const { seq, jx, leftBound, rightBound, winStart, winEnd } = geom;
   const [sel, setSel] = useState<{ s: number; e: number } | null>(null);
@@ -272,7 +280,7 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
   // the box has user-select:none (so dragging designs a primer), so native copy won't work.
   function copySelected() {
     if (!ev) return;
-    navigator.clipboard?.writeText(ev.whole.seq);
+    navigator.clipboard?.writeText(orderedOligo(ev, reverse));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   }
@@ -336,15 +344,29 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
       </div>
 
       {ev && <Readout ev={ev} tmMin={s.tmMin} tmMax={s.tmMax}
-        leftLabel={geom.leftLabel} rightLabel={geom.rightLabel} />}
+        leftLabel={geom.leftLabel} rightLabel={geom.rightLabel} reverse={reverse} />}
     </>
   );
 }
 
-function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel }: {
+/**
+ * The oligo as ordered, 5′→3′. For a reverse primer that is the reverse complement of the
+ * selected sense window — the sequence highlighted on the strip is the template it binds,
+ * not the thing you buy.
+ */
+function orderedOligo(ev: WindowEval, reverse: boolean): string {
+  return reverse ? revComp(ev.whole.seq) : ev.whole.seq;
+}
+
+function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel, reverse }: {
   ev: WindowEval; tmMin: number; tmMax: number; leftLabel: string; rightLabel: string;
+  reverse: boolean;
 }) {
-  function copy() { navigator.clipboard?.writeText(ev.whole.seq); }
+  function copy() { navigator.clipboard?.writeText(orderedOligo(ev, reverse)); }
+  // Reverse-complementing swaps which arm leads: revComp(left+right) = revComp(right)+revComp(left),
+  // so the acceptor arm becomes the oligo's 5′ end and the junction mark moves with it.
+  const oligo5 = reverse ? revComp(ev.right.seq) : ev.left.seq;
+  const oligo3 = reverse ? revComp(ev.left.seq) : ev.right.seq;
   // cap tracks the selection's actual whole-primer Tm (ev.armCap = whole Tm − ARM_GAP)
   const cap = ev.armCap.toFixed(1);
   return (
@@ -374,10 +396,19 @@ function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel }: {
 
       <div className="jd-foot">
         <div className="jd-primer mono">
-          5′-{ev.left.seq}<span className="jd-split" />{ev.right.seq}-3′
+          {reverse && <span className="jd-rev-tag">reverse</span>}
+          5′-{oligo5}<span className="jd-split" />{oligo3}-3′
         </div>
         <button className="btn btn-ghost" onClick={copy}><Copy /> Copy primer</button>
       </div>
+      {reverse && (
+        <p className="sub jd-rev-note">
+          This primer runs <b>reverse</b>, so the oligo to order is the <b>reverse complement</b>
+          {" "}of the window highlighted above — that window is the template it binds, not the
+          sequence you buy. The Tm figures are unchanged: a duplex melts at the same
+          temperature read from either strand.
+        </p>
+      )}
     </div>
   );
 }
