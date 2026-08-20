@@ -215,11 +215,15 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
           {/* The orderable pair, in the same shape the single-junction case uses for its
               EEJ + partner pair. Both rows are marked EEJ here: unlike that case, BOTH
               primers span a junction — that is what makes the combination specific. */}
-          {fwdOligo && revOligo && (
+          {fwdOligo && revOligo && evs[0] && evs[1] && (
             <div className="pp-foot jd-pair">
-              <div className="pp-pair mono">
-                <span><b className="pp-tag f">F</b> 5′-{fwdOligo}-3′<i className="pp-eej"> EEJ</i></span>
-                <span><b className="pp-tag r">R</b> 5′-{revOligo}-3′<i className="pp-eej"> EEJ</i></span>
+              <div className="pp-pair">
+                <ComboPrimerRow role="f" label="F" oligo={fwdOligo} ev={evs[0]} />
+                {/* ΔTm hangs off the reverse primer, measured against the forward one — the
+                    same anchoring the partner panel uses, where the EEJ primer is the
+                    reference and its partner carries the gap. */}
+                <ComboPrimerRow role="r" label="R" oligo={revOligo} ev={evs[1]}
+                  dTm={evs[1].whole.tm - evs[0].whole.tm} />
               </div>
               <button className="btn btn-ghost" onClick={copyPair}>
                 <Copy /> {copied ? "✓ Copied" : "Copy pair"}
@@ -230,6 +234,41 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
         </section>
       )}
     </>
+  );
+}
+
+/**
+ * One orderable primer of a two-junction combo: the oligo, then the same metrics the
+ * second-primer panel reports for a conventional partner — Tm, GC, length and the mRNA
+ * span it binds — so a combo pair can be read the same way as an EEJ+partner pair.
+ *
+ * `dTm` is passed only for the reverse primer, and is its gap from the forward one. Both
+ * anneal in the same cycle, so a wide gap means one of them is at the wrong temperature;
+ * it is judged against DEFAULT_DTM_MAX, the same tolerance the partner search enforces by
+ * default, rather than being coloured "good" unconditionally.
+ */
+function ComboPrimerRow({ role, label, oligo, ev, dTm }: {
+  role: "f" | "r";
+  label: string;
+  oligo: string;
+  ev: WindowEval;
+  dTm?: number;
+}) {
+  return (
+    <div className="cmb-row">
+      <span className="mono">
+        <b className={`pp-tag ${role}`}>{label}</b> 5′-{oligo}-3′<i className="pp-eej"> EEJ</i>
+      </span>
+      <span className="pp-meta">
+        Tm <b>{ev.whole.tm.toFixed(1)} °C</b>
+        {dTm != null && <>
+          {" "}<span className={`pp-dtm${Math.abs(dTm) <= DEFAULT_DTM_MAX ? "" : " off"}`}>
+            ΔTm {signedTm(dTm)}</span>
+        </>}
+        {" "}· GC {ev.whole.gc.toFixed(0)}% · {ev.whole.len} nt
+        {" "}· mRNA {ev.s + 1}–{ev.e}
+      </span>
+    </div>
   );
 }
 

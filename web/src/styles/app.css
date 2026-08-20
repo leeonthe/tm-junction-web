@@ -531,6 +531,12 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .pp-meta b{color:var(--ink);font-family:var(--mono);font-weight:600}
 /* every listed option is inside the user's ±cap, so ΔTm needs no pass/fail color */
 .pp-dtm{font-family:var(--mono);font-weight:600;color:var(--ok)}
+/* In the partner list every option is inside the user's cap by construction, so ΔTm there
+   is always green. A combo pair has no cap input — its gap is whatever the two selections
+   make — so it is judged, and flagged when the two primers would not anneal together. */
+.pp-dtm.off{color:var(--eej)}
+/* One combo primer: the oligo, with its metrics on the line beneath. */
+.cmb-row{display:flex;flex-direction:column;gap:2px}
 .pp-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .pp-pair{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--ink);word-break:break-all}
 .pp-tag{display:inline-block;min-width:18px;text-align:center;font-size:11px;font-weight:700;
