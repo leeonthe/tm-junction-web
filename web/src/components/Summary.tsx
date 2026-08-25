@@ -20,14 +20,15 @@ export default function Summary({
       <VerdictBanner v={result.target_verdict} />
       {/* Show DESIGNED PRIMERS only for a real conventional design, or the hard-case note.
           EEJ variants use the Tm designer; combo/7c cases show their info in the verdict. */}
-      {!result.target_verdict.recommended_junction &&
-        (result.primer_design.forward || result.target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION") && (
+      {/* Only the hard-case note now. A CONVENTIONAL target's single fixed pair was removed
+          2026-08-19 — the Primer pair options card below supersedes it with a tunable set. */}
+      {result.target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION" && (
         <PrimerCard design={result.primer_design} mrna={result.target_mrna} verdict={result.target_verdict} />
       )}
       {/* Summary is the everything view, so the tunable pair list belongs here too. */}
       {result.target_verdict.tier === "CONVENTIONAL" && (
         <ConventionalDesigner mrna={result.target_mrna} verdict={result.target_verdict}
-          k={Number(result.meta.k) || 20} />
+          k={Number(result.meta.k) || 20} solo={result.transcripts.length === 1} />
       )}
       <JunctionDesigner mrna={result.target_mrna} verdict={result.target_verdict} />
       <GeneOverview result={result} />

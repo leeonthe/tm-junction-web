@@ -543,6 +543,12 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .pp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
 /* amplicon sizes run to four digits — wider than the two-digit Tm bounds */
 .pp-amp input{width:66px}
+/* Sole-isoform exon choice — same shape as the numeric controls beside it. */
+.exon-pick select{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink);
+  background:var(--surface-3);border:1px solid var(--border-2);border-radius:var(--r-pill);
+  padding:4px 8px;cursor:pointer}
+.exon-pick select:hover{border-color:color-mix(in srgb,var(--brand) 40%,var(--border-2))}
+.exon-pick .dash{color:var(--faint)}
 /* The product sizes a target can actually make, beside the amplicon box. Sits at label
    scale but reads as data, not as a third input — and only offers "use all" when the
    current window is narrower than what is available. */

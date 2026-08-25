@@ -230,15 +230,16 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
           <TargetTrackCard result={result} onExplore={() => setTab("gene")} onSelect={onSelect} />
           {/* Show DESIGNED PRIMERS only for a real conventional primer design, or the hard-case
               note. EEJ variants use the Tm designer; combo/7c cases show their info in the verdict. */}
-          {!target_verdict.recommended_junction &&
-            (primer_design.forward || target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION") && (
+          {/* Only the hard-case note now — see Summary.tsx. */}
+          {target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION" && (
             <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
           )}
           {/* The engine's pick is one QC'd pair; this is where the user re-searches it with
               their own product size and Tm range, and picks from alternatives. */}
           {target_verdict.tier === "CONVENTIONAL" && (
             <ConventionalDesigner mrna={result.target_mrna} verdict={target_verdict}
-              k={Number(result.meta.k) || 20} onMethod={onMethod} />
+              k={Number(result.meta.k) || 20} solo={result.transcripts.length === 1}
+              onMethod={onMethod} />
           )}
           <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} onMethod={onMethod} />
         </div>

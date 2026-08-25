@@ -8,6 +8,10 @@ export default function VerdictTable({
   targetAccession: string;
   onSelect?: (accession: string) => void;
 }) {
+  // A gene with ONE NM transcript has nothing to be distinguished FROM, so every exon comes
+  // back "unique" and naming one of them (always exon 1, the first in the list) reads as a
+  // constraint that does not exist — and sent the designer to a 78-nt GC-rich exon on ACTB.
+  const solo = transcripts.length === 1;
   return (
     <div className="scroll-x">
       <table>
@@ -36,7 +40,7 @@ export default function VerdictTable({
                     <span className="d" style={{ background: tierColorVar[t.tier] }} />{tierLabel[t.tier]}
                   </span>
                 </td>
-                <td>{mechanism(t)}</td>
+                <td>{mechanism(t, solo)}</td>
                 <td>{(() => {
                   // One source of truth with the mechanism cell, so the two can never
                   // describe different designs for the same row. Anything with no location
@@ -100,7 +104,10 @@ const EEJ_MECHANISM: Record<EejPlan["kind"], string> = {
   combo: "EEJ + exon combination",
 };
 
-export function mechanism(t: TranscriptVerdict): string {
+export function mechanism(t: TranscriptVerdict, solo = false): string {
+  // Sole isoform: the whole transcript is targetable, so say that rather than singling out
+  // whichever exon happened to sort first.
+  if (solo && t.tier === "CONVENTIONAL") return "Any two nearby exons";
   if (t.tier === "NEEDS_EEJ") {
     const p = eejPlan(t);
     // A NEEDS_EEJ transcript always has a junction to name; if one ever lacks both, say the

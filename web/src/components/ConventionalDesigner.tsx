@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import type { TranscriptVerdict } from "../lib/types";
 import {
   Conditions, TmRangeControls, useJunctionSettings,
@@ -27,13 +27,25 @@ import { Copy } from "./icons";
  * Neither test is re-derived here — the browser has no sibling sequences. Both come from the
  * engine (see lib/conventional).
  */
-export default function ConventionalDesigner({ mrna, verdict, k, onMethod }: {
+export default function ConventionalDesigner({ mrna, verdict, k, solo = false, onMethod }: {
   mrna: string;
   verdict: TranscriptVerdict;
   k: number;
+  /** This gene has ONE NM transcript — nothing to discriminate against. */
+  solo?: boolean;
   onMethod?: () => void;
 }) {
   const s = useJunctionSettings();
+
+  // Sole isoform: every exon comes back "unique" because there are no siblings, so there is
+  // no such thing as THE unique region and the user picks where the primers go. Defaulting
+  // to the first unique region meant exon 1 every time — 78 GC-rich nt on ACTB, which admits
+  // no pair under 65 °C. The longest exon is the honest default: most room, most choices.
+  const longest = useMemo(() => [...verdict.exons]
+    .sort((a, b) => b.length - a.length)[0]?.order ?? 1, [verdict.exons]);
+  const [fwdExon, setFwdExon] = useState(longest);
+  const [revExon, setRevExon] = useState(longest);
+  useEffect(() => { setFwdExon(longest); setRevExon(longest); }, [longest, verdict.accession]);
 
   /** What makes this transcript specific, translated into placement rules. */
   const plan = useMemo(() => {
@@ -41,6 +53,18 @@ export default function ConventionalDesigner({ mrna, verdict, k, onMethod }: {
       const e = verdict.exons.find((x) => x.order === order);
       return e ? { lo: e.tx_begin - 1, hi: e.tx_end } : null;   // 1-based incl → 0-based half-open
     };
+    if (solo) {
+      const fwdRegion = exonSpan(fwdExon);
+      const revRegion = exonSpan(revExon);
+      if (!fwdRegion || !revRegion) return null;
+      return {
+        kind: "solo" as const, fwdRegion, revRegion,
+        uniqueStarts: null, requireUniqueIn: null,
+        note: <>This gene has a <b>single NM transcript</b>, so there is no sibling isoform to
+          discriminate against — <b>any</b> pair inside it is specific within the gene. Choose
+          which exons to sit in below; both may be the same exon.</>,
+      };
+    }
     const pair = verdict.amplify_exon_pair;
     if (pair?.length === 2) {
       const fwdRegion = exonSpan(pair[0]);
@@ -69,7 +93,7 @@ export default function ConventionalDesigner({ mrna, verdict, k, onMethod }: {
         <b>{r.uniq_len} nt</b> no other isoform carries (mRNA {r.tx_begin}–{r.tx_end}); its
         partner is free to sit anywhere the amplicon allows.</>,
     };
-  }, [verdict]);
+  }, [verdict, solo, fwdExon, revExon]);
 
   // Geometry first: an exon pair ten exons apart cannot make a 150 bp product, so the
   // starting window is chosen from what this target can actually produce.
@@ -96,6 +120,15 @@ export default function ConventionalDesigner({ mrna, verdict, k, onMethod }: {
   const [selId, setSelId] = useState<string | null>(null);
   const [showCdna, setShowCdna] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Changing the exon choice changes what sizes are reachable, so the window follows it —
+  // otherwise picking a short exon silently leaves a window that can return nothing.
+  const planKey = solo ? `${fwdExon}:${revExon}` : "fixed";
+  useEffect(() => {
+    setAmpMin(initial.min); setMinStr(String(initial.min));
+    setAmpMax(initial.max); setMaxStr(String(initial.max));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planKey]);
 
   const options = useMemo(() => {
     if (!plan) return [];
@@ -171,8 +204,8 @@ export default function ConventionalDesigner({ mrna, verdict, k, onMethod }: {
       <div className="pp-head">
         <p className="sub jd-intro" style={{ margin: 0 }}>
           {plan.note}{" "}Set the product size and how closely the two primers must melt
-          together; the list re-searches as you type. Structural QC (hairpin, dimer) is not
-          re-run here — the recommended pair above carries that.
+          together; the list re-searches as you type. Tm, GC, length and the pair's ΔTm are
+          shown per option; hairpin and dimer checks are not run here.
         </p>
         <div className="jd-range pp-amp">
           <label>Amplicon
@@ -192,6 +225,23 @@ export default function ConventionalDesigner({ mrna, verdict, k, onMethod }: {
               possible <b>{feasible.min}–{feasible.max}</b> bp
               {(ampMin > feasible.min || ampMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
             </button>
+          )}
+          {solo && (
+            <label className="exon-pick">Exons
+              <select value={fwdExon} onChange={(e) => setFwdExon(Number(e.target.value))}
+                title="Exon the forward primer sits in">
+                {verdict.exons.map((e) => (
+                  <option key={e.order} value={e.order}>{e.order} · {e.length} nt</option>
+                ))}
+              </select>
+              <span className="dash">→</span>
+              <select value={revExon} onChange={(e) => setRevExon(Number(e.target.value))}
+                title="Exon the reverse primer sits in">
+                {verdict.exons.map((e) => (
+                  <option key={e.order} value={e.order}>{e.order} · {e.length} nt</option>
+                ))}
+              </select>
+            </label>
           )}
           <label title="Discard any pair whose two primers melt further apart than this">
             Tm match <span className="dash">±</span>

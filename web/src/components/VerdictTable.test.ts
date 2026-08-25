@@ -88,3 +88,35 @@ describe("mechanism", () => {
     expect(eejPlan(hard)).toBeNull();
   });
 });
+
+/**
+ * A gene with ONE NM transcript has nothing to be distinguished from, so the sequence scan
+ * marks every exon "unique" and `unique_regions[0]` is just whichever sorted first — always
+ * exon 1. Naming it stated a constraint that does not exist, and pointed the designer at
+ * ACTB NM_001101.5's 78-nt GC-rich exon 1, which admits no pair under 65 °C.
+ */
+describe("sole-isoform transcripts", () => {
+  const actbLike = v({
+    tier: "CONVENTIONAL", needs_eej: false,
+    unique_regions: [
+      { exon_order: 1, window_count: 59, side: "forward", uniq_len: 78 },
+      { exon_order: 6, window_count: 725, side: "reverse", uniq_len: 744 },
+    ],
+  });
+
+  it("says the whole transcript is targetable instead of naming exon 1", () => {
+    expect(mechanism(actbLike, true)).toBe("Any two nearby exons");
+    expect(mechanism(actbLike, true)).not.toContain("exon 1");
+  });
+
+  it("leaves multi-isoform genes alone — there the exon IS the constraint", () => {
+    expect(mechanism(actbLike, false)).toBe("Unique region · exon 1 (78 nt)");
+  });
+
+  it("does not relabel a sole isoform that still needs a junction", () => {
+    // solo only removes a false constraint on CONVENTIONAL rows; it cannot make an EEJ
+    // design unnecessary, so those keep their own wording.
+    const eej = v({ recommended_junction: jx(3, 4) });
+    expect(mechanism(eej, true)).toBe("One EEJ primer");
+  });
+});
