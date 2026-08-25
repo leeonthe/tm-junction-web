@@ -550,8 +550,11 @@ tr.is-target:hover td{background:var(--brand-tint)}
    is always green. A combo pair has no cap input — its gap is whatever the two selections
    make — so it is judged, and flagged when the two primers would not anneal together. */
 .pp-dtm.off{color:var(--eej)}
-/* One combo primer: the oligo, with its metrics on the line beneath. */
-.cmb-row{display:flex;flex-direction:column;gap:2px}
+/* One combo primer: the oligo, with its metrics pushed to the right of the same line so the
+   two sequences stay vertically aligned and directly comparable. Wraps to a second line on a
+   narrow card rather than crushing either half. */
+.cmb-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px 18px;flex-wrap:wrap}
+.cmb-row .pp-meta{margin-left:auto;text-align:right}
 .pp-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .pp-pair{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--ink);word-break:break-all}
 .pp-tag{display:inline-block;min-width:18px;text-align:center;font-size:11px;font-weight:700;
@@ -562,6 +565,9 @@ tr.is-target:hover td{background:var(--brand-tint)}
 /* Same pair block reused on the two-junction combo card, which has no partner panel around
    it to space it — only the surrounding margins differ. */
 .pp-foot.jd-pair{margin:14px 0 18px}
+/* Only the combo block: its rows carry metrics, so the sequence column has to span the card
+   for them to have a right edge to sit against. */
+.pp-foot.jd-pair .pp-pair{flex:1;min-width:0}
 
 /* conditions summary chip in the card head — jumps to the editable inputs */
 .jd-cond-chip{display:inline-flex;align-items:center;gap:5px;margin-top:2px;padding:3px 10px;
