@@ -1,5 +1,6 @@
 import type { AnalyzeResponse } from "../lib/types";
 import { Alert } from "./icons";
+import Info from "./Info";
 
 /** Gene-level summary tiles + hard-case explainer. Shared by the Summary and Gene tabs. */
 export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
@@ -21,10 +22,11 @@ export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
           <div>
             <h4>{summary.hard_case_count} isoform{summary.hard_case_count > 1 ? "s have" : " has"} no single distinguishing feature</h4>
             <p>
-              These transcripts share every exon region <i>and</i> every splice junction with
-              another isoform, so neither a conventional nor a single junction primer can isolate
-              them. Detecting them specifically needs a <b>junction-combination</b> (dual-junction)
-              strategy — planned, not yet automated.{maneHard && ` In ${gene.symbol} this is the MANE transcript.`}
+              Needs a <b>junction-combination</b> strategy — planned, not yet automated.
+              {maneHard && <> In {gene.symbol} this is the MANE transcript.</>}
+              <Info>They share every exon region <i>and</i> every splice junction with another
+                isoform, so neither a conventional nor a single junction primer can isolate
+                them.</Info>
             </p>
           </div>
         </section>

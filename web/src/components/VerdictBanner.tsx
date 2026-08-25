@@ -1,6 +1,7 @@
 import type { TranscriptVerdict, UniqueRegion } from "../lib/types";
 import { tierChipClass, tierColorVar, verdictClass } from "../lib/tier";
 import { Check, Split, Alert } from "./icons";
+import Info from "./Info";
 
 export default function VerdictBanner({ v }: { v: TranscriptVerdict }) {
   const region = v.unique_regions[0];
@@ -43,11 +44,11 @@ function Explanation({ v, region, junc }: {
       ? region.tx_end - region.tx_begin + 1 : null);
     return (
       <p>
-        <span className="mono">{v.accession}</span> owns a region unique to it — in{" "}
-        <b>exon {region.exon_order}</b>
-        {nt != null && region.tx_begin != null && <>, <b>mRNA {region.tx_begin}–{region.tx_end}</b>{" "}
-          ({nt} nt no other isoform carries)</>}.
-        A conventional primer covering it will not amplify the other isoforms.
+        Unique region in <b>exon {region.exon_order}</b>
+        {nt != null && region.tx_begin != null && <> — <b>{nt} nt</b> at mRNA{" "}
+          {region.tx_begin}–{region.tx_end}</>}.
+        <Info>No other isoform carries that stretch, so a conventional primer covering it will
+          not amplify them.</Info>
       </p>
     );
   }
@@ -55,10 +56,9 @@ function Explanation({ v, region, junc }: {
     const [f, r] = v.amplify_exon_pair;
     return (
       <p>
-        No single exon region is unique to <span className="mono">{v.accession}</span>, but its
-        exon <i>combination</i> is. Target a conventional primer pair in <b>exon {f}</b> (forward)
-        and <b>exon {r}</b> (reverse) — no other isoform carries both exons, so the product forms
-        only for this transcript.
+        Conventional pair — forward in <b>exon {f}</b>, reverse in <b>exon {r}</b>.
+        <Info>No single exon region is unique here, but the exon <i>combination</i> is: no other
+          isoform carries both, so the product forms only for this transcript.</Info>
       </p>
     );
   }
@@ -66,35 +66,39 @@ function Explanation({ v, region, junc }: {
     const [[d1, a1], [d2, a2]] = v.combo_junctions;
     return (
       <p>
-        No unique region or single junction distinguishes <span className="mono">{v.accession}</span>,
-        but a <b>two-junction combination</b> does: EEJ primers across <b>exon {d1}–exon {a1}</b> and{" "}
-        <b>exon {d2}–exon {a2}</b> — no other isoform has both, so the product forms only for this transcript.
+        Two EEJ primers — across <b>exon {d1}–exon {a1}</b> and <b>exon {d2}–exon {a2}</b>.
+        <Info>No unique region or single junction distinguishes this transcript, but no other
+          isoform has both of these junctions.</Info>
       </p>
     );
   }
   if (v.tier === "NEEDS_EEJ" && v.amplify_exon_pair && junc) {
     return (
       <p>
-        No unique region or single unique junction, but a <b>junction + exon combination</b> isolates{" "}
-        <span className="mono">{v.accession}</span>: an EEJ primer across the <b>{junc.label}</b> junction
-        plus a conventional primer in <b>exon {v.amplify_exon_pair[0]}</b> — no other isoform has both.
+        EEJ primer across <b>{junc.label}</b>, plus a conventional primer in{" "}
+        <b>exon {v.amplify_exon_pair[0]}</b>.
+        <Info>Neither is unique alone — no other isoform has both, so the product forms only
+          for this transcript.</Info>
       </p>
     );
   }
   if (v.tier === "NEEDS_EEJ" && junc) {
     return (
       <p>
-        No exonic region is unique to <span className="mono">{v.accession}</span>, but the{" "}
-        <b>{junc.label}</b> junction is. A primer spanning it is specific to this isoform
-        {v.partner_exon != null && <>, paired with a conventional primer in <b>exon {v.partner_exon}</b>{" "}
-        (the target site nearest the junction)</>}.
+        EEJ primer across <b>{junc.label}</b>
+        {v.partner_exon != null && <>, paired in <b>exon {v.partner_exon}</b></>}.
+        <Info>No exonic region is unique to this transcript, but that junction is — a primer
+          spanning it fires only on this isoform.
+          {v.partner_exon != null && <> Exon {v.partner_exon} is the target site nearest the
+            junction.</>}</Info>
       </p>
     );
   }
   return (
     <p>
-      <span className="mono">{v.accession}</span> has no unique region and no unique single junction.
-      Detecting it specifically needs a junction-combination (dual-junction) strategy.
+      Needs a junction-combination (dual-junction) strategy.
+      <Info>No unique region and no unique single junction, so neither a conventional nor a
+        single EEJ primer can isolate it.</Info>
     </p>
   );
 }

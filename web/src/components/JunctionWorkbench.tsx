@@ -10,6 +10,7 @@ import {
 import { revComp } from "../lib/partner";
 import { numStr } from "../lib/format";
 import { Copy } from "./icons";
+import Info from "./Info";
 
 /**
  * The parts of the Tm-guided designer that do not care WHERE the junction came from.
@@ -185,12 +186,12 @@ export function Conditions({ s, onMethod }: { s: JunctionSettings; onMethod?: ()
         <div>
           <p className="card-label" style={{ margin: 0 }}>Tm formula · reaction conditions</p>
           <p className="jd-model-sub">
-            Set your buffer and primer concentration — the whole-primer Tm is recomputed from
-            them. Mg²⁺ and the monovalent cations compete for the DNA backbone, so both matter,
-            and dNTPs chelate Mg²⁺ so only the surplus counts. Arms under {WALLACE_MAX} nt use
-            the Wallace rule, which has no salt or concentration term.
-            {onMethod && <> The formula is documented in{" "}
+            Every Tm above is recomputed from these.
+            {onMethod && <>{" "}Formula in{" "}
               <button type="button" className="linkish" onClick={onMethod}>Method</button>.</>}
+            <Info>Mg²⁺ and the monovalent cations compete for the DNA backbone, so both matter,
+              and dNTPs chelate Mg²⁺ so only the surplus counts. Arms under {WALLACE_MAX} nt
+              use the Wallace rule, which has no salt or concentration term.</Info>
           </p>
         </div>
         <div className="jd-cond">
@@ -391,8 +392,9 @@ function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel, role }: {
     <div className="jd-readout">
       <div className={`jd-verdict ${ev.valid ? "ok" : "bad"}`}>
         {ev.valid
-          ? <span><b>✓ Valid EEJ primer</b> — the whole primer melts in range, but each arm
-              alone stays below the cap, so it primes only across this exact junction.</span>
+          ? <span><b>✓ Valid EEJ primer</b>
+              <Info>The whole primer melts in range, but each arm alone stays below the cap —
+                so it primes only across this exact junction.</Info></span>
           : <div><b>✗ Not valid yet</b><ul>{ev.reasons.map((r) => <li key={r}>{r}</li>)}</ul></div>}
       </div>
 
@@ -415,18 +417,19 @@ function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel, role }: {
       <div className="jd-foot">
         <div className="jd-primer mono">
           {role && <span className={`jd-role-tag ${role}`}>{role}</span>}
+          {reverse && (
+            <Info label="Why is this sequence reversed?">
+              A <b>reverse</b> primer is ordered as the <b>reverse complement</b> of the window
+              highlighted above — that window is the template it binds, not the sequence you
+              buy. The Tm figures are unchanged: a duplex melts at the same temperature read
+              from either strand.
+            </Info>
+          )}
           5′-{oligo5}<span className="jd-split" />{oligo3}-3′
         </div>
         <button className="btn btn-ghost" onClick={copy}><Copy /> Copy primer</button>
       </div>
-      {reverse && (
-        <p className="sub jd-rev-note">
-          This primer runs <b>reverse</b>, so the oligo to order is the <b>reverse complement</b>
-          {" "}of the window highlighted above — that window is the template it binds, not the
-          sequence you buy. The Tm figures are unchanged: a duplex melts at the same
-          temperature read from either strand.
-        </p>
-      )}
+
     </div>
   );
 }

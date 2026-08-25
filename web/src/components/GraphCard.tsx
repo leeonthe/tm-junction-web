@@ -143,7 +143,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           <h3 className="card-title">
             Exon structure — all {gene.symbol} isoforms <StrandBadge strand={gene.strand} />
           </h3>
-          <p className="sub">GRCh38 · colored by amplification tier · your target highlighted</p>
+          <p className="sub">GRCh38 · colored by amplification tier</p>
         </div>
         {/* Two rows: the three tiers on top, the two target-site markers (with ⓘ hints) below. */}
         <div className="legend legend-2row" ref={legendRef}>

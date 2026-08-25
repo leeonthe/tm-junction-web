@@ -114,7 +114,7 @@ export default function GeneTranscriptPicker({
           ))}
         </svg>
       </div>
-      <p className="g-note">Exons drawn to GRCh38 scale and aligned across isoforms. Click a transcript to design its primers.</p>
+      <p className="g-note">Click a transcript to design its primers.</p>
     </section>
   );
 }

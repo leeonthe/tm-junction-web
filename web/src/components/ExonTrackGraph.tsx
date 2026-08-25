@@ -393,8 +393,8 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
       <div className="exon-tip" style={style}>
         <div className="et-head"><b style={{ color: "var(--eej)" }}>Recommended EEJ</b></div>
         <div className="et-line mono">{tip.label}</div>
-        <div className="et-line">A junction-spanning primer across this exon–exon connection is
-          unique to this isoform — the bracket spans the connection, not one exact spot.</div>
+        <div className="et-line">Unique to this isoform. The bracket marks the connection, not
+          one exact spot.</div>
       </div>
     );
   }
@@ -461,8 +461,7 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
             &nbsp;({ulen}&nbsp;nt)
           </div>
           <div className="et-line et-sub">
-            the only part of this exon no other isoform carries — a primer is specific to
-            this transcript when it covers some of it
+            the only part no other isoform carries — a primer must cover some of it
           </div>
         </>
       ) : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
@@ -471,7 +470,7 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
       {isPartner && <div className="et-line et-pair">★ Target site — conventional partner primer, nearest the EEJ</div>}
       {pinned
         ? <ExonSequence exon={e} t={t} isTarget={isTarget} mrna={mrna} />
-        : <div className="et-line et-hint">Click the exon to pin this card and read its sequence</div>}
+        : <div className="et-line et-hint">Click to pin · sequence</div>}
     </div>
   );
 }

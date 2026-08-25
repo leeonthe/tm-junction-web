@@ -29,7 +29,7 @@ export default function TargetTrackCard({
       <div className="card-head">
         <div>
           <h3 className="card-title">Your transcript</h3>
-          <p className="sub">{target_accession} · GRCh38 · unique region &amp; primer highlighted · hover an exon</p>
+          <p className="sub">{target_accession} · GRCh38 · click an exon for its sequence</p>
         </div>
       </div>
       <ExonTrackGraph transcripts={[target_verdict]} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} mrna={result.target_mrna} />

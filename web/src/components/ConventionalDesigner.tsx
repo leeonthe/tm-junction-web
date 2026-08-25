@@ -10,6 +10,7 @@ import { ampRange, findPairs, type PairArgs, type PairOption } from "../lib/conv
 import { numStr } from "../lib/format";
 import CdnaView from "./CdnaView";
 import { Copy } from "./icons";
+import Info from "./Info";
 
 /**
  * Interactive primer-PAIR designer for a target that needs no junction primer.
@@ -82,10 +83,10 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
       return {
         kind: "solo" as const, fwdRegion, revRegion,
         uniqueStarts: null, requireUniqueIn: null,
-        note: <>This gene has a <b>single NM transcript</b>, so there is no sibling isoform to
-          discriminate against — <b>any</b> pair inside it is specific within the gene. Choose
-          which exons the primers sit in; they must be <b>different exons</b>, because the
-          product has to cross a junction to be distinguishable from genomic DNA.</>,
+        note: <>Only NM transcript of this gene — any pair inside it is specific.</>,
+        detail: <>There is no sibling isoform to discriminate against, so you choose where the
+          primers sit. They must be in <b>different exons</b>: the product has to cross a
+          junction to be distinguishable from genomic DNA.</>,
       };
     }
     const pair = verdict.amplify_exon_pair;
@@ -96,10 +97,9 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
       return {
         kind: "pair" as const, fwdRegion, revRegion,
         uniqueStarts: null, requireUniqueIn: null,
-        note: <>No single oligo is unique here — the <b>combination</b> is. Every pair below
-          puts its forward primer in <b>exon {pair[0]}</b> and its reverse in{" "}
-          <b>exon {pair[1]}</b>; no other isoform carries both, so only this transcript can
-          make the product.</>,
+        note: <>Forward in <b>exon {pair[0]}</b>, reverse in <b>exon {pair[1]}</b>.</>,
+        detail: <>No single oligo is unique here — the <b>combination</b> is. No other isoform
+          carries both exons, so only this transcript can make the product.</>,
       };
     }
     const r = verdict.unique_regions.find((u) => u.window_starts?.length);
@@ -111,10 +111,10 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
     return {
       kind: "region" as const, fwdRegion: null, revRegion: null,
       uniqueStarts, requireUniqueIn,
-      note: <>Specificity sits in <b>exon {r.exon_order}</b>, so every{" "}
-        <b>{requireUniqueIn}</b> primer below covers part of the{" "}
-        <b>{r.uniq_len} nt</b> no other isoform carries (mRNA {r.tx_begin}–{r.tx_end}); its
-        partner is free to sit anywhere the amplicon allows.</>,
+      note: <>Every <b>{requireUniqueIn}</b> primer covers part of <b>exon {r.exon_order}</b>'s{" "}
+        <b>{r.uniq_len} nt</b> that no other isoform carries.</>,
+      detail: <>That stretch is mRNA {r.tx_begin}–{r.tx_end}. Its partner is free to sit
+        anywhere the amplicon allows.</>,
     };
   }, [verdict, solo, fwdExon, revExon]);
 
@@ -228,11 +228,11 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
 
       <div className="pp-head">
         <p className="sub jd-intro" style={{ margin: 0 }}>
-          {plan.note}{" "}Set the product size and how closely the two primers must melt
-          together; the list re-searches as you type. Every product below <b>spans at least
-          one exon–exon junction</b>, so contaminating genomic DNA cannot give the same band.
-          Tm, GC, length and the pair's ΔTm are shown per option; hairpin and dimer checks are
-          not run here.
+          {plan.note}{" "}Every product spans an exon–exon junction.
+          <Info>{plan.detail}{" "}Spanning a junction means contaminating genomic DNA cannot
+            give the same band. Set the product size and how closely the two primers must melt
+            together; the list re-searches as you type. Hairpin and dimer checks are not run
+            here.</Info>
         </p>
         <div className="jd-range pp-amp">
           <label>Amplicon

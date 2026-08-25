@@ -13,6 +13,7 @@ import { numStr } from "../lib/format";
 import type { TmConditions, WindowEval } from "../lib/tm";
 import CdnaView from "./CdnaView";
 import { Copy } from "./icons";
+import Info from "./Info";
 
 /**
  * Interactive Tm-guided EEJ primer designer, driven by a RefSeq transcript.
@@ -174,17 +175,10 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
     return { side: lo >= jx ? "downstream" : "upstream", region: { lo, hi }, exonOrder: order };
   }, [combo, verdict, designs]);
 
-  if (!designs.length) {
-    return (
-      <section className="card jd-empty">
-        <p className="card-label" style={{ marginBottom: 12 }}>Tm-guided junction designer</p>
-        <p className="sub">
-          This designer applies to junction-spanning (EEJ) primers. The current target has
-          no single discriminating exon–exon junction, so there is nothing to tune here.
-        </p>
-      </section>
-    );
-  }
+  // Nothing to render when there is no junction to design against. It used to print a card
+  // saying so, which is a whole card spent on "not applicable" — the conventional designer
+  // or the hard-case note already occupies that slot.
+  if (!designs.length) return null;
 
   return (
     <>
@@ -205,12 +199,10 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
             )}
           </div>
           <p className="sub jd-intro">
-            The two primers above run in the same tube, so they share one buffer and one Tm
-            window — editing anything here re-tunes both designers.
-            {ampLen != null && <>
-              {" "}Their product spans both junctions — <b>{ampLen} bp</b>, measured 5′ end to
-              5′ end — and re-measures as you drag either selection.
-            </>}
+            Both primers run in one tube, so they share this buffer and Tm window.
+            <Info>Editing anything here re-tunes both designers above.
+              {ampLen != null && <> The product spans both junctions: <b>{ampLen} bp</b>,
+                measured 5′ end to 5′ end, re-measured as you drag either selection.</>}</Info>
           </p>
           {/* The orderable pair, in the same shape the single-junction case uses for its
               EEJ + partner pair. Both rows are marked EEJ here: unlike that case, BOTH
@@ -291,7 +283,6 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
   // is the reverse one — and a reverse primer's ordered oligo is the reverse complement of
   // the sense window the strip highlights.
   const role = combo ? (index > 0 ? "reverse" : "forward") : null;
-  const reversePrimer = role === "reverse";
   const accession = verdict.accession;
   // A combo target already yields two EEJ primers — only the single-junction case
   // needs the second (conventional) primer designed here.
@@ -322,17 +313,13 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
         ) : undefined}
         intro={
           <p className="sub jd-intro">
-            Drag across the junction to select a primer. The 5′ arm sits on{" "}
-            <b className="jd-exa-t">exon {donor.order}</b>, the 3′ arm on{" "}
-            <b className="jd-exb-t">exon {acceptor.order}</b>. A valid primer means the whole
-            primer melts in range while neither arm alone is stable enough to prime — so it
-            fires only on this exact splice.
-            {combo && <>
-              {" "}This junction is <b>not</b> unique on its own: it takes both EEJ primers
-              together to isolate <span className="mono">{accession}</span>, so this one is
-              only half the design — and it is the pair's{" "}
-              <b>{reversePrimer ? "reverse" : "forward"}</b> primer.
-            </>}
+            Drag across the junction — 5′ arm on{" "}
+            <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
+            <b className="jd-exb-t">exon {acceptor.order}</b>.
+            <Info>A valid primer melts in range as a whole, while neither arm alone is stable
+              enough to prime — so it fires only on this exact splice.
+              {combo && <> This junction is not unique by itself: it takes both EEJ primers
+                together to isolate <span className="mono">{accession}</span>.</>}</Info>
           </p>
         }
       />
@@ -509,19 +496,20 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
             Second primer · conventional {search?.partnerRole ?? "reverse"}
           </p>
           <p className="sub pp-sub">
-            {eejIsForward
-              ? <>The EEJ primer above is the <b>forward</b> primer; pick its <b>reverse</b>{" "}
-                  partner here. </>
-              : <>There is no room downstream of this junction for the requested amplicon, so
-                  the EEJ primer runs as the <b>reverse</b> primer (order its reverse
-                  complement, shown in the pair below) and the second primer is a{" "}
-                  <b>forward</b> primer upstream. </>}
-            Options update live as you drag the selection and use the same Tm formula. Only
-            primers whose Tm lands within <b>±{numStr(dTmMax)} °C</b> of the EEJ primer's are
-            offered — both anneal in the same cycle, so a mismatched pair means one of them is
-            at the wrong temperature.
-            {force && <> Specificity here needs the partner inside <b>exon {force.exonOrder}</b>'s
-              distinguishing region, so only primers overlapping it are offered.</>}
+            Pick the <b>{search?.partnerRole ?? "reverse"}</b> partner for the EEJ primer above.
+            {force && <> It must sit in <b>exon {force.exonOrder}</b>.</>}
+            <Info>
+              {eejIsForward
+                ? <>The EEJ primer runs forward, so its partner is a reverse primer downstream. </>
+                : <>There is no room downstream for the requested amplicon, so the EEJ primer
+                    runs as the <b>reverse</b> primer and its partner is a forward primer
+                    upstream. </>}
+              Only partners melting within <b>±{numStr(dTmMax)} °C</b> of it are offered — both
+              anneal in the same cycle, so a mismatched pair means one is at the wrong
+              temperature.
+              {force && <> Specificity here needs the partner inside exon {force.exonOrder}'s
+                distinguishing region, so only primers overlapping it are offered.</>}
+            </Info>
           </p>
         </div>
         <div className="jd-range pp-amp">
