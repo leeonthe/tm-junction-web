@@ -68,6 +68,12 @@ export interface PairArgs {
    */
   uniqueStarts?: [number, number][] | null;
   requireUniqueIn?: "forward" | "reverse" | null;
+  /**
+   * 0-based EXCLUSIVE mRNA end of each exon, in transcript order — the cumulative exon
+   * lengths. Used to enforce the intron-spanning rule below; omit only if unknown, which
+   * disables that check rather than silently passing it.
+   */
+  exonEnds?: number[] | null;
   k: number;
   tmMin: number;
   tmMax: number;
@@ -76,6 +82,30 @@ export interface PairArgs {
   /** Hard cap on |reverse Tm − forward Tm|: both anneal in one cycle. */
   dTmMax: number;
   cond: TmConditions;
+}
+
+/**
+ * Which exon a 0-based mRNA position falls in (index into `exonEnds`).
+ * Linear rather than binary: transcripts have tens of exons, not thousands.
+ */
+function exonAt(exonEnds: number[], pos: number): number {
+  for (let i = 0; i < exonEnds.length; i++) if (pos < exonEnds[i]) return i;
+  return exonEnds.length - 1;
+}
+
+/**
+ * Does the amplicon [s, e) cross at least one exon–exon junction?
+ *
+ * An RT-PCR product contained inside a single exon is indistinguishable from one amplified
+ * off contaminating genomic DNA — the same primer sites exist, uninterrupted, in the genome.
+ * Spanning a junction makes gDNA either fail to amplify or give a visibly longer product,
+ * which is why it is standard practice and why it is enforced here rather than left to the
+ * user to notice. Unknown exon structure returns true: better to offer the pair than to
+ * silently drop every option on a claim we cannot check.
+ */
+export function spansJunction(exonEnds: number[] | null | undefined, s: number, e: number): boolean {
+  if (!exonEnds?.length) return true;
+  return exonAt(exonEnds, s) !== exonAt(exonEnds, e - 1);
 }
 
 /** Does oligo [s, s+len) fully contain one specific window? */
@@ -188,6 +218,8 @@ export function findPairs(a: PairArgs): PairOption[] {
     for (; i < reverses.length && ends[i] <= f.s + ampMax; i++) {
       const r = reverses[i];
       if (r.s < f.e) continue;                       // primers must not overlap
+      // The product must cross a junction, or it cannot be told from genomic DNA.
+      if (!spansJunction(a.exonEnds, f.s, r.e)) continue;
       const dTm = r.tm - f.tm;
       if (Math.abs(dTm) > a.dTmMax) continue;
       pairs.push({

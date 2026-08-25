@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PAIRS, findPairs, type PairArgs } from "./conventional";
+import { MAX_PAIRS, findPairs, spansJunction, type PairArgs } from "./conventional";
 import { revComp } from "./partner";
 import { DEFAULT_CONDITIONS, tm } from "./tm";
 
@@ -28,8 +28,11 @@ const MRNA = (() => {
 })();
 
 const K = 20;
+// Six exons over the 1200 nt fixture, so the intron-spanning rule has real boundaries to
+// test against (0-based exclusive ends).
+const EXON_ENDS = [150, 330, 520, 700, 950, 1200];
 const base: PairArgs = {
-  mrna: MRNA, k: K, tmMin: 55, tmMax: 70, ampMin: 120, ampMax: 300,
+  mrna: MRNA, k: K, exonEnds: EXON_ENDS, tmMin: 55, tmMax: 70, ampMin: 120, ampMax: 300,
   dTmMax: 3, cond: DEFAULT_CONDITIONS,
 };
 
@@ -147,5 +150,55 @@ describe("findPairs — specificity is not negotiable", () => {
     // An exon-pair target has no unique oligo anywhere; requiring one would return nothing.
     const found = findPairs(pairArgs({ uniqueStarts: null, requireUniqueIn: null }));
     expect(found.length).toBeGreaterThan(0);
+  });
+});
+
+
+/**
+ * A product contained inside ONE exon is indistinguishable from one amplified off
+ * contaminating genomic DNA: the same primer sites sit uninterrupted in the genome. Spanning
+ * a junction makes gDNA either fail or give a visibly longer band, so it is a correctness
+ * requirement of the design, not a preference — enforced here rather than left for the user
+ * to spot.
+ */
+describe("amplicons must span at least two exons", () => {
+  it("classifies spans against the exon boundaries", () => {
+    expect(spansJunction(EXON_ENDS, 10, 140)).toBe(false);    // inside exon 1
+    expect(spansJunction(EXON_ENDS, 160, 300)).toBe(false);   // inside exon 2
+    expect(spansJunction(EXON_ENDS, 140, 160)).toBe(true);    // straddles 1|2
+    expect(spansJunction(EXON_ENDS, 10, 900)).toBe(true);     // several exons
+  });
+
+  it("treats a product ending exactly on a boundary as still one exon", () => {
+    // [0,150) is exon 1 entire; the junction is only crossed once base 150 is included.
+    expect(spansJunction(EXON_ENDS, 0, 150)).toBe(false);
+    expect(spansJunction(EXON_ENDS, 0, 151)).toBe(true);
+  });
+
+  it("never returns a single-exon product, for either target shape", () => {
+    const shapes = [uniq(), pairArgs(), uniq({ ampMin: 50, ampMax: 900, dTmMax: 8 })];
+    for (const args of shapes) {
+      const found = findPairs(args);
+      expect(found.length).toBeGreaterThan(0);
+      for (const p of found)
+        expect(spansJunction(EXON_ENDS, p.forward.s, p.reverse.e)).toBe(true);
+    }
+  });
+
+  it("drops the pairs it used to offer inside one exon", () => {
+    // Same search with the rule disabled finds MORE — proof the filter is doing work here,
+    // not merely agreeing with a search that never produced such a pair.
+    const withRule = findPairs(uniq({ ampMin: 50, ampMax: 200 }));
+    const without = findPairs(uniq({ ampMin: 50, ampMax: 200, exonEnds: null }));
+    const single = without.filter((p) => !spansJunction(EXON_ENDS, p.forward.s, p.reverse.e));
+    expect(single.length).toBeGreaterThan(0);
+    for (const p of withRule)
+      expect(spansJunction(EXON_ENDS, p.forward.s, p.reverse.e)).toBe(true);
+  });
+
+  it("does not silently drop everything when the exon structure is unknown", () => {
+    // No boundaries -> the claim cannot be checked, so offer the pair rather than nothing.
+    expect(spansJunction(null, 10, 40)).toBe(true);
+    expect(findPairs(uniq({ exonEnds: null })).length).toBeGreaterThan(0);
   });
 });

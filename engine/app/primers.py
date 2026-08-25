@@ -288,9 +288,11 @@ def design(target_exons: list[Interval], target_seq: str,
         region = max(amp.unique_regions, key=lambda r: r.window_count)
         starts = amp.internal_starts.get(region.exon_order, [])
         spec_cands = _specific_forward(seq, starts, k)
-        chosen = _best_candidate(spec_cands, TM_MIN, sibs, delta_weight=0.3)
+        # Only candidates a junction-spanning partner can pair with; see _can_span.
+        spannable = [c for c in spec_cands if _can_span(cum, c[0], len(c[1]))]
+        chosen = _best_candidate(spannable or spec_cands, TM_MIN, sibs, delta_weight=0.3)
         if chosen is None:
-            return _fallback(amp, seq, region, starts, k, sibs, excluded)
+            return _fallback(amp, seq, region, starts, k, sibs, excluded, cum)
         s_start, s_seq, s_eval, dtm = chosen
         specific_is_forward = region.side != "reverse"
         specific = _mk_primer(s_seq, s_eval, "conventional",
@@ -322,7 +324,19 @@ def design(target_exons: list[Interval], target_seq: str,
         flags.append("LOW_QC")
 
     # partner primer on the opposite side, forming a sensible amplicon
-    partner = _choose_partner(seq, s_start, len(s_seq), specific_is_forward)
+    partner = _choose_partner(seq, s_start, len(s_seq), specific_is_forward, cum)
+    if partner is None:
+        # The preferred side cannot reach a junction — a specific primer in the terminal
+        # exon has nothing downstream of it. Try the other orientation before giving up:
+        # the specific oligo is the same sequence either way, only its role changes.
+        flipped = _choose_partner(seq, s_start, len(s_seq), not specific_is_forward, cum)
+        if flipped is not None:
+            specific_is_forward = not specific_is_forward
+            specific = _mk_primer(s_seq, s_eval, specific.kind,
+                                  "forward" if specific_is_forward else "reverse",
+                                  specific.anchor, as_reverse=not specific_is_forward,
+                                  pos=s_start)
+            partner = flipped
     fwd, rev = (specific, partner and partner[0]) if specific_is_forward else (partner and partner[0], specific)
 
     amplicon = None
@@ -465,10 +479,53 @@ def _sweep_pair(seq: str, a: tuple[int, int], b: tuple[int, int]):
     return (f, r) if f and r else None
 
 
+def _exon_of(cum: list[int], pos: int) -> int:
+    """0-based mRNA position -> index of the exon holding it (cum = exclusive exon ends)."""
+    for i, c in enumerate(cum):
+        if pos < c:
+            return i
+    return len(cum) - 1
+
+
+def _spans_junction(cum: list[int], start: int, end: int) -> bool:
+    """Does the amplicon [start, end) cross at least one exon-exon junction?
+
+    A product contained in ONE exon is indistinguishable from one amplified off
+    contaminating genomic DNA -- the same primer sites sit uninterrupted in the genome.
+    Spanning a junction makes gDNA either fail or give a visibly longer band, so this is a
+    correctness requirement of the design rather than a preference. Unknown exon structure
+    passes: better to return the pair than to reject everything on a claim we cannot check.
+    """
+    if not cum:
+        return True
+    return _exon_of(cum, start) != _exon_of(cum, end - 1)
+
+
+def _can_span(cum: list[int], s: int, length: int) -> bool:
+    """Could SOME partner put a junction inside this primer's amplicon?
+
+    Pure geometry, checked BEFORE the specific primer is chosen. Without it the search picks
+    the best-QC specific primer first and only then discovers no partner can reach a
+    junction -- which is how ACTB, whose unique region is a 744-nt terminal exon, ended up
+    with a forward primer and no reverse at all. A downstream partner needs a boundary
+    within AMPLICON_MAX of the primer's start; an upstream one, within AMPLICON_MAX of its
+    end. Either orientation counts here; _choose_partner decides which is actually used.
+    """
+    if not cum:
+        return True
+    e = s + length
+    return any(s < b < s + AMPLICON_MAX or e - AMPLICON_MAX < b < e
+               for b in cum[:-1])          # cum[-1] is the transcript end, not a junction
+
+
 def _choose_partner(seq: str, spec_start: int, spec_len: int,
-                    spec_is_forward: bool) -> tuple[Primer, int] | None:
+                    spec_is_forward: bool, cum: list[int] | None = None) -> tuple[Primer, int] | None:
     """Pick the partner primer (downstream if specific is forward, else upstream).
-    Returns (Primer, start_position) or None. Start is the oligo's 5'-most template index."""
+    Returns (Primer, start_position) or None. Start is the oligo's 5'-most template index.
+
+    The pair must span a junction (see _spans_junction), so a partner that would keep the
+    whole product inside one exon is rejected however good its Tm."""
+    cum = cum or []
     if spec_is_forward:
         lo = max(spec_start + spec_len, spec_start + AMPLICON_MIN - LEN_MAX)
         cands = _partner(seq, lo, spec_start + AMPLICON_MAX)
@@ -476,6 +533,8 @@ def _choose_partner(seq: str, spec_start: int, spec_len: int,
         for r, win in cands:
             amp_len = (r + len(win)) - spec_start
             if not (AMPLICON_MIN <= amp_len <= AMPLICON_MAX):
+                continue
+            if not _spans_junction(cum, spec_start, r + len(win)):
                 continue
             ev = _evaluate(revcomp(win), TM_MIN)
             key = (ev.ok, ev.quality - abs(amp_len - AMPLICON_OPT) * 0.05)
@@ -491,6 +550,8 @@ def _choose_partner(seq: str, spec_start: int, spec_len: int,
         for f, win in cands:
             amp_len = (spec_start + spec_len) - f
             if not (AMPLICON_MIN <= amp_len <= AMPLICON_MAX):
+                continue
+            if not _spans_junction(cum, f, spec_start + spec_len):
                 continue
             ev = _evaluate(win, TM_MIN)
             key = (ev.ok, ev.quality - abs(amp_len - AMPLICON_OPT) * 0.05)
@@ -514,14 +575,14 @@ def _mk_primer(win_seq: str, ev: _Eval, kind: str, role: str, anchor: str,
                   qc_pass=ev.ok, tx_start=pos)
 
 
-def _fallback(amp, seq, region, starts, k, sibs, excluded) -> PrimerDesign:
+def _fallback(amp, seq, region, starts, k, sibs, excluded, cum) -> PrimerDesign:
     """No QC-passing conventional candidate — return best-effort with LOW_QC."""
     ss = sorted(starts)
     s_start = ss[0] if ss else region.tx_start
     s_seq = seq[s_start:s_start + LEN_OPT]
     ev = _evaluate(s_seq, TM_MIN)
     fwd = _mk_primer(s_seq, ev, "conventional", "forward", f"exon {region.exon_order} (unique)", pos=s_start)
-    partner = _choose_partner(seq, s_start, len(s_seq), True)
+    partner = _choose_partner(seq, s_start, len(s_seq), True, cum)
     dtm = round(tm(s_seq) - best_offtarget_tm(s_seq, sibs), 1)
     return PrimerDesign(
         tier=amp.tier,

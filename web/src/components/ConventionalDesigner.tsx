@@ -37,15 +37,37 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
 }) {
   const s = useJunctionSettings();
 
+  /** 0-based exclusive mRNA end of each exon — what the intron-spanning rule measures. */
+  const exonEnds = useMemo(
+    () => [...verdict.exons].sort((a, b) => a.order - b.order).map((e) => e.tx_end),
+    [verdict.exons]);
+
   // Sole isoform: every exon comes back "unique" because there are no siblings, so there is
   // no such thing as THE unique region and the user picks where the primers go. Defaulting
   // to the first unique region meant exon 1 every time — 78 GC-rich nt on ACTB, which admits
-  // no pair under 65 °C. The longest exon is the honest default: most room, most choices.
-  const longest = useMemo(() => [...verdict.exons]
-    .sort((a, b) => b.length - a.length)[0]?.order ?? 1, [verdict.exons]);
-  const [fwdExon, setFwdExon] = useState(longest);
-  const [revExon, setRevExon] = useState(longest);
-  useEffect(() => { setFwdExon(longest); setRevExon(longest); }, [longest, verdict.accession]);
+  // no pair under 65 °C.
+  //
+  // The default is a pair of ADJACENT exons, not one big exon: the product has to cross a
+  // junction (see spansJunction), so both primers in one exon can never amplify. Of the
+  // adjacent pairs, take the one whose SMALLER exon is largest — that is the pair with the
+  // most room on both sides, hence the most candidate primers.
+  const defaultPair = useMemo(() => {
+    const ex = [...verdict.exons].sort((a, b) => a.order - b.order);
+    if (ex.length < 2) return null;
+    let best = [ex[0].order, ex[1].order] as [number, number];
+    let bestRoom = Math.min(ex[0].length, ex[1].length);
+    for (let i = 1; i < ex.length - 1; i++) {
+      const room = Math.min(ex[i].length, ex[i + 1].length);
+      if (room > bestRoom) { bestRoom = room; best = [ex[i].order, ex[i + 1].order]; }
+    }
+    return best;
+  }, [verdict.exons]);
+  const [fwdExon, setFwdExon] = useState(defaultPair?.[0] ?? 1);
+  const [revExon, setRevExon] = useState(defaultPair?.[1] ?? 1);
+  useEffect(() => {
+    setFwdExon(defaultPair?.[0] ?? 1);
+    setRevExon(defaultPair?.[1] ?? 1);
+  }, [defaultPair, verdict.accession]);
 
   /** What makes this transcript specific, translated into placement rules. */
   const plan = useMemo(() => {
@@ -62,7 +84,8 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
         uniqueStarts: null, requireUniqueIn: null,
         note: <>This gene has a <b>single NM transcript</b>, so there is no sibling isoform to
           discriminate against — <b>any</b> pair inside it is specific within the gene. Choose
-          which exons to sit in below; both may be the same exon.</>,
+          which exons the primers sit in; they must be <b>different exons</b>, because the
+          product has to cross a junction to be distinguishable from genomic DNA.</>,
       };
     }
     const pair = verdict.amplify_exon_pair;
@@ -100,8 +123,9 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
   const feasible = useMemo(() => plan && ampRange({
     mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
     uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn,
+    exonEnds,
     tmMin: s.tmMin, tmMax: s.tmMax, ampMin: 0, ampMax: 0, dTmMax: 0, cond: s.cond,
-  }), [plan, mrna, k, s.tmMin, s.tmMax, s.cond]);
+  }), [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond]);
 
   const initial = useMemo(() => {
     const lo = Math.max(AMP_FLOOR, feasible?.min ?? 150);
@@ -135,10 +159,11 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
     const args: PairArgs = {
       mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
       uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn,
+      exonEnds,
       tmMin: s.tmMin, tmMax: s.tmMax, ampMin, ampMax, dTmMax, cond: s.cond,
     };
     return findPairs(args);
-  }, [plan, mrna, k, s.tmMin, s.tmMax, s.cond, ampMin, ampMax, dTmMax]);
+  }, [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond, ampMin, ampMax, dTmMax]);
 
   if (!plan) return null;
 
@@ -204,8 +229,10 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
       <div className="pp-head">
         <p className="sub jd-intro" style={{ margin: 0 }}>
           {plan.note}{" "}Set the product size and how closely the two primers must melt
-          together; the list re-searches as you type. Tm, GC, length and the pair's ΔTm are
-          shown per option; hairpin and dimer checks are not run here.
+          together; the list re-searches as you type. Every product below <b>spans at least
+          one exon–exon junction</b>, so contaminating genomic DNA cannot give the same band.
+          Tm, GC, length and the pair's ΔTm are shown per option; hairpin and dimer checks are
+          not run here.
         </p>
         <div className="jd-range pp-amp">
           <label>Amplicon
@@ -257,10 +284,13 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
         <p className="sub pp-idle">
           No pair fits a {ampMin}–{ampMax} bp product with both primers melting in{" "}
           {s.tmMin}–{s.tmMax} °C and within <b>±{numStr(dTmMax)} °C</b> of each other
-          {feasible && (ampMax < feasible.min || ampMin > feasible.max)
-            ? <> — this target can only make products of <b>{feasible.min}–{feasible.max} bp</b>,
-                so widen the amplicon window to reach one.</>
-            : <> — widen the Tm range, loosen the Tm match, or widen the amplicon window.</>}
+          {solo && fwdExon === revExon
+            ? <> — and both primers are in <b>exon {fwdExon}</b>, so no product could cross a
+                junction. Pick two different exons.</>
+            : feasible && (ampMax < feasible.min || ampMin > feasible.max)
+              ? <> — this target can only make products of <b>{feasible.min}–{feasible.max} bp</b>,
+                  so widen the amplicon window to reach one.</>
+              : <> — widen the Tm range, loosen the Tm match, or widen the amplicon window.</>}
         </p>
       ) : (
         <>
