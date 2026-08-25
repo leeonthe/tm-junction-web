@@ -361,6 +361,30 @@ footer{border-top:1px solid var(--border);padding:24px 0;color:var(--muted);font
 .et-line{color:var(--text)}
 .et-line.mono{font-family:var(--mono);color:var(--muted);font-size:12px}
 .et-div{height:1px;background:var(--divider);margin:8px 0}
+/* Hover card -> pinned card. Pinned is wider (it carries sequence), interactive, and gets a
+   brand-tinted edge so it is obvious this one will not vanish when the pointer leaves. */
+.et-hint{color:var(--faint);font-size:11px;margin-top:6px}
+.exon-tip.pinned{width:460px;max-width:calc(100vw - 32px);
+  border-color:color-mix(in srgb,var(--brand) 35%,var(--border-2));
+  box-shadow:0 8px 30px 6px rgba(16,24,40,.10)}
+.exon-tip.pinned .et-head{position:relative;padding-right:20px}
+.et-close{position:absolute;right:-4px;top:-4px;border:0;background:none;cursor:pointer;
+  color:var(--faint);font-size:17px;line-height:1;padding:2px 4px;border-radius:5px}
+.et-close:hover{color:var(--ink);background:var(--surface-3)}
+/* The bases. Fixed height on purpose: a 2 kb exon must not turn the card into a page. */
+.et-seq{margin-top:8px;border-top:1px solid var(--divider);padding-top:8px}
+.et-seq-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:11.5px;color:var(--muted);margin-bottom:5px}
+.et-seq-btns{display:flex;gap:6px}
+.et-seq-btns button{font-family:inherit;font-size:11px;font-weight:600;color:var(--muted);
+  background:var(--surface-3);border:1px solid var(--border);border-radius:5px;
+  padding:2px 8px;cursor:pointer}
+.et-seq-btns button:hover{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 40%,var(--border))}
+.et-seq-box{max-height:88px;overflow-y:auto;overflow-wrap:anywhere;user-select:text;
+  font-size:11.5px;line-height:1.55;color:var(--ink);letter-spacing:.02em;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 9px}
+.et-seq-none{margin-top:8px;border-top:1px solid var(--divider);padding-top:8px;
+  font-size:11.5px;color:var(--muted)}
 .et-good{color:var(--conv);font-weight:600}
 /* qualifier under a et-good headline — keeps the count prominent and the caveat readable */
 .et-sub{color:var(--muted);font-size:11.5px;line-height:1.45;margin-top:1px;max-width:34ch}

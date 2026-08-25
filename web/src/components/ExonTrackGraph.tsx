@@ -76,7 +76,7 @@ export function partnerIsReverse(partnerExon: number, acceptorOrder: number): bo
  * Hovering an exon / marker shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
-  transcripts, targetAccession, primerExon, chromosome = "", strand = "",
+  transcripts, targetAccession, primerExon, chromosome = "", strand = "", mrna = "",
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
@@ -85,8 +85,32 @@ export default function ExonTrackGraph({
   /** "+" | "-" | "" — draws the 5′→3′ arrow over the axis. The axis itself is always
    *  genomic-ascending, so on a minus-strand gene transcription runs right-to-left. */
   strand?: string;
+  /** The ANALYZED transcript's mRNA. Only its exons can show sequence — the response
+   *  carries one sequence, not one per isoform. */
+  mrna?: string;
 }) {
   const [tip, setTip] = useState<Tip>(null);
+  // A PINNED card is the hover card made permanent and interactive. Hovering cannot show
+  // sequence usefully: the card vanishes the moment the pointer crosses to reach it, and
+  // pointer-events:none makes its text unselectable. Clicking an exon pins it instead.
+  const [pinned, setPinned] = useState<Tip>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss on Escape or a click outside the card (the exon rects stop their own clicks
+  // propagating, so clicking another exon re-pins rather than closing).
+  useEffect(() => {
+    if (!pinned) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPinned(null); };
+    const onDown = (e: MouseEvent) => {
+      if (!panelRef.current?.contains(e.target as Node)) setPinned(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [pinned]);
 
   // click-and-drag panning (grab to scroll horizontally). Mouse only — touch/pen keep native scroll.
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -113,6 +137,8 @@ export default function ExonTrackGraph({
   }, []);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Selecting text in the pinned card must not start a pan.
+    if (panelRef.current?.contains(e.target as Node)) return;
     if (!scrollable || e.pointerType !== "mouse" || e.button !== 0) return;
     const el = scrollRef.current;
     if (!el) return;
@@ -132,6 +158,10 @@ export default function ExonTrackGraph({
     if (el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
     drag.current.active = false;
     setDragging(false);
+    // Clear `moved` on the NEXT frame, not now: the click that ends a pan fires after
+    // pointerup, and it must still be suppressed. Leaving it set forever (as it was) would
+    // make every later exon click a no-op once the user had panned once.
+    requestAnimationFrame(() => { drag.current.moved = false; });
   }
 
   const padL = 178, padR = 24, rowH = 42, top = 14, exH = 15;
@@ -249,7 +279,16 @@ export default function ExonTrackGraph({
                       onMouseMove={(ev) => { if (drag.current.active) return; setTip({
                         kind: "exon", x: ev.clientX, y: ev.clientY, exon: e, t, isTarget,
                         primerExon: primerExon ?? null,
-                      }); }} />
+                      }); }}
+                      onClick={(ev) => {
+                        if (drag.current.moved) return;   // that was a pan, not a click
+                        ev.stopPropagation();
+                        setTip(null);
+                        setPinned({
+                          kind: "exon", x: ev.clientX, y: ev.clientY, exon: e, t, isTarget,
+                          primerExon: primerExon ?? null,
+                        });
+                      }} />
                     {hasSpan && (
                       // Full-height orange for just the unique window span, CLIPPED to the exon
                       // rect so it can never spill past the exon's (rounded) edges sideways.
@@ -328,15 +367,26 @@ export default function ExonTrackGraph({
           );
         })()}
       </svg>
-      {tip && !dragging && <Tooltip tip={tip} chromosome={chromosome} />}
+      {pinned
+        ? <Tooltip tip={pinned} chromosome={chromosome} mrna={mrna}
+            pinned panelRef={panelRef} onClose={() => setPinned(null)} />
+        : tip && !dragging && <Tooltip tip={tip} chromosome={chromosome} mrna={mrna} />}
     </div>
   );
 }
 
-function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: string }) {
+function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose }: {
+  tip: NonNullable<Tip>; chromosome: string; mrna?: string; pinned?: boolean;
+  panelRef?: React.Ref<HTMLDivElement>; onClose?: () => void;
+}) {
+  // A pinned card is wider (it holds sequence) and must be reachable and selectable; a hover
+  // card stays out of the way of the pointer that is producing it.
+  const w = pinned ? 460 : 260;
   const style: React.CSSProperties = {
-    position: "fixed", left: Math.min(tip.x + 14, window.innerWidth - 260),
-    top: tip.y + 16, zIndex: 50, pointerEvents: "none",
+    position: "fixed", left: Math.min(tip.x + 14, window.innerWidth - w),
+    top: Math.min(tip.y + 16, Math.max(8, window.innerHeight - (pinned ? 360 : 200))),
+    zIndex: 50, pointerEvents: pinned ? "auto" : "none",
+    userSelect: pinned ? "text" : "none",
   };
   if (tip.kind === "junction") {
     return (
@@ -380,11 +430,14 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
   // this exon is the (single) combo exon. Its target site is the distinguishing sub-region.
   const isComboExon = t.tier === "NEEDS_EEJ" && !!t.recommended_junction && !!pair?.includes(e.order);
   return (
-    <div className="exon-tip" style={style}>
+    <div className={`exon-tip${pinned ? " pinned" : ""}`} style={style} ref={panelRef}>
       <div className="et-head">
         <b>Exon {e.order}</b>
         <span className="et-badge">{CDS_LABEL[e.cds]}</span>
         <span className="et-tier"><span className="d" style={{ background: tierColorVar[t.tier] }} />{tierLabel[t.tier]}</span>
+        {pinned && (
+          <button className="et-close" onClick={onClose} aria-label="Close">×</button>
+        )}
       </div>
       <div className="et-line mono et-coord">
         <span className="et-chr">chr{chromosome || "?"}</span>
@@ -416,6 +469,52 @@ function Tooltip({ tip, chromosome }: { tip: NonNullable<Tip>; chromosome: strin
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
       {pairRole && !isComboExon && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
       {isPartner && <div className="et-line et-pair">★ Target site — conventional partner primer, nearest the EEJ</div>}
+      {pinned
+        ? <ExonSequence exon={e} t={t} isTarget={isTarget} mrna={mrna} />
+        : <div className="et-line et-hint">Click the exon to pin this card and read its sequence</div>}
+    </div>
+  );
+}
+
+/**
+ * The exon's actual bases, for the one transcript we hold sequence for.
+ *
+ * A whole exon can be thousands of nt, so it is NOT laid out inline: it sits in a
+ * fixed-height scroll box that never grows the card, and the two Copy buttons mean the
+ * common case (get it into a primer tool) needs no reading or selecting at all. The box is
+ * still real selectable text for anyone who wants a slice of it.
+ */
+function ExonSequence({ exon, t, isTarget, mrna }: {
+  exon: Exon; t: TranscriptVerdict; isTarget: boolean; mrna: string;
+}) {
+  const [copied, setCopied] = useState<"" | "seq" | "fasta">("");
+  // Only the ANALYZED transcript's sequence is in the response — one mRNA, not one per
+  // isoform. Say so plainly rather than showing a sibling's coordinates over the wrong bases.
+  if (!isTarget || !mrna) {
+    return (
+      <div className="et-seq-none">
+        Sequence is available for the analyzed transcript. Click{" "}
+        <span className="mono">{t.accession}</span> in the table below to switch to it.
+      </div>
+    );
+  }
+  const seq = mrna.slice(exon.tx_begin - 1, exon.tx_end).toUpperCase();
+  const fasta = `>${t.accession} exon ${exon.order} | mRNA ${exon.tx_begin}-${exon.tx_end} | ${seq.length} nt\n${seq}`;
+  const copy = (text: string, which: "seq" | "fasta") => {
+    navigator.clipboard?.writeText(text);
+    setCopied(which);
+    window.setTimeout(() => setCopied(""), 1400);
+  };
+  return (
+    <div className="et-seq">
+      <div className="et-seq-head">
+        <span>Sequence <b className="et-num">{seq.length}</b> nt</span>
+        <span className="et-seq-btns">
+          <button onClick={() => copy(seq, "seq")}>{copied === "seq" ? "✓ Copied" : "Copy"}</button>
+          <button onClick={() => copy(fasta, "fasta")}>{copied === "fasta" ? "✓ Copied" : "FASTA"}</button>
+        </span>
+      </div>
+      <div className="et-seq-box mono">{seq}</div>
     </div>
   );
 }

@@ -151,7 +151,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           <div className="legend-row">{LEGEND.slice(3).map(legendItem)}</div>
         </div>
       </div>
-      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} />
+      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} mrna={result.target_mrna} />
       {/* A key, not a paragraph: each marker gets the short name of what it means, drawn in
           the same ink it uses on the track. The long explanation of WHY a bracket marks a
           range rather than a spot lives in the marker's own hover text on the graph. */}
