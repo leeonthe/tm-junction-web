@@ -12,12 +12,8 @@ const LEGEND = [
   { token: "--eej-combo", label: "EEJ pair" },
 ] as const;
 
-// Spare colors offered beyond the tiers' current colors. Chosen to be visually distinct
-// from every tier default (both themes) so a pick can't create a near-duplicate. The 3×3
-// palette ALSO always includes each tier's current color (so picking a color another tier
-// uses is an exact match → swaps), which is why the palette is built dynamically per-open
-// rather than fixed. (A fixed palette whose blue #2563EB ≠ the Conventional default #237AF2
-// was the swap bug: an un-overridden tier's color was never a pickable cell, so no match.)
+// Spare colors offered beyond the tiers' default colors. Chosen to be visually distinct
+// from every tier default (both themes) so a pick can't create a near-duplicate.
 const SPARES = ["#16A34A", "#0D9488", "#F97316", "#EC4899", "#7C3AED", "#B45309"];
 
 // "What is this" hover text for the target-site legend entries (shown as a title on the ⓘ marker).
@@ -28,17 +24,42 @@ const HINTS: Record<string, string> = {
     + "(a two-junction combination); both are marked and both junction primers are needed.",
 };
 
-/** The 9 palette cells for the open popover: every tier's current color + distinct spares. */
-function buildCells(effective: Record<string, string>): string[] {
-  const inUse = Object.values(effective).filter(Boolean);
-  const seen = new Set(inUse);
-  const cells = [...inUse];
-  for (const s of SPARES) {
-    const u = s.toUpperCase();
-    if (!seen.has(u)) { seen.add(u); cells.push(u); }
-    if (cells.length >= 9) break;
-  }
-  return cells.slice(0, 9);
+/**
+ * The palette cells: every tier's DEFAULT color, then any color a tier is CURRENTLY showing
+ * that the defaults do not already cover, then spares up to nine.
+ *
+ * Both groups are required, for different reasons.
+ *
+ * Defaults, because a tier's default is the only source of a color like the Needs-EEJ red —
+ * no other tier has it and it is not a spare. Keying the palette off the current colors alone
+ * dropped that red the moment Needs EEJ moved away from it, leaving no way back.
+ *
+ * Currents, because a color a tier wears must stay pickable: `pick` swaps two tiers by
+ * matching a cell against a tier's color, and the grid marks the open tier's cell as
+ * selected. Neither can happen for a color with no cell. Current is normally already a
+ * default or a spare — the exception is an override made under the other theme, which the
+ * theme's own defaults do not include.
+ *
+ * Both must be READ FROM THE CASCADE rather than hardcoded: a literal that differs from the
+ * token by even one digit is never an exact match, and the swap silently stops.
+ */
+export function buildCells(
+  defaults: Record<string, string>,
+  current: Record<string, string> = {},
+): string[] {
+  const seen = new Set<string>();
+  const cells: string[] = [];
+  const add = (c: string) => {
+    const u = (c || "").trim().toUpperCase();
+    if (!u || seen.has(u)) return;
+    seen.add(u);
+    cells.push(u);
+  };
+  // Defaults and currents are never dropped; only spares are trimmed to reach nine.
+  for (const c of Object.values(defaults)) add(c);
+  for (const c of Object.values(current)) add(c);
+  for (const c of SPARES) { if (cells.length >= 9) break; add(c); }
+  return cells;
 }
 
 export default function GraphCard({ result }: { result: AnalyzeResponse }) {
@@ -57,11 +78,13 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
   const [openToken, setOpenToken] = useState<string | null>(null);
   // Each token's current effective color (override or CSS default), captured when a palette opens.
   const [effective, setEffective] = useState<Record<string, string>>({});
+  // Each token's DEFAULT color, i.e. what it would show with no override — the palette's base.
+  const [defaults, setDefaults] = useState<Record<string, string>>({});
   const legendRef = useRef<HTMLDivElement>(null);
 
-  // Resolve the live color of every token from the cascade (handles defaults + theme).
-  const readEffective = (): Record<string, string> => {
-    const el = legendRef.current;
+  /** Resolve every token from the cascade at `el`. Both reads happen when a palette opens,
+   *  so a theme switch between opens is picked up. */
+  const readTokens = (el: Element | null): Record<string, string> => {
     const out: Record<string, string> = {};
     if (el) {
       const cs = getComputedStyle(el);
@@ -73,7 +96,11 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
   const openPalette = (token: string) =>
     setOpenToken((t) => {
       if (t === token) return null;
-      setEffective(readEffective());
+      // Effective from inside the card (overrides apply there); defaults from the root, which
+      // the overrides never touch — reading both off the same element would return the same
+      // thing and put the palette back to following the current colors.
+      setEffective(readTokens(legendRef.current));
+      setDefaults(readTokens(document.documentElement));
       return token;
     });
 
@@ -120,7 +147,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
       {openToken === token && (
         <div className="sw-pop" role="dialog" aria-label={`${label} color`}>
           <div className="sw-grid">
-            {buildCells(effective).map((c) => (
+            {buildCells(defaults, effective).map((c) => (
               <button
                 type="button"
                 key={c}
