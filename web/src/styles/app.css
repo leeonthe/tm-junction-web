@@ -17,7 +17,10 @@
   --pick-exon:#94A3B8; --pick-exon-on:#475569;   /* neutral exon blocks in the gene picker */
   --shadow-card:0 2px 20px 7px rgba(16,24,40,.045);
   --r-pill:99px; --r-lg:28px; --r-md:18px; --r-sm:12px;
-  --maxw:1120px;
+  /* 1120 + 268: the settings panel takes 248px plus a 20px gap out of the designer row, so
+     the page grows by exactly that to leave the designer card the 1072px it had before the
+     panel existed. Every .wrap section widens with it. */
+  --maxw:1388px;
   /* cDNA view — exon text colors + primer highlight backgrounds (light) */
   --exon-0:#1D4ED8; --exon-1:#047857; --exon-2:#7C3AED; --exon-3:#B45309; --exon-4:#BE185D;
   --fwd-hl:#DBEAFE; --rev-hl:#FEF3C7; --jx-line:#E5484D;
@@ -507,9 +510,10 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-rail-reset{padding:6px 11px;font-size:11px}
 .jd-rail-foot .linkish{font-size:11px}
 
-/* One column on narrow screens: a 248px panel beside the sequence strip would squeeze the
-   strip, which is the thing being read. Unstuck too — stacked, it has nothing to stick to. */
-@media (max-width:980px){
+/* One column until the viewport can spare the panel's 268px and still leave the card most
+   of its width — below this the strip, which is the thing being read, loses more than the
+   panel is worth. Unstuck too: stacked, it has nothing to stick to. */
+@media (max-width:1180px){
   .jd-row{grid-template-columns:1fr}
   .jd-rail{position:static}
   .jd-rail-cond{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 14px}
