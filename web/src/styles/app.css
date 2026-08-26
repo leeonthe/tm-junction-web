@@ -546,7 +546,17 @@ tr.is-target:hover td{background:var(--brand-tint)}
 /* ---- second (partner) primer panel ---- */
 .pp{margin-top:18px;padding-top:18px;border-top:1px dashed var(--border-2);
   display:flex;flex-direction:column;gap:12px}
-.pp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+/* Intro text left, every search input right — one row rather than a header row of controls
+   above a body row of text, which left dead space on both sides. */
+.pp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px 20px;flex-wrap:wrap}
+.pp-controls{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+/* The intro must be allowed to SHRINK, or it claims the whole row and the controls wrap
+   underneath — which is the dead space this layout exists to remove. */
+.pp-head > .jd-intro{flex:1 1 26ch;min-width:0}
+/* Same idea on the junction designer: the drag hint and the Tm stack share one row. */
+.jd-introrow{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:14px 20px;flex-wrap:wrap;margin-bottom:12px}
+.jd-introrow .jd-intro{margin:0;flex:1 1 26ch}
 /* amplicon sizes run to four digits — wider than the two-digit Tm bounds */
 .pp-amp input{width:66px}
 /* The search controls read across, not down: Amplicon, then the exon choice, then Tm match.

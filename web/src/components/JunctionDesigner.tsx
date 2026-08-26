@@ -299,7 +299,6 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
           )}
           <span className="jd-badge">exon {donor.order}–{acceptor.order} junction</span>
         </div>
-        <TmRangeControls s={s} />
       </div>
 
       <JunctionWorkbench
@@ -312,15 +311,21 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
           </button>
         ) : undefined}
         intro={
-          <p className="sub jd-intro">
-            Drag across the junction — 5′ arm on{" "}
-            <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
-            <b className="jd-exb-t">exon {acceptor.order}</b>.
-            <Info>A valid primer melts in range as a whole, while neither arm alone is stable
-              enough to prime — so it fires only on this exact splice.
-              {combo && <> This junction is not unique by itself: it takes both EEJ primers
-                together to isolate <span className="mono">{accession}</span>.</>}</Info>
-          </p>
+          /* The Tm stack sits BESIDE this line, not in the card head. The head's left side
+             is a single row of labels, so a three-row control block there left two rows of
+             dead space under them — and this line had the matching emptiness to its right. */
+          <div className="jd-introrow">
+            <p className="sub jd-intro">
+              Drag across the junction — 5′ arm on{" "}
+              <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
+              <b className="jd-exb-t">exon {acceptor.order}</b>.
+              <Info>A valid primer melts in range as a whole, while neither arm alone is stable
+                enough to prime — so it fires only on this exact splice.
+                {combo && <> This junction is not unique by itself: it takes both EEJ primers
+                  together to isolate <span className="mono">{accession}</span>.</>}</Info>
+            </p>
+            <TmRangeControls s={s} />
+          </div>
         }
       />
 

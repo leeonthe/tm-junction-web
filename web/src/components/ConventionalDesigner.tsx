@@ -223,7 +223,6 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
             {options.length} {options.length === 1 ? "pair" : "pairs"}
           </span>
         </div>
-        <TmRangeControls s={s} showArmCap={false} />
       </div>
 
       <div className="pp-head">
@@ -234,7 +233,12 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
             together; the list re-searches as you type. Hairpin and dimer checks are not run
             here.</Info>
         </p>
-        <div className="jd-range pp-amp">
+        {/* All the search inputs in one column beside the intro. In the card head the Tm
+            stack left dead space under a one-line label; here it shares a row that had
+            empty space to its right. */}
+        <div className="pp-controls">
+          <TmRangeControls s={s} showArmCap={false} />
+          <div className="jd-range pp-amp">
           {/* Amplicon and its reachable-range hint are one unit: the hint qualifies those
               two numbers and nothing else, so it stays under them while Tm match sits
               alongside rather than below. */}
@@ -279,6 +283,7 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
               onChange={(e) => editDTm(e.target.value)} onBlur={commitDTm} onKeyDown={enterBlur} />
             <span className="unit">°C</span>
           </label>
+          </div>
         </div>
       </div>
 
