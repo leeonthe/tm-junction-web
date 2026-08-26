@@ -513,23 +513,25 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
           </p>
         </div>
         <div className="jd-range pp-amp">
-          <label>Amplicon
-            <input type="number" value={auto ? String(effMin) : minStr} min={AMP_FLOOR}
-              max={effMax - 1} inputMode="numeric"
-              onChange={(e) => editMin(e.target.value)} onBlur={commitMin} onKeyDown={enterBlur} />
-            <span className="dash">–</span>
-            <input type="number" value={auto ? String(effMax) : maxStr} min={effMin + 1}
-              max={AMP_CEIL} inputMode="numeric"
-              onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
-            <span className="unit">bp</span>
-          </label>
-          {feasible && (
-            <button type="button" className="amp-hint" onClick={useFullRange}
-              title="Search every product size this junction can make">
-              possible <b>{feasible.min}–{feasible.max}</b> bp
-              {(effMin > feasible.min || effMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
-            </button>
-          )}
+          <div className="amp-group">
+            <label>Amplicon
+              <input type="number" value={auto ? String(effMin) : minStr} min={AMP_FLOOR}
+                max={effMax - 1} inputMode="numeric"
+                onChange={(e) => editMin(e.target.value)} onBlur={commitMin} onKeyDown={enterBlur} />
+              <span className="dash">–</span>
+              <input type="number" value={auto ? String(effMax) : maxStr} min={effMin + 1}
+                max={AMP_CEIL} inputMode="numeric"
+                onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
+              <span className="unit">bp</span>
+            </label>
+            {feasible && (
+              <button type="button" className="amp-hint" onClick={useFullRange}
+                title="Search every product size this junction can make">
+                possible <b>{feasible.min}–{feasible.max}</b> bp
+                {(effMin > feasible.min || effMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
+              </button>
+            )}
+          </div>
           <label title="Discard any partner whose Tm sits further than this from the EEJ primer's">
             Tm match <span className="dash">±</span>
             <input type="number" value={dTmStr} min={DTM_MAX_FLOOR} max={DTM_MAX_CEIL}

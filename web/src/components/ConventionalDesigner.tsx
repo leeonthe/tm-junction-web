@@ -235,24 +235,26 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
             here.</Info>
         </p>
         <div className="jd-range pp-amp">
-          <label>Amplicon
-            <input type="number" value={minStr} min={AMP_FLOOR} max={ampMax - 1} inputMode="numeric"
-              onChange={(e) => editMin(e.target.value)} onBlur={commitMin} onKeyDown={enterBlur} />
-            <span className="dash">–</span>
-            <input type="number" value={maxStr} min={ampMin + 1} max={AMP_CEIL} inputMode="numeric"
-              onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
-            <span className="unit">bp</span>
-          </label>
-          {/* What this target can physically produce. Without it the amplicon box is a
-              guess: an exon pair ten exons apart has no 150 bp product, and nothing on
-              screen said so until the search came back empty. Click to take the lot. */}
-          {feasible && (
-            <button type="button" className="amp-hint" onClick={useFullRange}
-              title="Search every product size this target can make">
-              possible <b>{feasible.min}–{feasible.max}</b> bp
-              {(ampMin > feasible.min || ampMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
-            </button>
-          )}
+          {/* Amplicon and its reachable-range hint are one unit: the hint qualifies those
+              two numbers and nothing else, so it stays under them while Tm match sits
+              alongside rather than below. */}
+          <div className="amp-group">
+            <label>Amplicon
+              <input type="number" value={minStr} min={AMP_FLOOR} max={ampMax - 1} inputMode="numeric"
+                onChange={(e) => editMin(e.target.value)} onBlur={commitMin} onKeyDown={enterBlur} />
+              <span className="dash">–</span>
+              <input type="number" value={maxStr} min={ampMin + 1} max={AMP_CEIL} inputMode="numeric"
+                onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
+              <span className="unit">bp</span>
+            </label>
+            {feasible && (
+              <button type="button" className="amp-hint" onClick={useFullRange}
+                title="Search every product size this target can make">
+                possible <b>{feasible.min}–{feasible.max}</b> bp
+                {(ampMin > feasible.min || ampMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
+              </button>
+            )}
+          </div>
           {solo && (
             <label className="exon-pick">Exons
               <select value={fwdExon} onChange={(e) => setFwdExon(Number(e.target.value))}

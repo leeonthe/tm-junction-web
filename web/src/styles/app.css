@@ -543,6 +543,15 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .pp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
 /* amplicon sizes run to four digits — wider than the two-digit Tm bounds */
 .pp-amp input{width:66px}
+/* The search controls read across, not down: Amplicon, then the exon choice, then Tm match.
+   Stacked, they pushed the option list an extra two rows down the card for no gain — these
+   are three short, independent inputs, not a sequence. Overrides .jd-range's column. */
+.pp-amp{flex-direction:row;align-items:flex-start;justify-content:flex-end;
+  gap:10px 22px;flex-wrap:wrap;row-gap:10px}
+/* Amplicon keeps its reachable-range hint directly beneath it — the hint qualifies those
+   two numbers only, so it must not drift under a neighbouring control. */
+.amp-group{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pp-amp > label{padding-top:1px}     /* optically align the labels with .amp-group's first row */
 /* Sole-isoform exon choice — same shape as the numeric controls beside it. */
 .exon-pick select{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink);
   background:var(--surface-3);border:1px solid var(--border-2);border-radius:var(--r-pill);
@@ -560,7 +569,7 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .amp-hint-go{font-family:var(--sans);font-weight:600;color:var(--faint)}
 .pp-sub{margin:5px 0 0;font-size:12.5px;color:var(--muted);max-width:62ch}
 .pp-idle{margin:0;font-size:13px;color:var(--muted)}
-.pp-options{display:flex;flex-direction:column;gap:8px}
+.pp-options{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .pp-opt{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;text-align:left;
   font:inherit;padding:9px 12px;background:var(--surface);border:1px solid var(--border-2);
   border-radius:var(--r-sm);cursor:pointer;transition:border-color .15s,background .15s}
@@ -585,7 +594,10 @@ tr.is-target:hover td{background:var(--brand-tint)}
    narrow card rather than crushing either half. */
 .cmb-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px 18px;flex-wrap:wrap}
 .cmb-row .pp-meta{margin-left:auto;text-align:right}
-.pp-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pp-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  margin-top:14px;padding-top:12px;border-top:1px solid var(--divider)}
+/* the combo card sets its own spacing and has no list above it to separate from */
+.pp-foot.jd-pair{border-top:0;padding-top:0}
 .pp-pair{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--ink);word-break:break-all}
 .pp-tag{display:inline-block;min-width:18px;text-align:center;font-size:11px;font-weight:700;
   border-radius:4px;padding:1px 4px;margin-right:6px}
