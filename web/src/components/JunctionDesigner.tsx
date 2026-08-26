@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import {
-  Conditions, DesignerHead, JunctionWorkbench, TmRangeControls, orderedOligo, useJunctionSettings,
+  DesignerHead, JunctionWorkbench, TmSettingsRail, orderedOligo, useJunctionSettings,
   type JunctionGeom, type JunctionSettings,
 } from "./JunctionWorkbench";
 import {
@@ -199,8 +199,9 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
             )}
           </div>
           <p className="sub jd-intro">
-            Both primers run in one tube, so they share this buffer and Tm window.
-            <Info>Editing anything here re-tunes both designers above.
+            Both primers run in one tube, so they share one buffer and Tm window.
+            <Info>The settings rail beside either designer above edits that shared set —
+              a change in one re-tunes both.
               {ampLen != null && <> The product spans both junctions: <b>{ampLen} bp</b>,
                 measured 5′ end to 5′ end, re-measured as you drag either selection.</>}</Info>
           </p>
@@ -222,7 +223,6 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
               </button>
             </div>
           )}
-          <Conditions s={s} onMethod={onMethod} />
         </section>
       )}
     </>
@@ -291,43 +291,47 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
   const [showCdna, setShowCdna] = useState(false);
   return (
     <section className="card elevated jd">
-      <DesignerHead
-        label="Tm-guided junction designer"
-        badges={<>
-          {combo && <span className="jd-badge neutral">EEJ primer {index + 1} of {total}</span>}
-          <span className="jd-badge">exon {donor.order}–{acceptor.order} junction</span>
-        </>}
-        intro={
-          <p className="sub jd-intro">
-            Drag across the junction — 5′ arm on{" "}
-            <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
-            <b className="jd-exb-t">exon {acceptor.order}</b>.
-            <Info>A valid primer melts in range as a whole, while neither arm alone is stable
-              enough to prime — so it fires only on this exact splice.
-              {combo && <> This junction is not unique by itself: it takes both EEJ primers
-                together to isolate <span className="mono">{accession}</span>.</>}</Info>
-          </p>
-        }
-        controls={<TmRangeControls s={s} />}
-      />
+      <div className="jd-body">
+        <div className="jd-main">
+          <DesignerHead
+            label="Tm-guided junction designer"
+            badges={<>
+              {combo && <span className="jd-badge neutral">EEJ primer {index + 1} of {total}</span>}
+              <span className="jd-badge">exon {donor.order}–{acceptor.order} junction</span>
+            </>}
+            intro={
+              <p className="sub jd-intro">
+                Drag across the junction — 5′ arm on{" "}
+                <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
+                <b className="jd-exb-t">exon {acceptor.order}</b>.
+                <Info>A valid primer melts in range as a whole, while neither arm alone is
+                  stable enough to prime — so it fires only on this exact splice.
+                  {combo && <> This junction is not unique by itself: it takes both EEJ
+                    primers together to isolate <span className="mono">{accession}</span>.</>}</Info>
+              </p>
+            }
+          />
 
-      <JunctionWorkbench
-        geom={g} s={s} reseedKey={`${accession}:${donor.order}-${acceptor.order}`}
-        role={role}
-        onEval={(e) => { if (partnerOn) setEv(e); onEval?.(e); }}
-        legendExtra={partnerOn ? (
-          <button className="btn btn-ghost jd-full" onClick={() => setShowCdna((v) => !v)}>
-            {showCdna ? "Hide cDNA view" : "Full cDNA view"}
-          </button>
-        ) : undefined}
-      />
+          <JunctionWorkbench
+            geom={g} s={s} reseedKey={`${accession}:${donor.order}-${acceptor.order}`}
+            role={role}
+            onEval={(e) => { if (partnerOn) setEv(e); onEval?.(e); }}
+            legendExtra={partnerOn ? (
+              <button className="btn btn-ghost jd-full" onClick={() => setShowCdna((v) => !v)}>
+                {showCdna ? "Hide cDNA view" : "Full cDNA view"}
+              </button>
+            ) : undefined}
+          />
 
-      {partnerOn && (
-        <PartnerPanel mrna={g.seq} verdict={verdict} ev={ev} cond={s.cond}
-          force={force} showCdna={showCdna} />
-      )}
+          {partnerOn && (
+            <PartnerPanel mrna={g.seq} verdict={verdict} ev={ev} cond={s.cond}
+              force={force} showCdna={showCdna} />
+          )}
+        </div>
 
-      {!combo && <Conditions s={s} onMethod={onMethod} />}
+        <TmSettingsRail s={s} onMethod={onMethod}
+          note={combo ? "Shared with the other EEJ primer — both run in one tube." : undefined} />
+      </div>
     </section>
   );
 }

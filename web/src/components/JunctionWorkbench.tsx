@@ -148,7 +148,7 @@ const enterBlur = (e: KeyboardEvent<HTMLInputElement>) => {
  * the left side is what fills the height the settings already occupy.
  */
 export function DesignerHead({ label, badges, intro, controls }: {
-  label: ReactNode; badges?: ReactNode; intro: ReactNode; controls: ReactNode;
+  label: ReactNode; badges?: ReactNode; intro: ReactNode; controls?: ReactNode;
 }) {
   return (
     <div className="jd-head">
@@ -196,6 +196,80 @@ export function TmRangeControls({ s, showChip = true, showArmCap = true }: {
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * The junction designer's settings rail: the whole-primer Tm window and every reaction
+ * condition that feeds the Tm formula, in one sticky column beside the workbench.
+ *
+ * These are the inputs the user retunes WHILE reading the output — the arm caps, the warm
+ * zone, the auto-pick and every metric on screen are recomputed from them. Sitting in the
+ * card head (Tm) and in a section below the fold (conditions), retuning meant scrolling away
+ * from the very numbers being tuned. Sticky keeps both ends of that loop visible at once,
+ * which is also why the conditions no longer need the summary chip that used to scroll to
+ * them.
+ *
+ * `note` carries the one thing the rail cannot show on its own: for a two-junction combo,
+ * that these settings are shared with the other designer rather than local to this one.
+ */
+export function TmSettingsRail({ s, onMethod, note }: {
+  s: JunctionSettings; onMethod?: () => void; note?: ReactNode;
+}) {
+  const isDefault = isDefaultConditions(s.cond);
+  return (
+    <aside className="jd-rail" aria-label="Tm settings">
+      <div className="jd-rail-in">
+        <p className="card-label jd-rail-label">Tm settings</p>
+        {note && <p className="jd-rail-note">{note}</p>}
+
+        <label className="jd-rail-tm">
+          <span className="ck">Whole-primer Tm</span>
+          <span className="cin">
+            <input type="number" value={s.minStr} min={TM_FLOOR} max={s.tmMax - 1}
+              inputMode="numeric" aria-label="Minimum whole-primer Tm"
+              onChange={(e) => s.editMin(e.target.value)} onBlur={s.commitMin} onKeyDown={enterBlur} />
+            <span className="dash">–</span>
+            <input type="number" value={s.maxStr} min={s.tmMin + 1} max={TM_CEIL}
+              inputMode="numeric" aria-label="Maximum whole-primer Tm"
+              onChange={(e) => s.editMax(e.target.value)} onBlur={s.commitMax} onKeyDown={enterBlur} />
+            <span className="unit">°C</span>
+          </span>
+        </label>
+        <p className="jd-cap jd-rail-cap">each arm Tm ≤ <b>whole Tm − {ARM_GAP} °C</b></p>
+
+        <p className="jd-rail-sub">
+          Reaction conditions
+          <Info>Every Tm on this card is recomputed from these. Mg²⁺ and the monovalent
+            cations compete for the DNA backbone, so both matter, and dNTPs chelate Mg²⁺ so
+            only the surplus counts. Arms under {WALLACE_MAX} nt use the Wallace rule, which
+            has no salt or concentration term.</Info>
+        </p>
+        <div className="jd-rail-cond">
+          {COND_FIELDS.map(({ k, label, unit, step }) => (
+            <label key={k}>
+              <span className="ck">{label}</span>
+              <span className="cin">
+                <input ref={k === "saltMM" ? s.saltRef : undefined}
+                  type="number" value={s.condStr[k]} inputMode="decimal"
+                  min={COND_BOUNDS[k][0]} max={COND_BOUNDS[k][1]} step={step}
+                  onChange={(e) => s.editCond(k, e.target.value)}
+                  onBlur={() => s.commitCond(k)} onKeyDown={enterBlur} />
+                <span className="unit">{unit}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div className="jd-rail-foot">
+          <button className="btn btn-ghost jd-rail-reset" onClick={s.resetConditions}
+            disabled={isDefault}>Reset{isDefault ? "" : " to default"}</button>
+          {onMethod && (
+            <button type="button" className="linkish" onClick={onMethod}>Formula</button>
+          )}
+        </div>
+      </div>
+    </aside>
   );
 }
 

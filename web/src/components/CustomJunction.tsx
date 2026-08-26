@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { MIN_ARM, gcPercent } from "../lib/tm";
 import {
-  Conditions, DesignerHead, JunctionWorkbench, TmRangeControls, useJunctionSettings,
+  DesignerHead, JunctionWorkbench, TmSettingsRail, useJunctionSettings,
   type JunctionGeom,
 } from "./JunctionWorkbench";
 
@@ -127,27 +127,30 @@ export default function CustomJunctionResult({ arms, onMethod }: {
 
   return (
     <section className="card elevated jd">
-      <DesignerHead
-        label="Tm-guided junction designer"
-        badges={
-          <span className="jd-badge neutral">
-            {five.seq.length} + {three.seq.length} nt · GC {gcPercent(geom.seq).toFixed(0)}%
-          </span>
-        }
-        intro={
-          <p className="sub jd-intro">
-            Drag across the junction to select a primer. The 5′ arm is{" "}
-            <b className="jd-exa-t">magenta</b>, the 3′ arm <b className="jd-exb-t">green</b>.
-            Shaded bases are where an arm still sits under its cap — a selection there can be
-            valid. This is the same Tm rule the transcript designer applies.
-          </p>
-        }
-        controls={<TmRangeControls s={s} />}
-      />
+      <div className="jd-body">
+        <div className="jd-main">
+          <DesignerHead
+            label="Tm-guided junction designer"
+            badges={
+              <span className="jd-badge neutral">
+                {five.seq.length} + {three.seq.length} nt · GC {gcPercent(geom.seq).toFixed(0)}%
+              </span>
+            }
+            intro={
+              <p className="sub jd-intro">
+                Drag across the junction to select a primer. The 5′ arm is{" "}
+                <b className="jd-exa-t">magenta</b>, the 3′ arm <b className="jd-exb-t">green</b>.
+                Shaded bases are where an arm still sits under its cap — a selection there can
+                be valid. This is the same Tm rule the transcript designer applies.
+              </p>
+            }
+          />
 
-      <JunctionWorkbench geom={geom} s={s} reseedKey={geom.seq} />
+          <JunctionWorkbench geom={geom} s={s} reseedKey={geom.seq} />
+        </div>
 
-      <Conditions s={s} onMethod={onMethod} />
+        <TmSettingsRail s={s} onMethod={onMethod} />
+      </div>
     </section>
   );
 }
