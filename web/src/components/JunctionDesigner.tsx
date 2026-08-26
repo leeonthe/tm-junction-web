@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import {
-  Conditions, JunctionWorkbench, TmRangeControls, orderedOligo, useJunctionSettings,
+  Conditions, DesignerHead, JunctionWorkbench, TmRangeControls, orderedOligo, useJunctionSettings,
   type JunctionGeom, type JunctionSettings,
 } from "./JunctionWorkbench";
 import {
@@ -291,15 +291,25 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
   const [showCdna, setShowCdna] = useState(false);
   return (
     <section className="card elevated jd">
-      <div className="card-head">
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <p className="card-label" style={{ margin: 0 }}>Tm-guided junction designer</p>
-          {combo && (
-            <span className="jd-badge neutral">EEJ primer {index + 1} of {total}</span>
-          )}
+      <DesignerHead
+        label="Tm-guided junction designer"
+        badges={<>
+          {combo && <span className="jd-badge neutral">EEJ primer {index + 1} of {total}</span>}
           <span className="jd-badge">exon {donor.order}–{acceptor.order} junction</span>
-        </div>
-      </div>
+        </>}
+        intro={
+          <p className="sub jd-intro">
+            Drag across the junction — 5′ arm on{" "}
+            <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
+            <b className="jd-exb-t">exon {acceptor.order}</b>.
+            <Info>A valid primer melts in range as a whole, while neither arm alone is stable
+              enough to prime — so it fires only on this exact splice.
+              {combo && <> This junction is not unique by itself: it takes both EEJ primers
+                together to isolate <span className="mono">{accession}</span>.</>}</Info>
+          </p>
+        }
+        controls={<TmRangeControls s={s} />}
+      />
 
       <JunctionWorkbench
         geom={g} s={s} reseedKey={`${accession}:${donor.order}-${acceptor.order}`}
@@ -310,23 +320,6 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
             {showCdna ? "Hide cDNA view" : "Full cDNA view"}
           </button>
         ) : undefined}
-        intro={
-          /* The Tm stack sits BESIDE this line, not in the card head. The head's left side
-             is a single row of labels, so a three-row control block there left two rows of
-             dead space under them — and this line had the matching emptiness to its right. */
-          <div className="jd-introrow">
-            <p className="sub jd-intro">
-              Drag across the junction — 5′ arm on{" "}
-              <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
-              <b className="jd-exb-t">exon {acceptor.order}</b>.
-              <Info>A valid primer melts in range as a whole, while neither arm alone is stable
-                enough to prime — so it fires only on this exact splice.
-                {combo && <> This junction is not unique by itself: it takes both EEJ primers
-                  together to isolate <span className="mono">{accession}</span>.</>}</Info>
-            </p>
-            <TmRangeControls s={s} />
-          </div>
-        }
       />
 
       {partnerOn && (
@@ -495,11 +488,9 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
 
   return (
     <div className="pp">
-      <div className="pp-head">
-        <div>
-          <p className="card-label" style={{ margin: 0 }}>
-            Second primer · conventional {search?.partnerRole ?? "reverse"}
-          </p>
+      <DesignerHead
+        label={<>Second primer · conventional {search?.partnerRole ?? "reverse"}</>}
+        intro={
           <p className="sub pp-sub">
             Pick the <b>{search?.partnerRole ?? "reverse"}</b> partner for the EEJ primer above.
             {force && <> It must sit in <b>exon {force.exonOrder}</b>.</>}
@@ -516,7 +507,8 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
                 distinguishing region, so only primers overlapping it are offered.</>}
             </Info>
           </p>
-        </div>
+        }
+        controls={
         <div className="jd-range pp-amp">
           <div className="amp-group">
             <label>Amplicon
@@ -545,7 +537,8 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
             <span className="unit">°C</span>
           </label>
         </div>
-      </div>
+        }
+      />
 
       {showCdna && eejSpan && (
         <CdnaView mrna={mrna} verdict={verdict}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import type { TranscriptVerdict } from "../lib/types";
 import {
-  Conditions, TmRangeControls, useJunctionSettings,
+  Conditions, DesignerHead, TmRangeControls, useJunctionSettings,
 } from "./JunctionWorkbench";
 import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR,
@@ -216,26 +216,23 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
 
   return (
     <section className="card elevated jd">
-      <div className="card-head">
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <p className="card-label" style={{ margin: 0 }}>Primer pair options</p>
+      <DesignerHead
+        label="Primer pair options"
+        badges={
           <span className="jd-badge neutral">
             {options.length} {options.length === 1 ? "pair" : "pairs"}
           </span>
-        </div>
-      </div>
-
-      <div className="pp-head">
-        <p className="sub jd-intro" style={{ margin: 0 }}>
-          {plan.note}{" "}Every product spans an exon–exon junction.
-          <Info>{plan.detail}{" "}Spanning a junction means contaminating genomic DNA cannot
-            give the same band. Set the product size and how closely the two primers must melt
-            together; the list re-searches as you type. Hairpin and dimer checks are not run
-            here.</Info>
-        </p>
-        {/* All the search inputs in one column beside the intro. In the card head the Tm
-            stack left dead space under a one-line label; here it shares a row that had
-            empty space to its right. */}
+        }
+        intro={
+          <p className="sub jd-intro">
+            {plan.note}{" "}Every product spans an exon–exon junction.
+            <Info>{plan.detail}{" "}Spanning a junction means contaminating genomic DNA cannot
+              give the same band. Set the product size and how closely the two primers must melt
+              together; the list re-searches as you type. Hairpin and dimer checks are not run
+              here.</Info>
+          </p>
+        }
+        controls={
         <div className="pp-controls">
           <TmRangeControls s={s} showArmCap={false} />
           <div className="jd-range pp-amp">
@@ -285,7 +282,8 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
           </label>
           </div>
         </div>
-      </div>
+        }
+      />
 
       {options.length === 0 ? (
         <p className="sub pp-idle">

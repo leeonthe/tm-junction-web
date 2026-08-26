@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { MIN_ARM, gcPercent } from "../lib/tm";
 import {
-  Conditions, JunctionWorkbench, TmRangeControls, useJunctionSettings,
+  Conditions, DesignerHead, JunctionWorkbench, TmRangeControls, useJunctionSettings,
   type JunctionGeom,
 } from "./JunctionWorkbench";
 
@@ -127,18 +127,13 @@ export default function CustomJunctionResult({ arms, onMethod }: {
 
   return (
     <section className="card elevated jd">
-      <div className="card-head">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <p className="card-label" style={{ margin: 0 }}>Tm-guided junction designer</p>
+      <DesignerHead
+        label="Tm-guided junction designer"
+        badges={
           <span className="jd-badge neutral">
             {five.seq.length} + {three.seq.length} nt · GC {gcPercent(geom.seq).toFixed(0)}%
           </span>
-        </div>
-        <TmRangeControls s={s} />
-      </div>
-
-      <JunctionWorkbench
-        geom={geom} s={s} reseedKey={geom.seq}
+        }
         intro={
           <p className="sub jd-intro">
             Drag across the junction to select a primer. The 5′ arm is{" "}
@@ -147,7 +142,10 @@ export default function CustomJunctionResult({ arms, onMethod }: {
             valid. This is the same Tm rule the transcript designer applies.
           </p>
         }
+        controls={<TmRangeControls s={s} />}
       />
+
+      <JunctionWorkbench geom={geom} s={s} reseedKey={geom.seq} />
 
       <Conditions s={s} onMethod={onMethod} />
     </section>

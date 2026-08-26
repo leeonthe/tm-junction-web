@@ -138,6 +138,32 @@ const enterBlur = (e: KeyboardEvent<HTMLInputElement>) => {
   if (e.key === "Enter") e.currentTarget.blur();
 };
 
+/**
+ * The head of a designer card. The label (with its badges) and the intro line stack in ONE
+ * column, and the settings sit in a second column that starts at the label's line.
+ *
+ * The settings block is three rows tall and the label is one, so any layout that pairs them
+ * row-for-row strands two rows of dead space beside the shorter one — beside the label if the
+ * settings sit in the card head, beside the intro if they sit next to that instead. Stacking
+ * the left side is what fills the height the settings already occupy.
+ */
+export function DesignerHead({ label, badges, intro, controls }: {
+  label: ReactNode; badges?: ReactNode; intro: ReactNode; controls: ReactNode;
+}) {
+  return (
+    <div className="jd-head">
+      <div className="jd-head-main">
+        <div className="jd-head-label">
+          <p className="card-label" style={{ margin: 0 }}>{label}</p>
+          {badges}
+        </div>
+        {intro}
+      </div>
+      {controls}
+    </div>
+  );
+}
+
 /** The whole-primer Tm range, the arm-cap reminder, and the buffer summary chip. */
 /**
  * `showArmCap` off for a CONVENTIONAL pair: the arm rule is what makes a junction primer

@@ -78,20 +78,21 @@ button{font-family:inherit}
 /* nav */
 nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);
   backdrop-filter:saturate(180%) blur(10px);border-bottom:1px solid var(--border)}
-.nav-in{display:flex;align-items:center;justify-content:space-between;height:64px}
-.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:16px;letter-spacing:-.03em;
-  background:none;border:0;padding:0;margin:0;color:inherit;font-family:inherit;cursor:pointer}
-.brand .dot{width:26px;height:26px;border-radius:8px;background:var(--brand);position:relative;flex:none}
-.brand .dot::after{content:"";position:absolute;inset:7px 6px;border-radius:2px;
-  background:repeating-linear-gradient(90deg,#fff 0 3px,transparent 3px 6px);opacity:.9}
-.nav-links{display:flex;align-items:center;gap:4px}
-.nav-links a{padding:8px 14px;font-size:14px;font-weight:500;color:var(--ink);letter-spacing:-.01em;border-radius:var(--r-pill);opacity:.85}
-.nav-links a:hover{opacity:1;background:var(--surface-3)}
-.nav-links .navlink{font-family:inherit;padding:8px 14px;font-size:14px;font-weight:500;color:var(--ink);
-  letter-spacing:-.01em;border:0;border-radius:var(--r-pill);background:none;opacity:.85;cursor:pointer}
-.nav-links .navlink:hover{opacity:1;background:var(--surface-3)}
-.nav-links .navlink.on{opacity:1;color:var(--brand);background:var(--brand-tint)}
-.vdiv{width:1px;height:16px;background:var(--border-2);margin:0 6px}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:60px;gap:16px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15.5px;letter-spacing:-.02em;
+  background:none;border:0;padding:0;margin:0;color:var(--ink);font-family:inherit;cursor:pointer}
+.brand-mark{width:24px;height:24px;flex:none;display:block}
+/* The name IS the melting temperature, so it is set the way the literature sets it. */
+.brand-name sub{font-size:.66em;line-height:0;vertical-align:baseline;position:relative;top:.22em;
+  font-weight:600;letter-spacing:0}
+.brand:hover .brand-name{color:var(--brand)}
+
+.nav-links{display:flex;align-items:center;gap:2px}
+.nav-links .navlink{font-family:inherit;padding:7px 13px;font-size:14px;font-weight:500;color:var(--muted);
+  letter-spacing:-.01em;border:0;border-radius:var(--r-pill);background:none;cursor:pointer;
+  transition:color .15s,background .15s}
+.nav-links .navlink:hover{color:var(--ink);background:var(--surface-3)}
+.nav-links .navlink.on{color:var(--brand);background:var(--brand-tint)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
   font-weight:500;font-size:14px;letter-spacing:-.01em;border:0;padding:9px 17px;
   border-radius:var(--r-pill);background:var(--brand);color:#fff;transition:background .15s}
@@ -185,10 +186,19 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
 .card-label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:0}
 .card-title{font-size:18px;font-weight:600;letter-spacing:-.02em;margin:0;color:var(--ink)}
 .card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+
+/* Designer card head: label+badges and the intro stack on the left, settings on the right.
+   The settings column starts at the LABEL's line — it is three rows tall against a one-row
+   label, so aligning it to the intro instead would only move the dead space down a row. */
+.jd-head{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:14px 24px;flex-wrap:wrap;margin-bottom:16px}
+.jd-head-main{flex:1 1 28ch;min-width:0;display:flex;flex-direction:column;gap:9px}
+/* Centres the 12px label against the taller first row of the settings column, so the two
+   read as one line rather than as a small label floating above a big control. */
+.jd-head-label{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:30px}
+.jd-head-main .jd-intro{margin:0}
 /* When the right side is a stack of controls, centring floats the card's label to the middle
    of that stack instead of level with its first row. Align them as the peers they are. */
-.card-head:has(.jd-range){align-items:flex-start}
-.card-head:has(.jd-range) .card-label{padding-top:6px}
 .sub{font-size:13.5px;color:var(--muted);margin:2px 0 0}
 
 /* primer card */
@@ -548,15 +558,8 @@ tr.is-target:hover td{background:var(--brand-tint)}
   display:flex;flex-direction:column;gap:12px}
 /* Intro text left, every search input right — one row rather than a header row of controls
    above a body row of text, which left dead space on both sides. */
-.pp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px 20px;flex-wrap:wrap}
 .pp-controls{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
-/* The intro must be allowed to SHRINK, or it claims the whole row and the controls wrap
-   underneath — which is the dead space this layout exists to remove. */
-.pp-head > .jd-intro{flex:1 1 26ch;min-width:0}
 /* Same idea on the junction designer: the drag hint and the Tm stack share one row. */
-.jd-introrow{display:flex;align-items:flex-start;justify-content:space-between;
-  gap:14px 20px;flex-wrap:wrap;margin-bottom:12px}
-.jd-introrow .jd-intro{margin:0;flex:1 1 26ch}
 /* amplicon sizes run to four digits — wider than the two-digit Tm bounds */
 .pp-amp input{width:66px}
 /* The search controls read across, not down: Amplicon, then the exon choice, then Tm match.
@@ -583,7 +586,7 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .amp-hint:hover{color:var(--muted)}
 .amp-hint:hover b,.amp-hint:hover .amp-hint-go{color:var(--brand)}
 .amp-hint-go{font-family:var(--sans);font-weight:600;color:var(--faint)}
-.pp-sub{margin:5px 0 0;font-size:12.5px;color:var(--muted);max-width:62ch}
+.pp-sub{margin:0;font-size:12.5px;color:var(--muted);max-width:62ch}
 .pp-idle{margin:0;font-size:13px;color:var(--muted)}
 .pp-options{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .pp-opt{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;text-align:left;
@@ -723,7 +726,6 @@ tr.is-target:hover td{background:var(--brand-tint)}
 @media (max-width:720px){
   .mth-terms{grid-template-columns:1fr}
   .mth-head h1{font-size:25px}
-  .nav-links a:not(.keep){display:none}
   .primer-row{grid-template-columns:1fr;gap:8px}
   .p-metrics{justify-content:flex-start}
   .verdict{flex-direction:column;gap:14px}

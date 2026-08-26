@@ -158,8 +158,7 @@ export default function App() {
 
   return (
     <>
-      <Nav onHome={reset} onExample={(acc) => { setShowMethod(false); run(acc); }}
-        onMethod={openMethod} methodOn={showMethod} />
+      <Nav onHome={reset} onMethod={openMethod} methodOn={showMethod} />
       {showMethod ? (
         <main className="wrap">
           <Method onBack={closeMethod} backLabel={result ? "Back to results" : "Back to search"} />

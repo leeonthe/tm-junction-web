@@ -17,6 +17,14 @@ export const DEFAULT_MODE: Mode = "gene";
  *  switch so the two can never disagree about what a mode starts with. */
 const seedFor = (m: Mode) => (m === "accession" ? "NM_001256799.3" : "");
 
+/** A first visit has no history, and the nav no longer carries a "try this" button, so the
+ *  way in has to live next to the box it fills. The three cover the three verdicts the tool
+ *  can return, so whichever one is clicked shows a different half of the output. */
+const EXAMPLES: Record<"gene" | "accession", string[]> = {
+  gene: ["GAPDH", "TCF7L2", "ACTB"],
+  accession: ["NM_002046.7", "NM_001146284.2", "NM_001101.5"],
+};
+
 export default function Hero({
   onSearch, onGeneSearch, loading, history, geneHistory, mode, onMode, arms, onArms,
 }: {
@@ -152,14 +160,21 @@ export default function Hero({
         </div>
         )}
 
-        {!seqMode && (geneMode ? geneHistory : history).length > 0 && (
-          <div className="examples">
-            <span>Recent:</span>
-            {(geneMode ? geneHistory : history).map((h) => (
-              <span key={h} className="chip-ex" onMouseDown={(e) => { e.preventDefault(); choose(h); }}>{h}</span>
-            ))}
-          </div>
-        )}
+        {!seqMode && (() => {
+          const recent = geneMode ? geneHistory : history;
+          const rows = recent.length > 0
+            ? { label: "Recent", items: recent }
+            : { label: "Try", items: EXAMPLES[geneMode ? "gene" : "accession"] };
+          return (
+            <div className="examples">
+              <span>{rows.label}:</span>
+              {rows.items.map((h) => (
+                <span key={h} className="chip-ex"
+                  onMouseDown={(e) => { e.preventDefault(); choose(h); }}>{h}</span>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </header>
   );
