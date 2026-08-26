@@ -461,34 +461,38 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-range .unit{font-family:var(--mono);color:var(--muted);font-size:12px}
 .jd-cap{font-size:12px;line-height:1.4;color:var(--muted)}
 
-/* ── Junction designer: workbench left, sticky settings rail right ─────────────────────
-   The rail holds the inputs that are retuned WHILE reading the output — every metric on the
-   card is recomputed from them. Sticky so both ends of that loop stay on screen; the card is
-   taller than the viewport, so anchoring the settings to it meant scrolling away from the
-   numbers being tuned. `top` clears the 60px sticky nav. */
-.jd-body{display:grid;grid-template-columns:minmax(0,1fr) 248px;gap:12px 26px;align-items:start}
-.jd-main{min-width:0}
+/* ── Junction designer: the card, and its settings panel beside it ────────────────────
+   The panel is a sibling of the card, not a column inside it — its own surface at the page
+   level, so the two read as card + card rather than one card with a sidebar built in.
+
+   Sticky because it holds the inputs retuned WHILE reading the output: every metric on the
+   card is recomputed from them, and the card is taller than the viewport, so anchoring the
+   settings to it meant scrolling away from the numbers being tuned. `top` clears the 60px
+   sticky nav. */
+.jd-row{display:grid;grid-template-columns:minmax(0,1fr) 248px;gap:20px;align-items:start}
 .jd-rail{position:sticky;top:76px;align-self:start}
-.jd-rail-in{display:flex;flex-direction:column;gap:9px;padding:14px;
-  border:1px solid var(--border-2);border-radius:var(--r-sm);background:var(--surface-2)}
+/* Same white surface, border and shadow as .card.elevated — it IS a card, just a narrow one. */
+.jd-rail-in{display:flex;flex-direction:column;gap:9px;padding:16px 16px 14px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
+  box-shadow:var(--shadow-card)}
 .jd-rail-label{font-size:11px}
 .jd-rail-note{margin:-2px 0 0;font-size:11px;line-height:1.45;color:var(--muted)}
 .jd-rail-sub{display:flex;align-items:center;gap:5px;margin:4px 0 0;padding-top:11px;
   border-top:1px solid var(--divider);
   font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
-/* Two up rather than a single column: the rail can only stick for as far as the card is
+/* Two up rather than a single column: the panel can only stick for as far as the card is
    taller than it, so every row saved here is travel gained. */
 .jd-rail-cond{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 10px}
-/* Smaller throughout than the same controls were in the card head: a 234px column, and
+/* Smaller throughout than the same controls were in the card head: a 248px column, and
    these are reference values being nudged rather than the card's headline figures. */
 .jd-rail-tm,.jd-rail-cond label{display:flex;flex-direction:column;gap:4px}
 .jd-rail .ck{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
   color:var(--faint);line-height:1.35}
 .jd-rail .ck i{font-family:var(--mono);font-style:normal;text-transform:none;letter-spacing:0;
   font-size:10.5px}
-.jd-rail .cin{display:flex;align-items:center;gap:5px;padding:5px 9px;background:var(--surface);
+.jd-rail .cin{display:flex;align-items:center;gap:5px;padding:5px 9px;background:var(--surface-2);
   border:1px solid var(--border-2);border-radius:8px}
-.jd-rail .cin:focus-within{border-color:var(--brand);
+.jd-rail .cin:focus-within{border-color:var(--brand);background:var(--surface);
   box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 14%,transparent)}
 .jd-rail input{width:100%;min-width:0;border:0;background:none;padding:0 1px;text-align:right;
   font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);appearance:textfield}
@@ -503,10 +507,10 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-rail-reset{padding:6px 11px;font-size:11px}
 .jd-rail-foot .linkish{font-size:11px}
 
-/* One column on narrow screens: a 234px rail beside the sequence strip would squeeze the
+/* One column on narrow screens: a 248px panel beside the sequence strip would squeeze the
    strip, which is the thing being read. Unstuck too — stacked, it has nothing to stick to. */
 @media (max-width:980px){
-  .jd-body{grid-template-columns:1fr}
+  .jd-row{grid-template-columns:1fr}
   .jd-rail{position:static}
   .jd-rail-cond{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 14px}
 }
@@ -890,3 +894,6 @@ tr.is-target:hover td{background:var(--brand-tint)}
   font-family:var(--sans);font-size:12px;font-weight:400;font-style:normal;line-height:1.5;
   color:var(--text);text-align:left;letter-spacing:-.005em;white-space:normal;cursor:auto}
 .info-pop b{color:var(--ink);font-weight:600}
+/* In the settings panel the dot sits against the page's right edge, where a centred popover
+   runs off screen. Anchor it to the dot's right edge so it opens back over the card. */
+.jd-rail .info-pop{left:auto;right:0;transform:none}

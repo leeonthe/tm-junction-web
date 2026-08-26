@@ -290,49 +290,47 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
   const [ev, setEv] = useState<WindowEval | null>(null);
   const [showCdna, setShowCdna] = useState(false);
   return (
-    <section className="card elevated jd">
-      <div className="jd-body">
-        <div className="jd-main">
-          <DesignerHead
-            label="Tm-guided junction designer"
-            badges={<>
-              {combo && <span className="jd-badge neutral">EEJ primer {index + 1} of {total}</span>}
-              <span className="jd-badge">exon {donor.order}–{acceptor.order} junction</span>
-            </>}
-            intro={
-              <p className="sub jd-intro">
-                Drag across the junction — 5′ arm on{" "}
-                <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
-                <b className="jd-exb-t">exon {acceptor.order}</b>.
-                <Info>A valid primer melts in range as a whole, while neither arm alone is
-                  stable enough to prime — so it fires only on this exact splice.
-                  {combo && <> This junction is not unique by itself: it takes both EEJ
-                    primers together to isolate <span className="mono">{accession}</span>.</>}</Info>
-              </p>
-            }
-          />
+    <div className="jd-row">
+      <section className="card elevated jd">
+        <DesignerHead
+          label="Tm-guided junction designer"
+          badges={<>
+            {combo && <span className="jd-badge neutral">EEJ primer {index + 1} of {total}</span>}
+            <span className="jd-badge">exon {donor.order}–{acceptor.order} junction</span>
+          </>}
+          intro={
+            <p className="sub jd-intro">
+              Drag across the junction — 5′ arm on{" "}
+              <b className="jd-exa-t">exon {donor.order}</b>, 3′ arm on{" "}
+              <b className="jd-exb-t">exon {acceptor.order}</b>.
+              <Info>A valid primer melts in range as a whole, while neither arm alone is
+                stable enough to prime — so it fires only on this exact splice.
+                {combo && <> This junction is not unique by itself: it takes both EEJ
+                  primers together to isolate <span className="mono">{accession}</span>.</>}</Info>
+            </p>
+          }
+        />
 
-          <JunctionWorkbench
-            geom={g} s={s} reseedKey={`${accession}:${donor.order}-${acceptor.order}`}
-            role={role}
-            onEval={(e) => { if (partnerOn) setEv(e); onEval?.(e); }}
-            legendExtra={partnerOn ? (
-              <button className="btn btn-ghost jd-full" onClick={() => setShowCdna((v) => !v)}>
-                {showCdna ? "Hide cDNA view" : "Full cDNA view"}
-              </button>
-            ) : undefined}
-          />
+        <JunctionWorkbench
+          geom={g} s={s} reseedKey={`${accession}:${donor.order}-${acceptor.order}`}
+          role={role}
+          onEval={(e) => { if (partnerOn) setEv(e); onEval?.(e); }}
+          legendExtra={partnerOn ? (
+            <button className="btn btn-ghost jd-full" onClick={() => setShowCdna((v) => !v)}>
+              {showCdna ? "Hide cDNA view" : "Full cDNA view"}
+            </button>
+          ) : undefined}
+        />
 
-          {partnerOn && (
-            <PartnerPanel mrna={g.seq} verdict={verdict} ev={ev} cond={s.cond}
-              force={force} showCdna={showCdna} />
-          )}
-        </div>
+        {partnerOn && (
+          <PartnerPanel mrna={g.seq} verdict={verdict} ev={ev} cond={s.cond}
+            force={force} showCdna={showCdna} />
+        )}
+      </section>
 
-        <TmSettingsRail s={s} onMethod={onMethod}
-          note={combo ? "Shared with the other EEJ primer — both run in one tube." : undefined} />
-      </div>
-    </section>
+      <TmSettingsRail s={s} onMethod={onMethod}
+        note={combo ? "Shared with the other EEJ primer — both run in one tube." : undefined} />
+    </div>
   );
 }
 
