@@ -91,15 +91,15 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
         </p>
         <div className="mth-rule">
           <div className="mth-rule-row">
-            <span className="k">whole primer</span>
+            <span className="k">Whole primer</span>
             <span className="v mono">Tm within the range you set (default 60–65 °C)</span>
           </div>
           <div className="mth-rule-row">
-            <span className="k">each arm</span>
+            <span className="k">Each arm</span>
             <span className="v mono">Tm ≤ whole-primer Tm − {ARM_GAP} °C</span>
           </div>
           <div className="mth-rule-row">
-            <span className="k">geometry</span>
+            <span className="k">Geometry</span>
             <span className="v mono">
               ≥ {MIN_ARM} nt per arm · {LEN_MIN}–{LEN_MAX} nt whole primer
             </span>

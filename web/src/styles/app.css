@@ -186,7 +186,7 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
 /* cards */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:26px 28px}
 .card.elevated{box-shadow:var(--shadow-card);border-radius:var(--r-md)}
-.card-label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:0}
+.card-label{font-size:12.5px;font-weight:600;letter-spacing:-.01em;color:var(--faint);margin:0}
 .card-title{font-size:18px;font-weight:600;letter-spacing:-.02em;margin:0;color:var(--ink)}
 .card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
 
@@ -215,7 +215,7 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
   background:var(--surface-3);border:1px solid var(--border);border-radius:10px;padding:9px 12px;overflow-x:auto;white-space:nowrap}
 .p-seq .u{color:var(--brand);font-weight:600}
 .p-metrics{display:flex;gap:18px;text-align:right}
-.p-metrics .m .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.p-metrics .m .k{font-size:11.5px;color:var(--faint);letter-spacing:0}
 .p-metrics .m .val{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ink)}
 .primer-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;
   margin-top:18px;padding-top:16px;border-top:1px solid var(--divider);flex-wrap:wrap}
@@ -264,7 +264,7 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
 
 /* table */
 table{width:100%;border-collapse:collapse;font-size:14px}
-th{text-align:left;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+th{text-align:left;font-size:12px;font-weight:600;letter-spacing:-.005em;
   color:var(--faint);padding:0 14px 12px;border-bottom:1px solid var(--border)}
 td{padding:14px;border-bottom:1px solid var(--divider);color:var(--text);vertical-align:middle}
 tr:last-child td{border-bottom:0}
@@ -444,7 +444,7 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .hardcase h4{margin:0 0 4px;font-size:15px;font-weight:600;color:var(--ink)}
 .hardcase p{margin:0;font-size:13.5px;color:var(--text);max-width:78ch}
 .hardcase .mono{color:var(--ink);font-weight:600}
-.detail-label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+.detail-label{font-size:12.5px;font-weight:600;letter-spacing:-.01em;
   color:var(--faint);margin:6px 0 -6px;display:flex;align-items:center;gap:8px}
 .busy{opacity:.5;pointer-events:none;transition:opacity .15s}
 
@@ -455,7 +455,7 @@ tr.is-target:hover td{background:var(--brand-tint)}
    being a control rather than a note about the one above it. */
 .jd-range{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .jd-range label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
-  color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  color:var(--muted);letter-spacing:-.005em}
 .jd-range input{width:54px;padding:5px 8px;font-family:var(--mono);font-size:14px;font-weight:600;
   color:var(--ink);background:var(--surface-2);border:1px solid var(--border-2);border-radius:var(--r-sm);
   text-align:center;-moz-appearance:textfield}
@@ -482,16 +482,16 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-rail-note{margin:-2px 0 0;font-size:11px;line-height:1.45;color:var(--muted)}
 .jd-rail-sub{display:flex;align-items:center;gap:5px;margin:4px 0 0;padding-top:11px;
   border-top:1px solid var(--divider);
-  font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  font-size:11.5px;font-weight:600;letter-spacing:-.005em;color:var(--faint)}
 /* Two up rather than a single column: the panel can only stick for as far as the card is
    taller than it, so every row saved here is travel gained. */
 .jd-rail-cond{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 10px}
 /* Smaller throughout than the same controls were in the card head: a 248px column, and
    these are reference values being nudged rather than the card's headline figures. */
 .jd-rail-tm,.jd-rail-cond label{display:flex;flex-direction:column;gap:4px}
-.jd-rail .ck{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+.jd-rail .ck{font-size:10.5px;font-weight:600;letter-spacing:-.005em;
   color:var(--faint);line-height:1.35}
-.jd-rail .ck i{font-family:var(--mono);font-style:normal;text-transform:none;letter-spacing:0;
+.jd-rail .ck i{font-family:var(--mono);font-style:normal;letter-spacing:0;
   font-size:10.5px}
 .jd-rail .cin{display:flex;align-items:center;gap:5px;padding:5px 9px;background:var(--surface-2);
   border:1px solid var(--border-2);border-radius:8px}
@@ -585,8 +585,8 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-metric.pass{border-color:color-mix(in srgb,var(--ok) 35%,var(--border-2))}
 .jd-metric.fail{border-color:color-mix(in srgb,var(--bad) 35%,var(--border-2))}
 .jd-metric-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.jd-metric .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
-.jd-metric .tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+.jd-metric .k{font-size:11.5px;color:var(--faint);letter-spacing:0;font-weight:600}
+.jd-metric .tag{font-size:11px;font-weight:700;letter-spacing:0;
   padding:2px 7px;border-radius:var(--r-pill)}
 .jd-metric .tag.ok{background:var(--ok-tint);color:var(--ok)}
 .jd-metric .tag.bad{background:var(--bad-tint);color:var(--bad)}
@@ -601,8 +601,8 @@ tr.is-target:hover td{background:var(--brand-tint)}
    one: an unlabelled sequence leaves the reader to infer a direction, and the reverse one
    additionally reads opposite to the strip above it, which looks like a rendering bug. The
    two share a shape and differ only in tint, so they read as one scale, not two states. */
-.jd-role-tag{font-family:var(--sans);font-size:10.5px;font-weight:700;letter-spacing:.04em;
-  text-transform:uppercase;padding:1px 6px;border-radius:5px;margin-right:8px;
+.jd-role-tag{font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:0;
+  padding:1px 6px;border-radius:5px;margin-right:8px;
   vertical-align:2px;border:1px solid var(--border);color:var(--muted);
   background:var(--surface-3)}
 .jd-role-tag.forward{color:var(--conv);background:color-mix(in srgb,var(--conv) 12%,transparent);
@@ -714,8 +714,8 @@ tr.is-target:hover td{background:var(--brand-tint)}
    splits them unevenly once there are more than two fields. */
 .jd-cond{display:grid;grid-template-columns:repeat(2,auto);align-items:end;gap:10px 14px}
 .jd-cond label{display:flex;flex-direction:column;gap:5px}
-.jd-cond .ck{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
-.jd-cond .ck i{font-family:var(--mono);font-style:normal;text-transform:none;letter-spacing:0;
+.jd-cond .ck{font-size:11.5px;font-weight:600;letter-spacing:-.005em;color:var(--faint)}
+.jd-cond .ck i{font-family:var(--mono);font-style:normal;letter-spacing:0;
   color:var(--muted);font-weight:500}
 .jd-cond .cin{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;
   background:var(--surface-2);border:1px solid var(--border-2);border-radius:var(--r-sm);
@@ -765,8 +765,8 @@ tr.is-target:hover td{background:var(--brand-tint)}
   border:1px solid var(--border-2);border-radius:var(--r-sm);overflow:hidden}
 .mth-rule-row{display:flex;align-items:baseline;gap:16px;padding:11px 15px;background:var(--surface-2);
   flex-wrap:wrap}
-.mth-rule-row .k{flex:0 0 116px;font-size:11px;font-weight:600;letter-spacing:.05em;
-  text-transform:uppercase;color:var(--faint)}
+.mth-rule-row .k{flex:0 0 116px;font-size:11.5px;font-weight:600;letter-spacing:-.005em;
+  color:var(--faint)}
 .mth-rule-row .v{font-size:13.5px;color:var(--ink)}
 
 .mth-eq-wrap{background:var(--surface-2);border:1px solid var(--border-2);border-radius:var(--r-sm);
@@ -849,7 +849,7 @@ tr.is-target:hover td{background:var(--brand-tint)}
 /* the seam between the two arms, mirroring the red junction mark in the strip */
 .cj-join{display:flex;flex-direction:column;align-items:center;gap:5px;padding-top:26px}
 .cj-join-mark{width:2px;height:38px;border-radius:1px;background:var(--eej)}
-.cj-join-cap{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.cj-join-cap{font-size:10.5px;letter-spacing:0;color:var(--faint)}
 .cj-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .cj-actions .btn{padding:7px 14px;font-size:13px}
 .cj-note{font-size:11.5px;color:var(--faint);flex:1 1 240px;line-height:1.5}
@@ -870,8 +870,8 @@ tr.is-target:hover td{background:var(--brand-tint)}
 /* Owczarzy eq.-16 coefficient table on the Method page */
 .mth-coef-wrap{overflow-x:auto;margin:14px 0}
 .mth-coef{width:100%;border-collapse:collapse;font-size:12px;min-width:520px}
-.mth-coef th{text-align:left;padding:7px 12px 7px 0;font-size:10.5px;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--faint);font-weight:600;border-bottom:1px solid var(--border-2)}
+.mth-coef th{text-align:left;padding:7px 12px 7px 0;font-size:11.5px;letter-spacing:0;
+  color:var(--faint);font-weight:600;border-bottom:1px solid var(--border-2)}
 .mth-coef td{padding:7px 12px 7px 0;border-bottom:1px solid var(--divider);color:var(--ink);
   vertical-align:baseline;white-space:nowrap}
 .mth-coef td.tn{color:var(--muted);white-space:normal}
