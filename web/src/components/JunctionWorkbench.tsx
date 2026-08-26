@@ -121,15 +121,10 @@ export function useJunctionSettings() {
       dntpMM: String(DEFAULT_CONDITIONS.dntpMM),
     });
   }
-  function focusConditions() {
-    saltRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-    saltRef.current?.focus();
-    saltRef.current?.select();
-  }
 
   return {
     tmMin, tmMax, minStr, maxStr, editMin, commitMin, editMax, commitMax,
-    cond, condStr, editCond, commitCond, resetConditions, saltRef, focusConditions,
+    cond, condStr, editCond, commitCond, resetConditions, saltRef,
   };
 }
 export type JunctionSettings = ReturnType<typeof useJunctionSettings>;
@@ -164,156 +159,130 @@ export function DesignerHead({ label, badges, intro, controls }: {
   );
 }
 
-/** The whole-primer Tm range, the arm-cap reminder, and the buffer summary chip. */
 /**
- * `showArmCap` off for a CONVENTIONAL pair: the arm rule is what makes a junction primer
- * junction-specific, and a primer that spans no junction has no arms. Showing it there
- * would state a constraint the design does not have.
+ * The sticky settings panel that sits beside a designer card: the inputs a user retunes WHILE
+ * reading the output, since every figure on the card is recomputed from them. Anchored in the
+ * card head and in a section below the fold, retuning meant scrolling away from the very
+ * numbers being tuned.
+ *
+ * A shell plus parts rather than one component, because the two designers tune different
+ * things — a junction primer has arms and no amplicon of its own, a conventional pair has an
+ * amplicon and no arms — while sharing the panel itself and the reaction conditions.
  */
-export function TmRangeControls({ s, showChip = true, showArmCap = true }: {
-  s: JunctionSettings; showChip?: boolean; showArmCap?: boolean;
+export function SettingsRail({ label, note, children }: {
+  label: string; note?: ReactNode; children: ReactNode;
 }) {
   return (
-    <div className="jd-range">
-      <label>{showArmCap ? "Whole-primer Tm" : "Primer Tm"}
-        <input type="number" value={s.minStr} min={TM_FLOOR} max={s.tmMax - 1} inputMode="numeric"
-          onChange={(e) => s.editMin(e.target.value)} onBlur={s.commitMin} onKeyDown={enterBlur} />
-        <span className="dash">–</span>
-        <input type="number" value={s.maxStr} min={s.tmMin + 1} max={TM_CEIL} inputMode="numeric"
-          onChange={(e) => s.editMax(e.target.value)} onBlur={s.commitMax} onKeyDown={enterBlur} />
-        <span className="unit">°C</span>
-      </label>
-      {showArmCap && (
-        <span className="jd-cap">each arm Tm ≤ <b>whole-primer Tm − {ARM_GAP} °C</b></span>
-      )}
-      {showChip && (
-        <button type="button" onClick={s.focusConditions}
-          className={`jd-cond-chip ${isDefaultConditions(s.cond) ? "" : "mod"}`}
-          title="Edit the buffer and primer concentration used by the Tm formula">
-          <b>{numStr(s.cond.saltMM)}</b> mM salt · <b>{numStr(s.cond.mgMM)}</b> mM Mg²⁺ ·{" "}
-          <b>{numStr(s.cond.primerUM)}</b> µM primer
-          {!isDefaultConditions(s.cond) && <span className="dotmark" aria-hidden="true" />}
-        </button>
-      )}
-    </div>
-  );
-}
-
-/**
- * The junction designer's settings rail: the whole-primer Tm window and every reaction
- * condition that feeds the Tm formula, in one sticky column beside the workbench.
- *
- * These are the inputs the user retunes WHILE reading the output — the arm caps, the warm
- * zone, the auto-pick and every metric on screen are recomputed from them. Sitting in the
- * card head (Tm) and in a section below the fold (conditions), retuning meant scrolling away
- * from the very numbers being tuned. Sticky keeps both ends of that loop visible at once,
- * which is also why the conditions no longer need the summary chip that used to scroll to
- * them.
- *
- * `note` carries the one thing the rail cannot show on its own: for a two-junction combo,
- * that these settings are shared with the other designer rather than local to this one.
- */
-export function TmSettingsRail({ s, onMethod, note }: {
-  s: JunctionSettings; onMethod?: () => void; note?: ReactNode;
-}) {
-  const isDefault = isDefaultConditions(s.cond);
-  return (
-    <aside className="jd-rail" aria-label="Tm settings">
+    <aside className="jd-rail" aria-label={label}>
       <div className="jd-rail-in">
-        <p className="card-label jd-rail-label">Tm settings</p>
+        <p className="card-label jd-rail-label">{label}</p>
         {note && <p className="jd-rail-note">{note}</p>}
-
-        <label className="jd-rail-tm">
-          <span className="ck">Whole-primer Tm</span>
-          <span className="cin">
-            <input type="number" value={s.minStr} min={TM_FLOOR} max={s.tmMax - 1}
-              inputMode="numeric" aria-label="Minimum whole-primer Tm"
-              onChange={(e) => s.editMin(e.target.value)} onBlur={s.commitMin} onKeyDown={enterBlur} />
-            <span className="dash">–</span>
-            <input type="number" value={s.maxStr} min={s.tmMin + 1} max={TM_CEIL}
-              inputMode="numeric" aria-label="Maximum whole-primer Tm"
-              onChange={(e) => s.editMax(e.target.value)} onBlur={s.commitMax} onKeyDown={enterBlur} />
-            <span className="unit">°C</span>
-          </span>
-        </label>
-        <p className="jd-cap jd-rail-cap">each arm Tm ≤ <b>whole Tm − {ARM_GAP} °C</b></p>
-
-        <p className="jd-rail-sub">
-          Reaction conditions
-          <Info>Every Tm on this card is recomputed from these. Mg²⁺ and the monovalent
-            cations compete for the DNA backbone, so both matter, and dNTPs chelate Mg²⁺ so
-            only the surplus counts. Arms under {WALLACE_MAX} nt use the Wallace rule, which
-            has no salt or concentration term.</Info>
-        </p>
-        <div className="jd-rail-cond">
-          {COND_FIELDS.map(({ k, label, unit, step }) => (
-            <label key={k}>
-              <span className="ck">{label}</span>
-              <span className="cin">
-                <input ref={k === "saltMM" ? s.saltRef : undefined}
-                  type="number" value={s.condStr[k]} inputMode="decimal"
-                  min={COND_BOUNDS[k][0]} max={COND_BOUNDS[k][1]} step={step}
-                  onChange={(e) => s.editCond(k, e.target.value)}
-                  onBlur={() => s.commitCond(k)} onKeyDown={enterBlur} />
-                <span className="unit">{unit}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-
-        <div className="jd-rail-foot">
-          <button className="btn btn-ghost jd-rail-reset" onClick={s.resetConditions}
-            disabled={isDefault}>Reset{isDefault ? "" : " to default"}</button>
-          {onMethod && (
-            <button type="button" className="linkish" onClick={onMethod}>Formula</button>
-          )}
-        </div>
+        {children}
       </div>
     </aside>
   );
 }
 
+/** A titled group of fields in the panel; the rule above it separates it from the last. */
+export function RailGroup({ title, info, children }: {
+  title: string; info?: ReactNode; children: ReactNode;
+}) {
+  return (
+    <>
+      <p className="jd-rail-sub">{title}{info && <Info>{info}</Info>}</p>
+      <div className="jd-rail-cond">{children}</div>
+    </>
+  );
+}
+
+/** One labelled numeric field, sized for the panel's column. */
+export function RailField({ label, span, children }: {
+  label: ReactNode; span?: boolean; children: ReactNode;
+}) {
+  return (
+    <label className={span ? "rail-span" : undefined}>
+      <span className="ck">{label}</span>
+      <span className="cin">{children}</span>
+    </label>
+  );
+}
+
 /**
- * The reaction conditions that feed the Tm formula. Editing any of them re-runs the whole
- * designer — warm zone, auto-pick, arm caps, every metric above. The formula itself is
- * documented on the Method page; this card only exposes the knobs.
+ * The Tm window. `showArmCap` off for a CONVENTIONAL pair: the arm rule is what makes a
+ * junction primer junction-specific, and a primer that spans no junction has no arms, so
+ * showing it there would state a constraint the design does not have.
  */
-export function Conditions({ s, onMethod }: { s: JunctionSettings; onMethod?: () => void }) {
+export function RailTmRange({ s, showArmCap = true }: {
+  s: JunctionSettings; showArmCap?: boolean;
+}) {
+  return (
+    <>
+      <label className="jd-rail-tm">
+        <span className="ck">{showArmCap ? "Whole-primer Tm" : "Primer Tm"}</span>
+        <span className="cin">
+          <input type="number" value={s.minStr} min={TM_FLOOR} max={s.tmMax - 1}
+            inputMode="numeric" aria-label="Minimum primer Tm"
+            onChange={(e) => s.editMin(e.target.value)} onBlur={s.commitMin} onKeyDown={enterBlur} />
+          <span className="dash">–</span>
+          <input type="number" value={s.maxStr} min={s.tmMin + 1} max={TM_CEIL}
+            inputMode="numeric" aria-label="Maximum primer Tm"
+            onChange={(e) => s.editMax(e.target.value)} onBlur={s.commitMax} onKeyDown={enterBlur} />
+          <span className="unit">°C</span>
+        </span>
+      </label>
+      {showArmCap && (
+        <p className="jd-cap jd-rail-cap">each arm Tm ≤ <b>whole Tm − {ARM_GAP} °C</b></p>
+      )}
+    </>
+  );
+}
+
+/** The reaction conditions that feed the Tm formula, plus the reset and the Method link. */
+export function RailConditions({ s, onMethod }: {
+  s: JunctionSettings; onMethod?: () => void;
+}) {
   const isDefault = isDefaultConditions(s.cond);
   return (
-    <div className="jd-model">
-      <div className="jd-model-head">
-        <div>
-          <p className="card-label" style={{ margin: 0 }}>Tm formula · reaction conditions</p>
-          <p className="jd-model-sub">
-            Every Tm above is recomputed from these.
-            {onMethod && <>{" "}Formula in{" "}
-              <button type="button" className="linkish" onClick={onMethod}>Method</button>.</>}
-            <Info>Mg²⁺ and the monovalent cations compete for the DNA backbone, so both matter,
-              and dNTPs chelate Mg²⁺ so only the surplus counts. Arms under {WALLACE_MAX} nt
-              use the Wallace rule, which has no salt or concentration term.</Info>
-          </p>
-        </div>
-        <div className="jd-cond">
-          {COND_FIELDS.map(({ k, label, unit, step }) => (
-            <label key={k}>
-              <span className="ck">{label}</span>
-              <span className="cin">
-                <input ref={k === "saltMM" ? s.saltRef : undefined}
-                  type="number" value={s.condStr[k]} inputMode="decimal"
-                  min={COND_BOUNDS[k][0]} max={COND_BOUNDS[k][1]} step={step}
-                  onChange={(e) => s.editCond(k, e.target.value)}
-                  onBlur={() => s.commitCond(k)} onKeyDown={enterBlur} />
-                <span className="unit">{unit}</span>
-              </span>
-            </label>
-          ))}
-          <button className="btn btn-ghost jd-reset" onClick={s.resetConditions} disabled={isDefault}>
-            Reset{isDefault ? "" : " to default"}
-          </button>
-        </div>
+    <>
+      <RailGroup title="Reaction conditions"
+        info={<>Every Tm here is recomputed from these. Mg²⁺ and the monovalent cations compete
+          for the DNA backbone, so both matter, and dNTPs chelate Mg²⁺ so only the surplus
+          counts. Arms under {WALLACE_MAX} nt use the Wallace rule, which has no salt or
+          concentration term.</>}>
+        {COND_FIELDS.map(({ k, label, unit, step }) => (
+          <RailField key={k} label={label}>
+            <input ref={k === "saltMM" ? s.saltRef : undefined}
+              type="number" value={s.condStr[k]} inputMode="decimal"
+              min={COND_BOUNDS[k][0]} max={COND_BOUNDS[k][1]} step={step}
+              onChange={(e) => s.editCond(k, e.target.value)}
+              onBlur={() => s.commitCond(k)} onKeyDown={enterBlur} />
+            <span className="unit">{unit}</span>
+          </RailField>
+        ))}
+      </RailGroup>
+      <div className="jd-rail-foot">
+        <button className="btn btn-ghost jd-rail-reset" onClick={s.resetConditions}
+          disabled={isDefault}>Reset{isDefault ? "" : " to default"}</button>
+        {onMethod && (
+          <button type="button" className="linkish" onClick={onMethod}>Formula</button>
+        )}
       </div>
-    </div>
+    </>
+  );
+}
+
+/**
+ * The junction designer's panel. `note` carries the one thing it cannot show on its own: for
+ * a two-junction combo, that these settings are shared with the other designer.
+ */
+export function TmSettingsRail({ s, onMethod, note }: {
+  s: JunctionSettings; onMethod?: () => void; note?: ReactNode;
+}) {
+  return (
+    <SettingsRail label="Tm settings" note={note}>
+      <RailTmRange s={s} />
+      <RailConditions s={s} onMethod={onMethod} />
+    </SettingsRail>
   );
 }
 

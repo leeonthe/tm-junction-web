@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import type { TranscriptVerdict } from "../lib/types";
 import {
-  Conditions, DesignerHead, TmRangeControls, useJunctionSettings,
+  DesignerHead, RailConditions, RailField, RailGroup, RailTmRange, SettingsRail,
+  useJunctionSettings,
 } from "./JunctionWorkbench";
 import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR,
@@ -215,75 +216,25 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
   }
 
   return (
-    <section className="card elevated jd">
-      <DesignerHead
-        label="Primer pair options"
-        badges={
-          <span className="jd-badge neutral">
-            {options.length} {options.length === 1 ? "pair" : "pairs"}
-          </span>
-        }
-        intro={
-          <p className="sub jd-intro">
-            {plan.note}{" "}Every product spans an exon–exon junction.
-            <Info>{plan.detail}{" "}Spanning a junction means contaminating genomic DNA cannot
-              give the same band. Set the product size and how closely the two primers must melt
-              together; the list re-searches as you type. Hairpin and dimer checks are not run
-              here.</Info>
-          </p>
-        }
-        controls={
-        <div className="pp-controls">
-          <TmRangeControls s={s} showArmCap={false} />
-          <div className="jd-range pp-amp">
-          {/* Amplicon and its reachable-range hint are one unit: the hint qualifies those
-              two numbers and nothing else, so it stays under them while Tm match sits
-              alongside rather than below. */}
-          <div className="amp-group">
-            <label>Amplicon
-              <input type="number" value={minStr} min={AMP_FLOOR} max={ampMax - 1} inputMode="numeric"
-                onChange={(e) => editMin(e.target.value)} onBlur={commitMin} onKeyDown={enterBlur} />
-              <span className="dash">–</span>
-              <input type="number" value={maxStr} min={ampMin + 1} max={AMP_CEIL} inputMode="numeric"
-                onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
-              <span className="unit">bp</span>
-            </label>
-            {feasible && (
-              <button type="button" className="amp-hint" onClick={useFullRange}
-                title="Search every product size this target can make">
-                possible <b>{feasible.min}–{feasible.max}</b> bp
-                {(ampMin > feasible.min || ampMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
-              </button>
-            )}
-          </div>
-          {solo && (
-            <label className="exon-pick">Exons
-              <select value={fwdExon} onChange={(e) => setFwdExon(Number(e.target.value))}
-                title="Exon the forward primer sits in">
-                {verdict.exons.map((e) => (
-                  <option key={e.order} value={e.order}>{e.order} · {e.length} nt</option>
-                ))}
-              </select>
-              <span className="dash">→</span>
-              <select value={revExon} onChange={(e) => setRevExon(Number(e.target.value))}
-                title="Exon the reverse primer sits in">
-                {verdict.exons.map((e) => (
-                  <option key={e.order} value={e.order}>{e.order} · {e.length} nt</option>
-                ))}
-              </select>
-            </label>
-          )}
-          <label title="Discard any pair whose two primers melt further apart than this">
-            Tm match <span className="dash">±</span>
-            <input type="number" value={dTmStr} min={DTM_MAX_FLOOR} max={DTM_MAX_CEIL}
-              step={0.5} inputMode="decimal"
-              onChange={(e) => editDTm(e.target.value)} onBlur={commitDTm} onKeyDown={enterBlur} />
-            <span className="unit">°C</span>
-          </label>
-          </div>
-        </div>
-        }
-      />
+    <div className="jd-row">
+      <section className="card elevated jd">
+        <DesignerHead
+          label="Primer pair options"
+          badges={
+            <span className="jd-badge neutral">
+              {options.length} {options.length === 1 ? "pair" : "pairs"}
+            </span>
+          }
+          intro={
+            <p className="sub jd-intro">
+              {plan.note}{" "}Every product spans an exon–exon junction.
+              <Info>{plan.detail}{" "}Spanning a junction means contaminating genomic DNA cannot
+                give the same band. Set the product size and how closely the two primers must
+                melt together in the panel beside this card; the list re-searches as you type.
+                Hairpin and dimer checks are not run here.</Info>
+            </p>
+          }
+        />
 
       {options.length === 0 ? (
         <p className="sub pp-idle">
@@ -345,8 +296,69 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
         </>
       )}
 
-      <Conditions s={s} onMethod={onMethod} />
-    </section>
+      </section>
+
+      <SettingsRail label="Search settings">
+        <RailTmRange s={s} showArmCap={false} />
+
+        <RailGroup title="Product"
+          info={<>Only pairs whose product falls in this window are offered, and only ones whose
+            two primers melt within the match tolerance of each other — both anneal in the same
+            cycle, so a mismatched pair means one is at the wrong temperature.</>}>
+          {/* Both bounds in one cell, like the Tm range above — and spanning the row, because
+              two number inputs plus a dash and a unit clip badly in a half-width cell. */}
+          <RailField label="Amplicon" span>
+            <input type="number" value={minStr} min={AMP_FLOOR} max={ampMax - 1}
+              inputMode="numeric" aria-label="Minimum amplicon length"
+              onChange={(e) => editMin(e.target.value)} onBlur={commitMin} onKeyDown={enterBlur} />
+            <span className="dash">–</span>
+            <input type="number" value={maxStr} min={ampMin + 1} max={AMP_CEIL}
+              inputMode="numeric" aria-label="Maximum amplicon length"
+              onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
+            <span className="unit">bp</span>
+          </RailField>
+          <RailField label={<>Tm match <span className="dash">±</span></>}>
+            <input type="number" value={dTmStr} min={DTM_MAX_FLOOR} max={DTM_MAX_CEIL}
+              step={0.5} inputMode="decimal" aria-label="Maximum Tm difference within a pair"
+              onChange={(e) => editDTm(e.target.value)} onBlur={commitDTm} onKeyDown={enterBlur} />
+            <span className="unit">°C</span>
+          </RailField>
+        </RailGroup>
+        {feasible && (
+          /* The reachable range qualifies the two amplicon numbers and nothing else, so it
+             sits with them rather than in the panel's footer. */
+          <button type="button" className="amp-hint rail-hint" onClick={useFullRange}
+            title="Search every product size this target can make">
+            possible <b>{feasible.min}–{feasible.max}</b> bp
+            {(ampMin > feasible.min || ampMax < feasible.max) && <span className="amp-hint-go"> · use all</span>}
+          </button>
+        )}
+
+        {solo && (
+          <RailGroup title="Target exons"
+            info={<>This transcript is its gene's only isoform, so nothing has to be told apart
+              — any two exons work. The product must still cross a junction, so the two must
+              differ.</>}>
+            <RailField label="Forward in">
+              <select value={fwdExon} onChange={(e) => setFwdExon(Number(e.target.value))}>
+                {verdict.exons.map((e) => (
+                  <option key={e.order} value={e.order}>{e.order} · {e.length} nt</option>
+                ))}
+              </select>
+            </RailField>
+            <RailField label="Reverse in">
+              <select value={revExon} onChange={(e) => setRevExon(Number(e.target.value))}>
+                {verdict.exons.map((e) => (
+                  <option key={e.order} value={e.order}>{e.order} · {e.length} nt</option>
+                ))}
+              </select>
+            </RailField>
+          </RailGroup>
+        )}
+
+        <RailConditions s={s} onMethod={onMethod} />
+      </SettingsRail>
+    </div>
   );
 }
 
