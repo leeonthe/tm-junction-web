@@ -1,8 +1,8 @@
 import {
-  type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState,
+  type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from "react";
 import {
-  ARM_GAP, DEFAULT_CONDITIONS, DNTP_MAX, DNTP_MIN, MG_MAX, MG_MIN,
+  ARM_GAP, DEFAULT_CONDITIONS, DNTP_MAX, DNTP_MIN, LEN_MAX, MG_MAX, MG_MIN, MIN_ARM,
   PRIMER_MAX, PRIMER_MIN, SALT_MAX, SALT_MIN, WALLACE_MAX,
   armTmText, autoPick, evalWindow, isDefaultConditions,
   type TmConditions, type WindowEval,
@@ -40,6 +40,68 @@ const COND_FIELDS: { k: CondKey; label: ReactNode; unit: string; step: number }[
 ];
 
 const TM_FLOOR = 30, TM_CEIL = 95;
+
+/**
+ * The strip renders as many bases as fit on ONE line, so every junction looks the same
+ * whatever its "…N nt" counts happen to be — with a fixed base count a wide count or a
+ * narrow card leaves a stray base or a marker dangling on a second line.
+ *
+ * Never below this many per side: the auto-picker can reach LEN_MAX − MIN_ARM bases from
+ * the junction, so anything the user could select stays on screen and selectable.
+ */
+const MIN_FLANK = LEN_MAX - MIN_ARM;
+/** .jd-seq .b.jx adds this much space for the junction bar; it eats into the line too. */
+const JX_GAP = 12;
+/** Bases in the hidden width probe — measured rather than assumed, since the mono face,
+ *  its size and its letter-spacing are all CSS the component does not own. */
+const PROBE_BASES = 20;
+/**
+ * How far the strip may shrink its type to keep those 2 × MIN_FLANK bases on one line —
+ * the last resort for a narrow card, after the base count has already bottomed out. Held
+ * near 1 because a strip you cannot read is worse than one that wraps; a phone is past
+ * saving either way, so it wraps rather than shrink to nothing.
+ */
+const MIN_SCALE = 0.8;
+
+/**
+ * Fewer bases than this on a wrapped last line read as a stray, not as a line — the exact
+ * thing the fit exists to prevent. Below it the strip drops them and keeps full lines.
+ */
+const MIN_TAIL = 8;
+
+/**
+ * How many bases fit either side of the junction, given the measured content width and the
+ * per-base / per-marker widths. Iterated because a "…N nt" marker only takes space when that
+ * side is actually clipped — which is what we are solving for; it settles in a pass or two.
+ */
+function fitFlanks(
+  avail: number, baseW: number, markerW: number,
+  jx: number, seqLen: number, maxLeft: number, maxRight: number,
+): { l: number; r: number } {
+  const maxTotal = maxLeft + maxRight;
+  let l = maxLeft, r = maxRight;
+  for (let i = 0; i < 3; i++) {
+    const reserve = (jx - l > 0 ? markerW : 0) + (jx + r < seqLen ? markerW : 0);
+    // Bases that fit on n lines, one base of slack for sub-pixel rounding — measured-to-fit
+    // exactly still breaks, and a base of context is a cheap price for never breaking.
+    const fits = (n: number) => Math.floor((n * avail - JX_GAP - reserve - baseW) / baseW);
+    // One line if the whole selectable span fits on one; otherwise as few as it takes, each
+    // filled to the end. A count that fills its lines cannot leave a base stranded alone.
+    let lines = 1;
+    while (lines < 8 && fits(lines) < 2 * MIN_FLANK) lines++;
+    let cap = Math.min(maxTotal, Math.max(2 * MIN_FLANK, fits(lines)));
+    // Only when the sequence itself runs out mid-line is a short tail still possible.
+    const tail = cap - fits(lines - 1);
+    if (lines > 1 && tail > 0 && tail < MIN_TAIL)
+      cap = Math.max(2 * MIN_FLANK, fits(lines - 1));
+    // Split evenly, then let whichever side has bases left take the other's leftover.
+    const nr = Math.min(maxRight, cap - Math.min(maxLeft, Math.floor(cap / 2)));
+    const nl = Math.min(maxLeft, cap - nr);
+    if (nl === l && nr === r) return { l, r };
+    l = nl; r = nr;
+  }
+  return { l, r };
+}
 
 /** Everything the workbench needs to know about the junction it is rendering. */
 export interface JunctionGeom {
@@ -324,6 +386,49 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
   const dragging = useRef(false);
   const anchor = useRef(0);
   const seqRef = useRef<HTMLDivElement>(null);
+  const baseProbe = useRef<HTMLSpanElement>(null);
+  const markProbe = useRef<HTMLSpanElement>(null);
+  // How many bases the strip can show either side of the junction on one line, and the type
+  // scale that took to do it. null until measured — the first paint falls back to the
+  // caller's window, and the layout effect below corrects it before the browser paints.
+  const [fit, setFit] = useState<{ l: number; r: number; scale: number } | null>(null);
+  // The scale the last measurement was taken AT, so a scaled probe can be read back as the
+  // unscaled per-base width instead of feeding its own shrinking back into the next round.
+  const scaleRef = useRef(1);
+
+  // Re-measure on every width change: the panel, the window and the combo layout all move it.
+  useLayoutEffect(() => {
+    const el = seqRef.current;
+    if (!el) return;
+    const measure = () => {
+      const base = baseProbe.current, mark = markProbe.current;
+      if (!base || !mark) return;
+      const baseW = base.getBoundingClientRect().width / PROBE_BASES / scaleRef.current;
+      if (!(baseW > 0)) return;
+      const markerW = mark.getBoundingClientRect().width;   // fixed 11px sans — unscaled
+      const cs = getComputedStyle(el);
+      const avail = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      // Bases first, type second: shrink only for the last stretch, once the count is at its
+      // floor and the line still overflows. Only the bases shrink, so the scale is measured
+      // against what is left after the junction gap and the markers — which do not.
+      const forBases = avail - JX_GAP - 2 * markerW;
+      const scale = Math.min(1, Math.max(MIN_SCALE, forBases / ((2 * MIN_FLANK + 1) * baseW)));
+      scaleRef.current = scale;
+      setFit({
+        ...fitFlanks(avail, baseW * scale, markerW,
+          jx, seq.length, jx - winStart, winEnd - jx),
+        scale,
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [jx, seq.length, winStart, winEnd]);
+
+  // What the strip actually draws — the caller's window, narrowed to what fits on a line.
+  const vStart = fit ? jx - fit.l : winStart;
+  const vEnd = fit ? jx + fit.r : winEnd;
 
   const pick = useMemo(
     () => autoPick(seq, jx, leftBound, rightBound, s.tmMin, s.tmMax, s.cond),
@@ -379,7 +484,7 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
   }
 
   const bases = [];
-  for (let i = winStart; i < winEnd; i++) {
+  for (let i = vStart; i < vEnd; i++) {
     const inSel = sel != null && i >= sel.s && i < sel.e;
     const side = inSel ? (i < jx ? " sel-l" : " sel-r") : "";
     const warm = pick?.warm.has(i) && !inSel ? " warm" : "";
@@ -404,12 +509,20 @@ export function JunctionWorkbench({ geom, s, reseedKey, intro, legendExtra, onEv
       <div ref={seqRef} tabIndex={0} role="textbox"
         aria-label="Drag to select a primer; press Cmd or Ctrl + C to copy"
         className={`jd-seq mono ${selState}`}
+        style={fit && fit.scale < 1 ? { ["--seq-scale" as string]: fit.scale } : undefined}
         onKeyDown={onSeqKeyDown} onMouseLeave={() => { dragging.current = false; }}>
         {/* Strand orientation: the strip always reads sense 5′ (left) → 3′ (right). */}
         <div className="jd-ends" aria-hidden="true"><span>5′</span><span>3′</span></div>
-        {winStart > 0 && <span className="cdna-ellipsis">…{winStart} nt </span>}
+        {vStart > 0 && <span className="cdna-ellipsis">…{vStart} nt </span>}
         {bases}
-        {winEnd < seq.length && <span className="cdna-ellipsis"> {seq.length - winEnd} nt…</span>}
+        {vEnd < seq.length && <span className="cdna-ellipsis"> {seq.length - vEnd} nt…</span>}
+        {/* Hidden rulers: how wide one base and one marker actually render, which is what
+            decides how many bases the line can hold. Widest marker text, so the reserved
+            room never depends on the counts above and the fit cannot oscillate. */}
+        <span ref={baseProbe} className="jd-probe" aria-hidden="true">{"G".repeat(PROBE_BASES)}</span>
+        <span ref={markProbe} className="jd-probe cdna-ellipsis" aria-hidden="true">
+          …{seq.length} nt{" "}
+        </span>
       </div>
 
       <div className="jd-copyhint">
