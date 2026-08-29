@@ -78,6 +78,14 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
         <p className="mth-note">
           Specificity is established within the gene's NM isoform set, not genome-wide.
         </p>
+        <p className="mth-note">
+          The isoform set is counted by <b>sequence</b>, not by accession: RefSeq issues
+          several accessions for one molecule — TP53 has 25 NM accessions for 13 distinct
+          mRNAs, e.g. NM_001126115.2 and NM_001276697.3, both “transcript variant 5” and
+          byte-identical. Identical sequences are one transcript here, listed under one
+          accession with the others named beside it. Treating them as separate isoforms
+          would ask each primer to distinguish a transcript from itself, and no design can.
+        </p>
       </section>
 
       <section className="card mth-card">

@@ -77,6 +77,11 @@ class PrimerDesignOut(BaseModel):
 
 class TranscriptVerdict(BaseModel):
     accession: str
+    # Other NM accessions whose mRNA is byte-identical to this one — RefSeq mints several
+    # accessions for one molecule (TP53 has 25 for 13 sequences). They are the SAME
+    # transcript, so they are folded into this verdict and named here rather than compared
+    # against it: no primer can distinguish sequences that do not differ.
+    same_sequence_accessions: list[str] = []
     is_mane: bool
     tier: str                       # CONVENTIONAL | NEEDS_EEJ | NO_SINGLE_UNIQUE_JUNCTION
     amplifiable: bool
@@ -99,7 +104,8 @@ class TranscriptVerdict(BaseModel):
 
 
 class GeneSummary(BaseModel):
-    nm_count: int
+    nm_count: int                   # distinct mRNA sequences, not accessions
+    merged_accession_count: int = 0  # accessions folded into another's identical sequence
     conventional_count: int
     needs_eej_count: int
     hard_case_count: int
@@ -136,6 +142,9 @@ class GeneExonOut(BaseModel):
 
 class GeneTranscriptOut(BaseModel):
     accession: str
+    # Other accessions with the identical exon structure — the same molecule under another
+    # accession. Structure, not sequence: /gene deliberately fetches no sequences.
+    same_structure_accessions: list[str] = []
     is_mane: bool
     exon_count: int
     length: int            # total mRNA length in nt (sum of exon lengths)

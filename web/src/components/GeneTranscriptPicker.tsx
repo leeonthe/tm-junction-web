@@ -15,6 +15,9 @@ export default function GeneTranscriptPicker({
 }) {
   const { gene, transcripts } = data;
   const [hover, setHover] = useState<number | null>(null);
+  // Rows are distinct molecules; several accessions can share one (identical exon structure).
+  const accessionCount = transcripts.reduce(
+    (n, t) => n + 1 + (t.same_structure_accessions?.length ?? 0), 0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const MIN_W = 720;
@@ -51,7 +54,11 @@ export default function GeneTranscriptPicker({
       <div className="card-head">
         <div>
           <h3 className="card-title">
-            {gene.symbol} <span className="gp-sub">· {transcripts.length} NM transcripts</span>
+            {gene.symbol} <span className="gp-sub">· {transcripts.length} NM transcripts
+              {/* Accessions outnumber transcripts wherever RefSeq has minted more than one
+                  record for a molecule — say so, or the count looks like it lost rows. */}
+              {accessionCount > transcripts.length && <> · {accessionCount} accessions</>}
+            </span>
           </h3>
           <p className="sub">{gene.description} · GRCh38 chr{gene.chromosome || "?"} · Gene {gene.gene_id}</p>
         </div>
@@ -65,9 +72,12 @@ export default function GeneTranscriptPicker({
             const cy = top + i * rowH + rowH / 2;
             const first = t.exons[0], last = t.exons[t.exons.length - 1];
             const on = hover === i;
+            const same = t.same_structure_accessions ?? [];
+            // Where the accession text ends — the MANE badge, when present, sits first.
+            const afterAcc = 20 + t.accession.length * 7.1 + 9 + (t.is_mane ? 44 : 0);
             return (
               <g key={t.accession} className="gp-row" role="button" tabIndex={0}
-                aria-label={`Analyze ${t.accession}`}
+                aria-label={`Analyze ${t.accession}${same.length ? `, same sequence as ${same.join(", ")}` : ""}`}
                 onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover((h) => (h === i ? null : h))}
                 onClick={() => !busy && onSelect(t.accession)}
                 onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && !busy) { e.preventDefault(); onSelect(t.accession); } }}
@@ -86,6 +96,17 @@ export default function GeneTranscriptPicker({
                     <text x={20 + t.accession.length * 7.1 + 9} y={cy + 2} fontSize={9.5} fontWeight={700} fill="var(--brand-ink)">MANE</text>
                   </>
                 )}
+                {/* Same exon structure = same mRNA = one transcript. Marked, not spelled out:
+                    the label column ends where the alignment begins, and a second accession
+                    would run under the exons. The names are on hover and in the verdict table. */}
+                {!!same.length && (
+                  <text x={afterAcc} y={cy + 3} fontSize={10.5} fontFamily="var(--mono)"
+                    fill="var(--faint)">+{same.length}</text>
+                )}
+                <title>{same.length
+                  ? `${t.accession} — identical exon structure to ${same.join(", ")}: `
+                    + "the same transcript under another accession"
+                  : t.accession}</title>
                 {/* intron connector + neutral exon blocks */}
                 <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
                 {t.exons.map((e, k) => (

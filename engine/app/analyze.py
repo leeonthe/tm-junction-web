@@ -39,12 +39,17 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
     if not transcripts:
         raise AnalysisError("NOT_FOUND", f"“{name}” has no NM (mRNA) RefSeq transcripts on GRCh38.")
 
+    # One entry per distinct molecule — several accessions for one exon structure are one
+    # transcript, and listing them separately invites picking a "different" variant that is
+    # the same sequence. See _same_structure_groups.
+    reps, same_struct = _same_structure_groups(transcripts)
     out: list[GeneTranscriptOut] = []
-    for t in transcripts:
+    for t in reps:
         exons = t["exons"]                      # genomic (begin,end), ascending
         cds = t.get("cds")
         out.append(GeneTranscriptOut(
             accession=t["accession"],
+            same_structure_accessions=same_struct.get(t["accession"], []),
             is_mane=t["is_mane"],
             exon_count=len(exons),
             length=sum(e - b + 1 for b, e in exons),
@@ -57,6 +62,68 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
     gene = GeneInfo(gene_id=gene_id, symbol=sym, description=description,
                     chromosome=chromosome, strand=strand)
     return GeneLookupResponse(gene=gene, transcripts=out)
+
+
+def _pick_representative(members: list[str], accs: dict, target_acc: str | None) -> str:
+    """Which accession speaks for a set of accessions that are the same molecule.
+
+    The one the user asked about, if it is in the set — the analysis is about their
+    accession, not a synonym of it. Otherwise MANE, then the lowest accession, so the
+    choice is stable between runs.
+    """
+    if target_acc in members:
+        return target_acc
+    mane = sorted(m for m in members if accs[m]["is_mane"])
+    return mane[0] if mane else sorted(members)[0]
+
+
+def _same_sequence_groups(accs: dict, seqs: dict[str, str],
+                          target_acc: str | None = None) -> tuple[list[str], dict[str, list[str]]]:
+    """Fold accessions whose mRNA sequences are byte-identical into one transcript each.
+
+    RefSeq issues several accessions for one molecule — TP53 alone has 25 NM accessions
+    for 13 distinct sequences, e.g. NM_001126115.2 and NM_001276697.3, both "transcript
+    variant 5". Treating those as separate isoforms is not a cosmetic duplication: each is
+    then compared against a byte-identical sibling, no primer can tell them apart, and the
+    tool calls a perfectly designable transcript EEJ-infeasible. What distinguishes an
+    isoform is its sequence, not the number of accessions RefSeq has minted for it.
+
+    Returns (representatives in the input order, {representative: other accessions}).
+    """
+    by_seq: dict[str, list[str]] = {}
+    for a in accs:
+        by_seq.setdefault(seqs[a], []).append(a)
+    order = {a: i for i, a in enumerate(accs)}
+    reps: list[str] = []
+    same: dict[str, list[str]] = {}
+    for members in by_seq.values():
+        rep = _pick_representative(members, accs, target_acc)
+        reps.append(rep)
+        same[rep] = sorted(m for m in members if m != rep)
+    reps.sort(key=lambda a: order[a])
+    return reps, same
+
+
+def _same_structure_groups(transcripts: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
+    """The same fold for the gene picker, which has exon structures but no sequences.
+
+    Identical exon structures on one genome splice to the identical mRNA, so this reaches
+    the same grouping as _same_sequence_groups without paying for a sequence fetch per
+    transcript. Kept separate because the evidence differs: a RefSeq sequence may carry an
+    annotated difference from the genome, which only the sequences themselves would show.
+    """
+    by_struct: dict[tuple, list[dict]] = {}
+    for t in transcripts:
+        by_struct.setdefault(tuple(map(tuple, t["exons"])), []).append(t)
+    accs = {t["accession"]: t for t in transcripts}
+    reps: list[dict] = []
+    same: dict[str, list[str]] = {}
+    for members in by_struct.values():
+        names = [m["accession"] for m in members]
+        rep = _pick_representative(names, accs, None)
+        reps.append(accs[rep])
+        same[rep] = sorted(n for n in names if n != rep)
+    return reps, same
 
 
 def _cds_status(tx_begin: int, tx_end: int, cds: tuple[int, int] | None) -> str:
@@ -155,7 +222,8 @@ def _partner_exon(exons: list[tuple[int, int]], donor: int, acceptor: int) -> in
 
 def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                     seq: str, cds: tuple[int, int] | None,
-                    amp: AmplifyResult, coord_non_unique: bool) -> TranscriptVerdict:
+                    amp: AmplifyResult, coord_non_unique: bool,
+                    same_sequence: list[str] | None = None) -> TranscriptVerdict:
     junctions = [
         JunctionOut(donor_order=j.donor_order, acceptor_order=j.acceptor_order,
                     label=_junction_label(j.donor_order, j.acceptor_order))
@@ -210,6 +278,7 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                                         uniq_len=te - tb + 1))
     return TranscriptVerdict(
         accession=acc,
+        same_sequence_accessions=list(same_sequence or []),
         is_mane=is_mane,
         tier=amp.tier,
         amplifiable=amp.amplifiable,
@@ -284,21 +353,33 @@ def analyze_events(accession: str, k: int = 20):
 
     exons_by_acc = {a: t["exons"] for a, t in accs.items()}
 
+    # One transcript per SEQUENCE, not per accession: a byte-identical twin is the same
+    # molecule, and comparing a transcript against it would find nothing that tells the two
+    # apart — see _same_sequence_groups. The target always represents its own group.
+    reps, same_seq = _same_sequence_groups(accs, seqs, target_acc)
+    if len(reps) < len(accs):
+        merged = len(accs) - len(reps)
+        yield {"type": "progress", "pct": 80,
+               "detail": f"{merged} accession{'s' if merged != 1 else ''} share a sequence "
+                         f"with another — {len(reps)} distinct isoforms"}
+
     yield {"type": "progress", "pct": 82, "detail": "Classifying isoforms…"}
     verdicts: list[TranscriptVerdict] = []
-    for a, t in accs.items():
-        sib_accs = [o for o in accs if o != a]
+    for a in reps:
+        t = accs[a]
+        sib_accs = [o for o in reps if o != a]
         amp = analyze_amplifiability(
             t["exons"], seqs[a], [seqs[o] for o in sib_accs], k=k,
             sibling_exons=[exons_by_acc[o] for o in sib_accs])
         sib_exons = {o: exons_by_acc[o] for o in sib_accs}
         coord_nu = bool(overlap.non_unique_partners(t["exons"], sib_exons))
         verdicts.append(_amp_to_verdict(a, t["is_mane"], t["exons"], seqs[a],
-                                        t.get("cds"), amp, coord_nu))
+                                        t.get("cds"), amp, coord_nu,
+                                        same_seq.get(a, [])))
 
     yield {"type": "progress", "pct": 94, "detail": "Designing Tm-guided primers…"}
     tgt = accs[target_acc]
-    tgt_sib_accs = [o for o in accs if o != target_acc]
+    tgt_sib_accs = [o for o in reps if o != target_acc]
     tgt_sibs = {o: seqs[o] for o in tgt_sib_accs}
     tgt_amp = analyze_amplifiability(
         tgt["exons"], seqs[target_acc], [seqs[o] for o in tgt_sib_accs], k=k,
@@ -307,7 +388,8 @@ def analyze_events(accession: str, k: int = 20):
     tgt_verdict = next(v for v in verdicts if v.accession == target_acc)
 
     summary = GeneSummary(
-        nm_count=len(accs),
+        nm_count=len(reps),
+        merged_accession_count=len(accs) - len(reps),
         conventional_count=sum(v.tier == "CONVENTIONAL" for v in verdicts),
         needs_eej_count=sum(v.tier == "NEEDS_EEJ" for v in verdicts),
         hard_case_count=sum(v.tier == "NO_SINGLE_UNIQUE_JUNCTION" for v in verdicts),

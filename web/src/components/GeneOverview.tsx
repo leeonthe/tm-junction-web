@@ -16,6 +16,19 @@ export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
         <div className="stat-tile t-hard"><div className="n">{summary.hard_case_count}</div><div className="l">EEJ-infeasible</div></div>
       </div>
 
+      {/* The isoform count is sequences, not accessions. Where RefSeq has issued more than
+          one accession for a molecule, saying so keeps the tile from looking short. */}
+      {!!summary.merged_accession_count && (
+        <p className="stat-note">
+          Counted by sequence: <b>{summary.merged_accession_count}</b> further
+          accession{summary.merged_accession_count > 1 ? "s are" : " is"} identical to a
+          transcript above and folded into it.
+          <Info>RefSeq mints several accessions for one molecule — TP53 has 25 NM accessions
+            for 13 distinct sequences. Nothing tells identical sequences apart, so they are
+            one transcript here, with the other accessions named on its row.</Info>
+        </p>
+      )}
+
       {hasHard && (
         <section className="hardcase">
           <span className="hc-ic"><Alert /></span>

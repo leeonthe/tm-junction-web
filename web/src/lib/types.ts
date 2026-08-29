@@ -35,7 +35,12 @@ export interface PrimerDesign {
   tm_method: string; pair_dimer_tm: number | null;
 }
 export interface TranscriptVerdict {
-  accession: string; is_mane: boolean; tier: Tier;
+  accession: string;
+  /** Other NM accessions whose mRNA is byte-identical to this one. RefSeq mints several
+   *  accessions for one molecule, so they are folded into this row rather than listed as
+   *  separate isoforms — no primer can distinguish sequences that do not differ. */
+  same_sequence_accessions?: string[];
+  is_mane: boolean; tier: Tier;
   amplifiable: boolean; needs_eej: boolean;
   unique_regions: UniqueRegion[]; unique_junctions: Junction[];
   recommended_junction: Junction | null; coord_non_unique: boolean;
@@ -47,7 +52,11 @@ export interface TranscriptVerdict {
 /** `strand` is "+" | "-", or "" when NCBI does not state one. */
 export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string; strand?: string }
 export interface GeneSummary {
-  nm_count: number; conventional_count: number; needs_eej_count: number;
+  /** Distinct mRNA sequences, not accessions — see TranscriptVerdict.same_sequence_accessions. */
+  nm_count: number;
+  /** Accessions folded into another's identical sequence. */
+  merged_accession_count?: number;
+  conventional_count: number; needs_eej_count: number;
   hard_case_count: number; coord_non_unique_count: number;
 }
 export interface AnalyzeResponse {
@@ -65,7 +74,11 @@ export interface ApiError { error: string; message: string }
 // Gene-name lookup: transcript reference (no classification) for the pick-a-variant step.
 export interface GeneExonRef { order: number; begin: number; end: number }
 export interface GeneTranscriptRef {
-  accession: string; is_mane: boolean; exon_count: number; length: number;
+  accession: string;
+  /** Other accessions with the identical exon structure — the same molecule, another
+   *  accession. Structure rather than sequence: /gene fetches no sequences. */
+  same_structure_accessions?: string[];
+  is_mane: boolean; exon_count: number; length: number;
   cds_begin: number | null; cds_end: number | null; exons: GeneExonRef[];
 }
 export interface GeneLookupResponse { gene: GeneInfo; transcripts: GeneTranscriptRef[] }

@@ -34,6 +34,14 @@ export default function VerdictTable({
                     <span className="tacc">{t.accession}</span>
                   )}
                   {t.is_mane && <span className="badge-mane">MANE</span>}
+                  {/* One molecule, several RefSeq accessions. Naming them here is the point
+                      of folding them: the reader can still find their accession in the
+                      table, and can see it is not a separate isoform to design against. */}
+                  {!!t.same_sequence_accessions?.length && (
+                    <span className="tacc-same" title="Identical mRNA sequence — the same transcript under another accession">
+                      = {t.same_sequence_accessions.join(", ")}
+                    </span>
+                  )}
                 </td>
                 <td>
                   <span className={`mini-chip ${tierChipClass[t.tier]}`}>
