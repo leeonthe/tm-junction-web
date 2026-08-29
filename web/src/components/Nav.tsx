@@ -39,9 +39,9 @@ export default function Nav({ onHome, onMethod, methodOn }: {
     <nav aria-label="Main">
       <div className="wrap nav-in">
         <button className="brand" type="button" onClick={onHome}
-          aria-label="TmJunction — start a new search">
+          aria-label="Exon Junction Primer — start a new search">
           <Mark />
-          <span className="brand-name">T<sub>m</sub>Junction</span>
+          <span className="brand-name">Exon Junction Primer</span>
         </button>
 
         <div className="nav-links">

@@ -85,9 +85,6 @@ nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,
 .brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15.5px;letter-spacing:-.02em;
   background:none;border:0;padding:0;margin:0;color:var(--ink);font-family:inherit;cursor:pointer}
 .brand-mark{width:24px;height:24px;flex:none;display:block}
-/* The name IS the melting temperature, so it is set the way the literature sets it. */
-.brand-name sub{font-size:.66em;line-height:0;vertical-align:baseline;position:relative;top:.22em;
-  font-weight:600;letter-spacing:0}
 .brand:hover .brand-name{color:var(--brand)}
 
 .nav-links{display:flex;align-items:center;gap:2px}

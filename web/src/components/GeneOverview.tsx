@@ -11,9 +11,9 @@ export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
     <>
       <div className="stat-row">
         <div className="stat-tile"><div className="n">{summary.nm_count}</div><div className="l">NM isoforms</div></div>
-        <div className="stat-tile t-conv"><div className="n">{summary.conventional_count}</div><div className="l">Conventional (no EEJ)</div></div>
-        <div className="stat-tile t-eej"><div className="n">{summary.needs_eej_count}</div><div className="l">Need an EEJ primer</div></div>
-        <div className="stat-tile t-hard"><div className="n">{summary.hard_case_count}</div><div className="l">Hard case</div></div>
+        <div className="stat-tile t-conv"><div className="n">{summary.conventional_count}</div><div className="l">EEJ-independent</div></div>
+        <div className="stat-tile t-eej"><div className="n">{summary.needs_eej_count}</div><div className="l">EEJ-dependent</div></div>
+        <div className="stat-tile t-hard"><div className="n">{summary.hard_case_count}</div><div className="l">EEJ-infeasible</div></div>
       </div>
 
       {hasHard && (
@@ -25,7 +25,7 @@ export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
               Needs a <b>junction-combination</b> strategy — planned, not yet automated.
               {maneHard && <> In {gene.symbol} this is the MANE transcript.</>}
               <Info>They share every exon region <i>and</i> every splice junction with another
-                isoform, so neither a conventional nor a single junction primer can isolate
+                isoform, so neither an EEJ-independent nor a single junction primer can isolate
                 them.</Info>
             </p>
           </div>

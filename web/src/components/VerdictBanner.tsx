@@ -14,9 +14,9 @@ export default function VerdictBanner({ v }: { v: TranscriptVerdict }) {
     : v.tier === "NEEDS_EEJ" ? "Amplifiable — with an exon–exon junction primer."
     : "Not amplifiable by a single primer pair.";
 
-  const chip = v.tier === "CONVENTIONAL" ? "Distinctly amplifiable · conventional primer"
-    : v.tier === "NEEDS_EEJ" ? "Needs an exon–exon junction primer"
-    : "Hard case · no single unique feature";
+  const chip = v.tier === "CONVENTIONAL" ? "Distinctly amplifiable · EEJ-independent primer"
+    : v.tier === "NEEDS_EEJ" ? "EEJ-dependent — needs an exon–exon junction primer"
+    : "EEJ-infeasible · no single unique feature";
 
   return (
     <section className={`verdict ${verdictClass[v.tier]}`}>
@@ -47,8 +47,8 @@ function Explanation({ v, region, junc }: {
         Unique region in <b>exon {region.exon_order}</b>
         {nt != null && region.tx_begin != null && <> — <b>{nt} nt</b> at mRNA{" "}
           {region.tx_begin}–{region.tx_end}</>}.
-        <Info>No other isoform carries that stretch, so a conventional primer covering it will
-          not amplify them.</Info>
+        <Info>No other isoform carries that stretch, so an EEJ-independent primer covering it
+          will not amplify them.</Info>
       </p>
     );
   }
@@ -56,7 +56,7 @@ function Explanation({ v, region, junc }: {
     const [f, r] = v.amplify_exon_pair;
     return (
       <p>
-        Conventional pair — forward in <b>exon {f}</b>, reverse in <b>exon {r}</b>.
+        EEJ-independent pair — forward in <b>exon {f}</b>, reverse in <b>exon {r}</b>.
         <Info>No single exon region is unique here, but the exon <i>combination</i> is: no other
           isoform carries both, so the product forms only for this transcript.</Info>
       </p>
@@ -75,7 +75,7 @@ function Explanation({ v, region, junc }: {
   if (v.tier === "NEEDS_EEJ" && v.amplify_exon_pair && junc) {
     return (
       <p>
-        EEJ primer across <b>{junc.label}</b>, plus a conventional primer in{" "}
+        EEJ primer across <b>{junc.label}</b>, plus an EEJ-independent primer in{" "}
         <b>exon {v.amplify_exon_pair[0]}</b>.
         <Info>Neither is unique alone — no other isoform has both, so the product forms only
           for this transcript.</Info>
@@ -97,8 +97,8 @@ function Explanation({ v, region, junc }: {
   return (
     <p>
       Needs a junction-combination (dual-junction) strategy.
-      <Info>No unique region and no unique single junction, so neither a conventional nor a
-        single EEJ primer can isolate it.</Info>
+      <Info>No unique region and no unique single junction, so neither an EEJ-independent nor
+        a single EEJ primer can isolate it.</Info>
     </p>
   );
 }

@@ -5,9 +5,9 @@ import ExonTrackGraph from "./ExonTrackGraph";
 // Legend entries map 1:1 to the CSS color tokens the graph reads via var(--…).
 // Overriding a token on the card element cascades to both the swatch and the track.
 const LEGEND = [
-  { token: "--conv", label: "Conventional" },
-  { token: "--eej", label: "Needs EEJ" },
-  { token: "--hard", label: "Hard case" },
+  { token: "--conv", label: "EEJ-independent" },
+  { token: "--eej", label: "EEJ-dependent" },
+  { token: "--hard", label: "EEJ-infeasible" },
   { token: "--amp-pair", label: "Target site" },
   { token: "--eej-combo", label: "EEJ pair" },
 ] as const;
@@ -18,7 +18,7 @@ const SPARES = ["#16A34A", "#0D9488", "#F97316", "#EC4899", "#7C3AED", "#B45309"
 
 // "What is this" hover text for the target-site legend entries (shown as a title on the ⓘ marker).
 const HINTS: Record<string, string> = {
-  "--amp-pair": "Target site — the exon region to put your primer(s): a conventional exon pair, a "
+  "--amp-pair": "Target site — the exon region to put your primer(s): an EEJ-independent exon pair, a "
     + "junction+exon combo's discriminating exon region, or the partner exon of a single-junction EEJ.",
   "--eej-combo": "EEJ pair — two exon–exon junctions that together isolate this transcript "
     + "(a two-junction combination); both are marked and both junction primers are needed.",
@@ -187,7 +187,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
         <span className="g-sep">·</span>
         <BracketGlyph combo /> double junction primer
         <span className="g-sep">·</span>
-        <TriangleGlyph /> conventional partner primer
+        <TriangleGlyph /> EEJ-independent partner primer
         <span className="g-sep">·</span>
         window size k={k}
       </p>

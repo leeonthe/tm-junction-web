@@ -124,7 +124,7 @@ export function mechanism(t: TranscriptVerdict, solo = false): string {
       return `Unique region · exon ${r.exon_order}${nt != null ? ` (${nt} nt)` : ""}`;
     }
     const p = t.amplify_exon_pair;
-    return p ? `Exon pair · exon ${p[0]} + exon ${p[1]}` : "Conventional";
+    return p ? `Exon pair · exon ${p[0]} + exon ${p[1]}` : "EEJ-independent";
   }
   return "No single unique feature";
 }

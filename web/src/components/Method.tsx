@@ -44,7 +44,7 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
 
       <header className="mth-head">
         <p className="card-label" style={{ margin: 0 }}>Method</p>
-        <h1>How TmJunction decides, designs, and computes Tm</h1>
+        <h1>How Exon Junction Primer decides, designs, and computes Tm</h1>
         <p className="mth-lede">
           Every verdict on this site is sequence-based: the target mRNA is compared against the
           other RefSeq <b>NM</b> isoforms of the same gene, and a primer site counts as specific
@@ -62,16 +62,16 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
         </p>
         <ul className="mth-list">
           <li>
-            <b className="t-conv-ink">Conventional</b> — some window sits inside a single exon.
+            <b className="t-conv-ink">EEJ-independent</b> — some window sits inside a single exon.
             An ordinary primer already discriminates the target, so no junction trick is needed.
           </li>
           <li>
-            <b className="t-eej-ink">Needs EEJ</b> — no exon-internal window is unique, but one
+            <b className="t-eej-ink">EEJ-dependent</b> — no exon-internal window is unique, but one
             exon–exon junction is. The primer must straddle that splice; designing it is what the
             junction designer does.
           </li>
           <li>
-            <b className="t-hard-ink">Hard case</b> — neither exists. No single primer pair can
+            <b className="t-hard-ink">EEJ-infeasible</b> — neither exists. No single primer pair can
             separate this isoform, and a junction-combination strategy is required.
           </li>
         </ul>
@@ -378,7 +378,7 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           Nearest-neighbour with the Owczarzy salt correction is what the junction designer uses
           for every whole-primer number, with the Wallace rule covering short arms, so its figures
           are internally consistent and are what your Tm range should be read against. It is not
-          the same estimator as the primer-QC figures on the conventional primer cards, which come
+          the same estimator as the primer-QC figures on the EEJ-independent primer cards, which come
           from primer3 when it is available. The model is fitted to fully complementary B-form DNA
           duplexes; it does not account for secondary structure, mismatches, or modified bases.
         </p>

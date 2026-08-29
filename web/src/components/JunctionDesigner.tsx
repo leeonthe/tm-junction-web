@@ -491,7 +491,7 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
   return (
     <div className="pp">
       <DesignerHead
-        label={<>Second primer · conventional {search?.partnerRole ?? "reverse"}</>}
+        label={<>Second primer · EEJ-independent {search?.partnerRole ?? "reverse"}</>}
         intro={
           <p className="sub pp-sub">
             Pick the <b>{search?.partnerRole ?? "reverse"}</b> partner for the EEJ primer above.

@@ -403,7 +403,7 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
       <div className="exon-tip" style={style}>
         <div className="et-head"><b style={{ color: "var(--amp-pair)" }}>
           Partner primer · exon {tip.exon}</b></div>
-        <div className="et-line">Conventional <b>{tip.reverse ? "reverse" : "forward"}</b> primer
+        <div className="et-line">EEJ-independent <b>{tip.reverse ? "reverse" : "forward"}</b> primer
           site — {tip.left ? "⏴" : "⏵"} points toward its EEJ mate.</div>
       </div>
     );
@@ -467,7 +467,7 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
       ) : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
       {pairRole && !isComboExon && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
-      {isPartner && <div className="et-line et-pair">★ Target site — conventional partner primer, nearest the EEJ</div>}
+      {isPartner && <div className="et-line et-pair">★ Target site — EEJ-independent partner primer, nearest the EEJ</div>}
       {pinned
         ? <ExonSequence exon={e} t={t} isTarget={isTarget} mrna={mrna} />
         : <div className="et-line et-hint">Click to pin · sequence</div>}
