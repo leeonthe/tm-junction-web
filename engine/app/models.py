@@ -77,6 +77,9 @@ class PrimerDesignOut(BaseModel):
 
 class TranscriptVerdict(BaseModel):
     accession: str
+    # NCBI's isoform designation, e.g. "transcript variant 5". None when NCBI names no
+    # variant, which is the mono-isoform case: nothing to distinguish it from.
+    variant: str | None = None
     # Other NM accessions whose mRNA is byte-identical to this one — RefSeq mints several
     # accessions for one molecule (TP53 has 25 for 13 sequences). They are the SAME
     # transcript, so they are folded into this verdict and named here rather than compared
@@ -138,6 +141,7 @@ class GeneExonOut(BaseModel):
 
 class GeneTranscriptOut(BaseModel):
     accession: str
+    variant: str | None = None      # NCBI's "transcript variant N"; None = mono-isoform
     # Other accessions with the identical exon structure — the same molecule under another
     # accession. Structure, not sequence: /gene deliberately fetches no sequences.
     same_structure_accessions: list[str] = []

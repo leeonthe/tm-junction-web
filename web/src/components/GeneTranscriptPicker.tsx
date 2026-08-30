@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { GeneLookupResponse } from "../lib/types";
+import { variantLabel } from "../lib/format";
 
 /**
  * Gene-name result: a reference alignment of every NM transcript for the gene, so the
@@ -86,21 +87,26 @@ export default function GeneTranscriptPicker({
                 <rect x={8} y={top + i * rowH + 2} width={W - 16} height={rowH - 4} rx={10}
                   fill={on ? "var(--brand-tint)" : "transparent"}
                   stroke={on ? "color-mix(in srgb,var(--brand) 32%,transparent)" : "transparent"} />
-                <text x={20} y={cy + 4} fontFamily="var(--mono)" fontSize={12.5}
+                <text x={20} y={cy} fontFamily="var(--mono)" fontSize={12.5}
                   fontWeight={on ? 700 : 500} fill={on ? "var(--brand-ink)" : "var(--text)"}>
                   {t.accession}
                 </text>
+                {/* Which isoform it is, in NCBI's words — under the accession, as in the
+                    verdict table, so the same transcript reads the same way in both. */}
+                <text x={20} y={cy + 13} fontSize={10.5} fill="var(--faint)">
+                  {variantLabel(t.variant, true)}
+                </text>
                 {t.is_mane && (
                   <>
-                    <rect x={20 + t.accession.length * 7.1 + 6} y={cy - 9} width={38} height={15} rx={4} fill="var(--brand-tint)" />
-                    <text x={20 + t.accession.length * 7.1 + 9} y={cy + 2} fontSize={9.5} fontWeight={700} fill="var(--brand-ink)">MANE</text>
+                    <rect x={20 + t.accession.length * 7.1 + 6} y={cy - 13} width={38} height={15} rx={4} fill="var(--brand-tint)" />
+                    <text x={20 + t.accession.length * 7.1 + 9} y={cy - 2} fontSize={9.5} fontWeight={700} fill="var(--brand-ink)">MANE</text>
                   </>
                 )}
                 {/* Same exon structure = same mRNA = one transcript. Marked, not spelled out:
                     the label column ends where the alignment begins, and a second accession
                     would run under the exons. The names are on hover and in the verdict table. */}
                 {!!same.length && (
-                  <text x={afterAcc} y={cy + 3} fontSize={10.5} fontFamily="var(--mono)"
+                  <text x={afterAcc} y={cy - 1} fontSize={10.5} fontFamily="var(--mono)"
                     fill="var(--faint)">+{same.length}</text>
                 )}
                 <title>{same.length

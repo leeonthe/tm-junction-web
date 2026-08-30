@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { analyzeStream, lookupGene, AnalyzeError, type Progress } from "./lib/api";
 import type { AnalyzeResponse, GeneLookupResponse } from "./lib/types";
+import { variantLabel } from "./lib/format";
 import Nav from "./components/Nav";
 import Hero from "./components/Hero";
 import GeneTranscriptPicker from "./components/GeneTranscriptPicker";
@@ -206,10 +207,11 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
         <span className="acc">{target_accession}</span>
         <span className="arrow-sm"><ArrowRight /></span>
         <div className="gene-chips">
+          <span className="gchip">{variantLabel(target_verdict.variant)}</span>
           <span className="gchip"><b>{gene.symbol}</b></span>
           <span className="gchip">Gene <b>{gene.gene_id}</b></span>
           <span className="gchip"><b>{gene.assembly}</b></span>
-          <span className="gchip"><b>{summary.nm_count}</b> NM isoforms</span>
+          <span className="gchip"><b>{summary.nm_count}</b> NM isoform{summary.nm_count === 1 ? "" : "s"}</span>
         </div>
       </div>
 

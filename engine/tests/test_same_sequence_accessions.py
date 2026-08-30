@@ -86,3 +86,30 @@ def test_tp53_variant_5_is_one_transcript_with_a_design():
     listed = {v.accession for v in r.transcripts}
     listed |= {a for v in r.transcripts for a in v.same_sequence_accessions}
     assert len(listed) == 25
+
+
+def test_every_transcript_carries_ncbis_variant_designation():
+    """Ticket 27.1: the accession alone does not say WHICH isoform it is.
+
+    NCBI numbers a variant only when the gene has more than one to tell apart, so an
+    absent name is the mono-isoform case rather than missing data — the clients render
+    that as "mono-isoform".
+    """
+    from app.analyze import analyze, lookup_gene
+    r = analyze("NM_001126115.2")
+    by_acc = {v.accession: v for v in r.transcripts}
+    # The reported pair: one row, one variant, both accessions named on it.
+    assert by_acc["NM_001126115.2"].variant == "transcript variant 5"
+    assert by_acc["NM_001126115.2"].same_sequence_accessions == ["NM_001276697.3"]
+    assert by_acc["NM_000546.6"].variant == "transcript variant 1"
+    assert all(v.variant for v in r.transcripts)      # TP53 numbers every isoform
+    # The gene picker carries it too, so a variant is named before anything is analyzed.
+    assert all(t.variant for t in lookup_gene("TP53").transcripts)
+
+
+def test_a_sole_isoform_has_no_variant_number():
+    """ACTB has one NM, so NCBI names no variant — there is nothing to number it against."""
+    from app.analyze import analyze
+    r = analyze("NM_001101.5")
+    assert len(r.transcripts) == 1
+    assert r.transcripts[0].variant is None

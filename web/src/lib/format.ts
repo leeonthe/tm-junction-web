@@ -29,3 +29,16 @@ export function rounded(v: number): string {
 export function signed(v: number, digits = 2): string {
   return `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(digits)}`;
 }
+
+/**
+ * NCBI's isoform designation for a transcript, as shown under its accession.
+ *
+ * NCBI numbers a variant only when the gene HAS more than one to tell apart, so a missing
+ * name is not missing data — it is the mono-isoform case, and saying so is more useful than
+ * a blank. `short` drops the "transcript " prefix where the column is narrow.
+ */
+export function variantLabel(variant: string | null | undefined, short = false): string {
+  const v = (variant ?? "").trim();
+  if (!v) return "mono-isoform";
+  return short ? v.replace(/^transcript\s+/i, "") : v;
+}

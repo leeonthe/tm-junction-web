@@ -167,8 +167,8 @@ def _grch38_chromosome(transcript: dict) -> str:
 
 
 def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, str, list[dict]]:
-    """Return (gene_id, symbol, description, chromosome, strand, [ {accession, is_mane,
-    exons, strand} ... ]) for NM only. Gene strand = the first transcript's — every NM of a
+    """Return (gene_id, symbol, description, chromosome, strand, [ {accession, variant,
+    is_mane, exons, strand} ... ]) for NM only. Gene strand = the first transcript's — every NM of a
     gene is transcribed from the same strand."""
     reports = product_report.get("reports") or []
     if not reports:
@@ -194,6 +194,10 @@ def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, str, list[
             strand = tx_strand
         out.append({
             "accession": acc,
+            # NCBI's own designation for the isoform, e.g. "transcript variant 5". Absent on
+            # a gene with a single NM — there is no variant to number — which is what the
+            # clients render as "mono-isoform".
+            "variant": (t.get("name") or "").strip() or None,
             "is_mane": t.get("select_category") == "MANE_SELECT",
             "exons": exons,
             "strand": tx_strand,

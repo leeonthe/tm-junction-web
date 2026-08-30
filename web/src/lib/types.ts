@@ -36,6 +36,9 @@ export interface PrimerDesign {
 }
 export interface TranscriptVerdict {
   accession: string;
+  /** NCBI's isoform designation, e.g. "transcript variant 5". null when NCBI names no
+   *  variant — the mono-isoform case. Render it with variantLabel(). */
+  variant?: string | null;
   /** Other NM accessions whose mRNA is byte-identical to this one. RefSeq mints several
    *  accessions for one molecule, so they are folded into this row rather than listed as
    *  separate isoforms — no primer can distinguish sequences that do not differ. */
@@ -74,6 +77,7 @@ export interface ApiError { error: string; message: string }
 export interface GeneExonRef { order: number; begin: number; end: number }
 export interface GeneTranscriptRef {
   accession: string;
+  variant?: string | null;
   /** Other accessions with the identical exon structure — the same molecule, another
    *  accession. Structure rather than sequence: /gene fetches no sequences. */
   same_structure_accessions?: string[];
