@@ -65,3 +65,43 @@ def test_actb_the_mono_isoform_case_still_gets_a_pair():
     got = _check("NM_001101.5")
     assert got is not None, "ACTB lost its design entirely"
     assert got[0]
+
+
+def test_the_rule_is_enforced_where_the_pair_is_emitted():
+    """Ticket 22, re-reported: no design path may emit a single-exon product.
+
+    The partner search rejects one (test above), but that put the guarantee in the branches
+    rather than at the point the pair leaves design(). A terminal check means a future path
+    — a new fallback, a new rescue orientation — cannot quietly reintroduce the bug: the
+    partner is dropped and NO_SPANNING_PAIR flagged instead of a gDNA-indistinguishable
+    product being offered.
+    """
+    import app.primers as primers
+
+    real = primers._choose_partner
+    seen = {}
+
+    def partner_inside_one_exon(seq, spec_start, spec_len, spec_is_forward, cum=None):
+        """Return a partner that keeps the product inside one exon.
+
+        GAPDH NM_001256799.3's specific primer sits at 171 and exon 1 ends at 206, so a
+        partner 60 nt UPSTREAM makes a product wholly inside exon 1 — the shape a future
+        rescue path could produce by pairing the specific oligo with the wrong side.
+        """
+        got = real(seq, spec_start, spec_len, spec_is_forward, cum)
+        seen["called"] = True
+        if got is None:
+            return None
+        p, _ = got
+        return p, max(0, spec_start - 60)
+
+    primers._choose_partner = partner_inside_one_exon
+    try:
+        r = analyze("NM_001256799.3")            # GAPDH, conventional, unique region
+    finally:
+        primers._choose_partner = real
+    assert seen.get("called")
+    d = r.primer_design
+    assert "NO_SPANNING_PAIR" in d.flags
+    assert d.amplicon_len is None
+    assert (d.forward is None) != (d.reverse is None)   # the specific oligo survives alone

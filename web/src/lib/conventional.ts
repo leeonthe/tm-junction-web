@@ -257,6 +257,12 @@ export function findPairs(a: PairArgs): PairOption[] {
  * where each primer is allowed to sit. Used to pick a starting window that can actually
  * yield something (an exon pair 10 exons apart cannot make a 150 bp product) and to tell the
  * user the nearest achievable size when their window comes up empty.
+ *
+ * Junction-aware, because findPairs is: a length only reachable inside one exon is not
+ * reachable at all, and offering it opens the panel on a window where every candidate is
+ * filtered out — or answers "widen to 36–210 bp" with sizes that can never return a pair.
+ * The shortest product is therefore measured across each junction the primers can reach:
+ * the latest start before it against the earliest end after it.
  */
 export function ampRange(a: PairArgs): { min: number; max: number } | null {
   let fLo = a.fwdRegion ? a.fwdRegion.lo : 0;
@@ -272,9 +278,25 @@ export function ampRange(a: PairArgs): { min: number; max: number } | null {
   const rLo = (a.revRegion ? a.revRegion.lo : 0) + PARTNER_LEN_MIN;
   const rHi = a.revRegion ? a.revRegion.hi : a.mrna.length;
   if (fLo > fHi || rLo > rHi) return null;
-  const min = Math.max(2 * PARTNER_LEN_MIN, rLo - fHi);
-  const max = rHi - fLo;
-  return max >= min ? { min, max } : null;
+  const floor = 2 * PARTNER_LEN_MIN;
+  if (!a.exonEnds?.length) {                     // structure unknown — geometry is all there is
+    const min = Math.max(floor, rLo - fHi);
+    const max = rHi - fLo;
+    return max >= min ? { min, max } : null;
+  }
+  // The last entry is the transcript's end, not a junction. A single-exon transcript
+  // therefore leaves none, and nothing it can produce crosses one — which is a real answer
+  // (no reachable size), not a missing structure to fall back on.
+  const junctions = a.exonEnds.slice(0, -1);
+  let min = Infinity, max = -Infinity;
+  for (const b of junctions) {
+    // A product crosses junction b when it starts before b and ends after it.
+    const f = Math.min(fHi, b - 1);              // latest start still before the junction
+    const r = Math.max(rLo, b + 1);              // earliest end still after it
+    if (f >= fLo && r <= rHi) min = Math.min(min, Math.max(floor, r - f));
+    if (fLo < b && b < rHi) max = Math.max(max, rHi - fLo);
+  }
+  return max >= min && Number.isFinite(min) ? { min, max } : null;
 }
 
 function lowerBound(sorted: number[], target: number): number {

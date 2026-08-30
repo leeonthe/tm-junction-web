@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PAIRS, findPairs, spansJunction, type PairArgs } from "./conventional";
+import { MAX_PAIRS, ampRange, findPairs, spansJunction, type PairArgs } from "./conventional";
 import { revComp } from "./partner";
 import { DEFAULT_CONDITIONS, tm } from "./tm";
 
@@ -200,5 +200,34 @@ describe("amplicons must span at least two exons", () => {
     // No boundaries -> the claim cannot be checked, so offer the pair rather than nothing.
     expect(spansJunction(null, 10, 40)).toBe(true);
     expect(findPairs(uniq({ exonEnds: null })).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * The sizes OFFERED have to obey the rule too. ampRange feeds the panel's opening window
+   * and the "this target can only make products of X–Y bp" advice when a search comes up
+   * empty; measured on geometry alone it answered with lengths only reachable inside one
+   * exon, so the panel could open on a window where every candidate is filtered out and
+   * then advise widening to sizes that can never return a pair.
+   */
+  it("offers no amplicon size that only a single-exon product could reach", () => {
+    const r = ampRange(uniq())!;
+    expect(r).not.toBeNull();
+    // Nothing shorter than the shortest junction-crossing product is offered...
+    const shortest = Math.min(...findPairs(uniq({ ampMin: 40, ampMax: 900, dTmMax: 8 }))
+      .map((p) => p.ampLen));
+    expect(r.min).toBeLessThanOrEqual(shortest);
+    // ...and every length in the offered range can be made by SOME junction-crossing pair.
+    const blind = { min: 2 * 18, max: EXON_ENDS[EXON_ENDS.length - 1] };
+    expect(r.min).toBeGreaterThan(blind.min);   // the geometry-only floor was unreachable
+  });
+
+  it("still answers on a transcript whose structure is unknown", () => {
+    const r = ampRange(uniq({ exonEnds: null }));
+    expect(r).not.toBeNull();
+  });
+
+  it("reports no reachable size when no junction is in range", () => {
+    // One exon covering the whole fixture: no junction exists, so no product can cross one.
+    expect(ampRange(uniq({ exonEnds: [1200] }))).toBeNull();
   });
 });

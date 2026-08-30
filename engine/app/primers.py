@@ -339,6 +339,20 @@ def design(target_exons: list[Interval], target_seq: str,
             partner = flipped
     fwd, rev = (specific, partner and partner[0]) if specific_is_forward else (partner and partner[0], specific)
 
+    # Terminal check of the intron-spanning rule. _choose_partner already refuses a partner
+    # that keeps the product inside one exon, so this fires only if some future path reaches
+    # here another way — the rule is a correctness requirement (a single-exon product cannot
+    # be told from one amplified off contaminating gDNA), so it is enforced where the pair is
+    # emitted rather than trusted to every branch that builds one.
+    if fwd and rev and partner and not _spans_junction(
+            cum, min(s_start, partner[1]),
+            max(s_start + len(s_seq), partner[1] + partner[0].length)):
+        # Keep the specific oligo — it is still the right primer — and drop the partner that
+        # would have made an unusable product, rather than emit the pair.
+        partner = None
+        fwd, rev = (specific, None) if specific_is_forward else (None, specific)
+        flags.append("NO_SPANNING_PAIR")
+
     amplicon = None
     pair_dimer = None
     if fwd and rev and partner:
@@ -385,6 +399,11 @@ def _design_exon_pair(amp: AmplifyResult, seq: str, cum: list[int],
         return PrimerDesign(tier=amp.tier, mechanism=mech,
                             excluded_siblings=excluded, flags=["NO_PAIR"])
     (f_start, f_seq, f_ev), (r_start, r_seq, r_ev) = pick
+    # Two different exons put a junction between them by construction, but the pair is
+    # emitted here, so the rule is checked here too rather than assumed.
+    if not _spans_junction(cum, f_start, r_start + len(r_seq)):
+        return PrimerDesign(tier=amp.tier, mechanism=mech,
+                            excluded_siblings=excluded, flags=["NO_SPANNING_PAIR"])
     fwd = _mk_primer(f_seq, f_ev, "conventional", "forward", f"exon {fa} (pair)", pos=f_start)
     rev = _mk_primer(r_seq, r_ev, "conventional", "reverse", f"exon {fb} (pair)", pos=r_start)
     pair_dimer = heterodimer_tm(fwd.seq, rev.seq)
