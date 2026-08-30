@@ -16,7 +16,7 @@ const v = (over: Partial<TranscriptVerdict>): TranscriptVerdict => ({
   accession: "NM_x", is_mane: false, tier: "NEEDS_EEJ", amplifiable: true, needs_eej: true,
   unique_regions: [], unique_junctions: [], recommended_junction: null,
   coord_non_unique: true, exons: [], amplify_exon_pair: null, combo_junctions: null,
-  partner_exon: null, ...over,
+  ...over,
 } as TranscriptVerdict);
 
 const jx = (d: number, a: number) => ({ donor_order: d, acceptor_order: a, label: `exon ${d}–exon ${a}` });
@@ -24,7 +24,7 @@ const jx = (d: number, a: number) => ({ donor_order: d, acceptor_order: a, label
 describe("eejPlan", () => {
   it("one unique junction → one primer, that junction", () => {
     // TCF7L2 NM_001146285.2: recommended exon 11–12, no combo exon.
-    const p = eejPlan(v({ recommended_junction: jx(11, 12), partner_exon: 10 }))!;
+    const p = eejPlan(v({ recommended_junction: jx(11, 12) }))!;
     expect(p.kind).toBe("one");
     expect(p.junctions).toEqual(["exon 11–exon 12"]);
   });

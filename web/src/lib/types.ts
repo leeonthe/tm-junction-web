@@ -47,7 +47,6 @@ export interface TranscriptVerdict {
   exons: Exon[];
   amplify_exon_pair?: number[] | null;   // 7c-Blue: [forward_exon, reverse_exon] (1-based)
   combo_junctions?: number[][] | null;   // two-junction combo EEJ locations [[d1,a1],[d2,a2]]
-  partner_exon?: number | null;          // original EEJ: nearest exon for the conventional partner primer
 }
 /** `strand` is "+" | "-", or "" when NCBI does not state one. */
 export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string; strand?: string }

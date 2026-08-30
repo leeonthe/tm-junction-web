@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_EXON_W, bracketSpanPx, exonBoxPx, partnerIsReverse } from "./ExonTrackGraph";
+import { MIN_EXON_W, bracketSpanPx, exonBoxPx } from "./ExonTrackGraph";
 
 /**
  * The EEJ bracket joins the two exon blocks' FACING edges: the right side of the left block
@@ -100,27 +100,5 @@ describe("exonBoxPx", () => {
     const [lo, hi] = exonBoxPx({ begin: 100, end: 101 }, id);
     expect(lo).toBe(100);
     expect(hi).toBe(100 + MIN_EXON_W);
-  });
-});
-
-/**
- * The partner marker's ROLE is transcript order, not screen side — the same minus-strand
- * trap as the bracket. On CHCHD2 NM_016139.4 the junction is exon 3–exon 4 and the partner
- * exon is 2: upstream in the transcript, so a FORWARD primer — even though the minus-strand
- * layout puts exon 2 to the RIGHT of the junction, where a screen-side reading calls it
- * "reverse".
- */
-describe("partnerIsReverse", () => {
-  it("is upstream/downstream in transcript order, not left/right on screen", () => {
-    expect(partnerIsReverse(2, 4)).toBe(false);   // CHCHD2: exon 2 partner, 3–4 junction
-    expect(partnerIsReverse(5, 4)).toBe(true);    // downstream partner → reverse primer
-  });
-
-  it("does not change when the same transcript is drawn on the other strand", () => {
-    const plus = bracketSpanPx(GAPDH.e1, GAPDH.e2, id);
-    const minus = bracketSpanPx(CHCHD2.e3, CHCHD2.e4, id);
-    expect(plus[0]).toBeLessThan(plus[1]);
-    expect(minus[0]).toBeLessThan(minus[1]);
-    expect(partnerIsReverse(6, 4)).toBe(true);
   });
 });

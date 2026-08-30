@@ -42,14 +42,21 @@ def test_gapdh_junction_locations():
     assert (rj4.donor_order, rj4.acceptor_order) == (3, 4)
 
 
-def test_gapdh_partner_exon_targets_nearest_flank():
-    # Original single-junction EEJ transcripts get a target-site exon for the conventional
-    # partner primer — the nearest flanking exon to the junction.
+def test_an_eej_transcript_names_no_target_site_exon():
+    """Ticket 10: a target site is a place that DISCRIMINATES.
+
+    A single-junction EEJ transcript used to get its nearest flanking exon marked as a
+    target site for the partner primer. That exon carries no specificity — the junction
+    supplies all of it — so calling it a target site pointed the designer at an arbitrary
+    exon. The partner primer is now the junction designer's own Tm-matched search.
+    """
     v = _by_acc(analyze("NM_001289745.3"))
-    # junction 1|2 is terminal on the donor side -> only exon 3 is available downstream
-    assert v["NM_001289745.3"].partner_exon == 3
-    # junction 3|4 has flanks on both sides -> the closer one is chosen
-    assert v["NM_001357943.2"].partner_exon == 5
+    for acc in ("NM_001289745.3", "NM_001357943.2"):
+        assert v[acc].tier == "NEEDS_EEJ"
+        assert v[acc].recommended_junction is not None
+        assert not hasattr(v[acc], "partner_exon")
+        # The only target sites left are the ones that distinguish the transcript.
+        assert v[acc].amplify_exon_pair is None or v[acc].unique_regions
 
 
 def test_gapdh_t3_coord_vs_sequence_divergence():

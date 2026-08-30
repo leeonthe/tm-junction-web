@@ -18,8 +18,9 @@ const SPARES = ["#16A34A", "#0D9488", "#F97316", "#EC4899", "#7C3AED", "#B45309"
 
 // "What is this" hover text for the target-site legend entries (shown as a title on the ⓘ marker).
 const HINTS: Record<string, string> = {
-  "--amp-pair": "Target site — the exon region to put your primer(s): an EEJ-independent exon pair, a "
-    + "junction+exon combo's discriminating exon region, or the partner exon of a single-junction EEJ.",
+  "--amp-pair": "Target site — the exon region to put your primer(s): an EEJ-independent exon pair, "
+    + "or a junction+exon combo's discriminating exon region. Only sequence that DISTINGUISHES the "
+    + "transcript is a target site.",
   "--eej-combo": "EEJ pair — two exon–exon junctions that together isolate this transcript "
     + "(a two-junction combination); both are marked and both junction primers are needed.",
 };
@@ -187,8 +188,6 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
         <span className="g-sep">·</span>
         <BracketGlyph combo /> double junction primer
         <span className="g-sep">·</span>
-        <TriangleGlyph /> EEJ-independent partner primer
-        <span className="g-sep">·</span>
         window size k={k}
       </p>
     </section>
@@ -214,8 +213,8 @@ function StrandBadge({ strand }: { strand?: string }) {
   );
 }
 
-/* The graph markers, drawn the same way in the key as on the track — a text glyph
-   (⌐¬, ⏴) renders too inconsistently across fonts to stand in for them. The bracket takes
+/* The graph marker, drawn the same way in the key as on the track — a text glyph (⌐¬)
+   renders too inconsistently across fonts to stand in for it. The bracket takes
    the colour of the design it marks: one junction (red) or a two-junction pair (magenta),
    matching the tokens the track itself strokes them with. */
 function BracketGlyph({ combo = false }: { combo?: boolean }) {
@@ -225,14 +224,6 @@ function BracketGlyph({ combo = false }: { combo?: boolean }) {
       <path d="M2 8 L2 2 L18 2 L18 8" fill="none"
         stroke={combo ? "var(--eej-combo)" : "var(--eej)"} strokeWidth="2"
         strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function TriangleGlyph() {
-  return (
-    <svg className="g-glyph" width="12" height="10" viewBox="0 0 12 10" aria-label="triangle" role="img">
-      <path d="M10 1 L10 9 L2 5 Z" fill="var(--amp-pair)"
-        stroke="color-mix(in srgb, var(--ink) 35%, transparent)" strokeWidth="0.8" />
     </svg>
   );
 }

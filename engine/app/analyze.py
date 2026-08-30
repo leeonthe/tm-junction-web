@@ -198,28 +198,6 @@ def _region_tx(exons: list[tuple[int, int]], exon_order: int,
     return (exon_tx1 + (e - ge), exon_tx1 + (e - gb))
 
 
-def _partner_exon(exons: list[tuple[int, int]], donor: int, acceptor: int) -> int | None:
-    """Nearest exon to the exon-exon junction (donor|acceptor), for the partner primer.
-
-    Candidates are the exon before the donor and the exon after the acceptor. The junction
-    sits between the donor and acceptor exons; the traversal distance to the upstream candidate
-    is the donor exon's length, and to the downstream candidate the acceptor exon's length —
-    so pick the flanking exon that is shorter. Ties go upstream. Returns a 1-based exon order,
-    or None when the junction is terminal (no exon on the chosen side).
-    """
-    n = len(exons)
-    up = donor - 1        # exon order before the donor
-    down = acceptor + 1   # exon order after the acceptor
-    up_ok, down_ok = up >= 1, down <= n
-    if not up_ok and not down_ok:
-        return None
-    if up_ok and down_ok:
-        len_donor = exons[donor - 1][1] - exons[donor - 1][0]
-        len_acceptor = exons[acceptor - 1][1] - exons[acceptor - 1][0]
-        return up if len_donor <= len_acceptor else down
-    return up if up_ok else down
-
-
 def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                     seq: str, cds: tuple[int, int] | None,
                     amp: AmplifyResult, coord_non_unique: bool,
@@ -244,12 +222,6 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
     elif amp.combo_jj:
         (d1, a1), (d2, a2) = amp.combo_jj
         combo_junctions = [[d1, a1], [d2, a2]]
-    # Original single-unique-junction EEJ: mark the nearest flanking exon as the target site for
-    # the conventional partner primer. Of exon (donor-1) and exon (acceptor+1), pick whichever is
-    # closer to the junction — i.e. the shorter of the two flanking exons the junction sits between.
-    partner_exon = None
-    if recommended is not None and exon_pair_out is None and combo_junctions is None:
-        partner_exon = _partner_exon(exons, recommended.donor_order, recommended.acceptor_order)
     uniq_out = []
     for r in amp.unique_regions:
         # Report the DISCRIMINATING sequence (the exon minus what siblings carry), not the
@@ -290,7 +262,6 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         exons=_exons_out(exons, seq, cds, amp),
         amplify_exon_pair=exon_pair_out,
         combo_junctions=combo_junctions,
-        partner_exon=partner_exon,
     )
 
 

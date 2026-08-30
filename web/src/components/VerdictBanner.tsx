@@ -85,12 +85,11 @@ function Explanation({ v, region, junc }: {
   if (v.tier === "NEEDS_EEJ" && junc) {
     return (
       <p>
-        EEJ primer across <b>{junc.label}</b>
-        {v.partner_exon != null && <>, paired in <b>exon {v.partner_exon}</b></>}.
+        EEJ primer across <b>{junc.label}</b>.
         <Info>No exonic region is unique to this transcript, but that junction is — a primer
-          spanning it fires only on this isoform.
-          {v.partner_exon != null && <> Exon {v.partner_exon} is the target site nearest the
-            junction.</>}</Info>
+          spanning it fires only on this isoform. Its partner primer carries no specificity,
+          so it is placed by Tm and amplicon length in the designer rather than pinned to an
+          exon here.</Info>
       </p>
     );
   }

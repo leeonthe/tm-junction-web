@@ -5,7 +5,6 @@ import { tierColorVar, tierLabel } from "../lib/tier";
 type Tip =
   | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null }
   | { kind: "junction"; x: number; y: number; label: string; t: TranscriptVerdict }
-  | { kind: "partner"; x: number; y: number; exon: number; left: boolean; reverse: boolean }
   | null;
 
 const CDS_LABEL: Record<Exon["cds"], string> = {
@@ -57,22 +56,9 @@ export function bracketSpanPx(
 }
 
 /**
- * Is the conventional partner primer the pair's REVERSE primer? It is exactly when its
- * exon sits downstream of the junction in TRANSCRIPT order — which is what decides the
- * role, not where the exon lands on screen. The two agree on a plus-strand transcript and
- * disagree on every minus-strand one, where the graph lays the transcript out right-to-
- * left, so deriving the role from the marker's on-screen side mislabelled a minus-strand
- * forward primer "reverse".
- */
-export function partnerIsReverse(partnerExon: number, acceptorOrder: number): boolean {
-  return partnerExon > acceptorOrder;
-}
-
-/**
  * Exon-track graph — one row per NM isoform, exons to GRCh38 scale, colored by
  * sequence tier, target highlighted, MANE badged, a bracket joining the two exons of
- * the recommended EEJ (the primer spans the connection — a range, not one spot) and a
- * ⏴/⏵ triangle over the partner exon pointing toward its EEJ mate.
+ * the recommended EEJ (the primer spans the connection — a range, not one spot).
  * Hovering an exon / marker shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
@@ -221,25 +207,6 @@ export default function ExonTrackGraph({
             const sp = junctionSpanX(d, a);
             if (sp) brackets.push({ x1: sp[0], x2: sp[1], magenta: true, label: `exon ${d}–exon ${a}` });
           }
-          // Partner-primer marker: a triangle above the partner exon pointing toward the
-          // junction (its EEJ mate). Two DIFFERENT questions, and they part company on a
-          // minus-strand transcript: which way the glyph points is screen geometry, but
-          // whether the primer is the pair's forward or reverse one is transcript order —
-          // a partner exon downstream of the junction (higher exon number) is the reverse
-          // primer however the row happens to be laid out. Deriving the role from the
-          // glyph direction called a minus-strand forward primer "reverse".
-          let partnerTri: { cx: number; left: boolean; reverse: boolean; exon: number } | null = null;
-          if (t.partner_exon != null && rj) {
-            const pe = t.exons[t.partner_exon - 1];
-            const sp = junctionSpanX(rj.donor_order, rj.acceptor_order);
-            if (pe && sp) {
-              const cx = (x(pe.begin) + x(pe.end)) / 2;
-              partnerTri = {
-                cx, left: cx > (sp[0] + sp[1]) / 2, exon: t.partner_exon,
-                reverse: partnerIsReverse(t.partner_exon, rj.acceptor_order),
-              };
-            }
-          }
           return (
             <g key={t.accession}>
               {isTarget && (
@@ -258,14 +225,14 @@ export default function ExonTrackGraph({
               )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, ei) => {
-                // Yellow = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored).
-                // A 7c exon pair / single-junction partner exon → the WHOLE exon is yellow.
-                // But when the exon carries a distinguishing sub-span (a 7a unique region, or a
-                // junction+exon combo's discriminating slice) the exon keeps its tier color and
-                // only that sub-span is overlaid yellow — the overlapped rest stays red.
+                // Yellow = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored),
+                // and only where the target site DISCRIMINATES: a 7c exon pair → the WHOLE exon
+                // is yellow. When the exon carries a distinguishing sub-span (a 7a unique region,
+                // or a junction+exon combo's discriminating slice) the exon keeps its tier color
+                // and only that sub-span is overlaid yellow — the overlapped rest stays red.
                 const ur = uniqByExon.get(e.order);
                 const hasSpan = ur?.begin != null && ur?.end != null;
-                const isPair = (!!t.amplify_exon_pair?.includes(e.order) || t.partner_exon === e.order) && !hasSpan;
+                const isPair = !!t.amplify_exon_pair?.includes(e.order) && !hasSpan;
                 // Same painted box the bracket measures against, so the two cannot drift.
                 const [exX, exRight] = exonBoxPx(e, x);
                 const exW = exRight - exX;
@@ -323,18 +290,6 @@ export default function ExonTrackGraph({
                   </g>
                 );
               })}
-              {partnerTri && (() => {
-                const { cx, left } = partnerTri;
-                const py = cy - exH / 2 - 5.5;
-                const d = left
-                  ? `M${cx + 4.5} ${py - 4.5} L${cx + 4.5} ${py + 4.5} L${cx - 4.5} ${py} Z`
-                  : `M${cx - 4.5} ${py - 4.5} L${cx - 4.5} ${py + 4.5} L${cx + 4.5} ${py} Z`;
-                return (
-                  <path d={d} fill="var(--amp-pair)" style={{ cursor: "inherit" }}
-                    stroke="color-mix(in srgb, var(--ink) 35%, transparent)" strokeWidth={0.8}
-                    onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "partner", x: ev.clientX, y: ev.clientY, exon: partnerTri!.exon, left, reverse: partnerTri!.reverse }); }} />
-                );
-              })()}
             </g>
           );
         })}
@@ -398,21 +353,10 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
       </div>
     );
   }
-  if (tip.kind === "partner") {
-    return (
-      <div className="exon-tip" style={style}>
-        <div className="et-head"><b style={{ color: "var(--amp-pair)" }}>
-          Partner primer · exon {tip.exon}</b></div>
-        <div className="et-line">EEJ-independent <b>{tip.reverse ? "reverse" : "forward"}</b> primer
-          site — {tip.left ? "⏴" : "⏵"} points toward its EEJ mate.</div>
-      </div>
-    );
-  }
   const { exon: e, t, isTarget, primerExon } = tip;
   const primerHere = isTarget && primerExon === e.order;
   const pair = t.amplify_exon_pair;
   const pairRole = pair?.[0] === e.order ? "Forward" : pair?.[1] === e.order ? "Reverse" : null;
-  const isPartner = t.partner_exon === e.order;
   // The isoform difference itself: the mRNA stretch of this exon that no sibling carries.
   //
   // What is deliberately NOT shown here is the count of k-nt windows placeable in the exon
@@ -467,7 +411,6 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
       ) : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
       {pairRole && !isComboExon && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
-      {isPartner && <div className="et-line et-pair">★ Target site — EEJ-independent partner primer, nearest the EEJ</div>}
       {pinned
         ? <ExonSequence exon={e} t={t} isTarget={isTarget} mrna={mrna} />
         : <div className="et-line et-hint">Click to pin · sequence</div>}
