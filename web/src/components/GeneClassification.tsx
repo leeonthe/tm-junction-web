@@ -1,5 +1,6 @@
 import type { AnalyzeResponse } from "../lib/types";
 import GeneOverview from "./GeneOverview";
+import PanVariantCard from "./PanVariantCard";
 import GraphCard from "./GraphCard";
 import VerdictTable from "./VerdictTable";
 
@@ -18,6 +19,7 @@ export default function GeneClassification({
   return (
     <>
       <GeneOverview result={result} />
+      <PanVariantCard result={result} />
       <GraphCard result={result} />
       <section className="card">
         <div className="card-head">

@@ -6,12 +6,12 @@ and primers (Tm design) into the AnalyzeResponse contract.
 
 from __future__ import annotations
 
-from . import ncbi, overlap, primers
+from . import ncbi, overlap, panvariant, primers
 from .amplify import AmplifyResult, analyze_amplifiability, cumulative_exon_ends
 from .models import (
     AnalyzeResponse, Exon, GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
-    GeneTranscriptOut, JunctionOut, PrimerDesignOut, PrimerOut, TranscriptVerdict,
-    UniqueRegionOut,
+    GeneTranscriptOut, JunctionOut, PanVariantOut, PrimerDesignOut, PrimerOut,
+    TranscriptVerdict, UniqueRegionOut,
 )
 
 
@@ -376,6 +376,11 @@ def analyze_events(accession: str, k: int = 20):
     design = primers.design(tgt["exons"], seqs[target_acc], tgt_sibs, tgt_amp)
     tgt_verdict = next(v for v in verdicts if v.accession == target_acc)
 
+    # The other question a user can ask of a gene: one pair for ALL of its variants. Design
+    # it over the folded set, so coverage counts distinct transcripts rather than accessions.
+    yield {"type": "progress", "pct": 97, "detail": "Designing an all-variant pair…"}
+    pan = panvariant.design({a: accs[a] for a in reps}, seqs, order=reps)
+
     summary = GeneSummary(
         nm_count=len(reps),
         merged_accession_count=len(accs) - len(reps),
@@ -401,6 +406,11 @@ def analyze_events(accession: str, k: int = 20):
         ),
         transcripts=verdicts,
         summary=summary,
+        pan_variant=None if pan is None else PanVariantOut(
+            forward=_primer_out(pan.forward), reverse=_primer_out(pan.reverse),
+            amplicon_len=pan.amplicon_len, covered=pan.covered, uncovered=pan.uncovered,
+            reference=pan.reference, exons=pan.exons, flags=pan.flags,
+        ),
         meta={"assembly": "GRCh38", "k": k},
     )
     yield {"type": "progress", "pct": 100, "detail": "Done"}

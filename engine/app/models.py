@@ -102,6 +102,25 @@ class TranscriptVerdict(BaseModel):
     combo_junctions: list[list[int]] | None = None
 
 
+class PanVariantOut(BaseModel):
+    """One pair for the whole gene: total expression rather than one isoform.
+
+    The complement of every other design here — it must amplify as MANY transcripts as
+    possible, at ONE product size (a second size is a second band, and an unquantifiable
+    assay), across at least two exons. `covered` names the transcripts it is verified to
+    amplify at `amplicon_len`; `uncovered` names the ones it does not, rather than leaving
+    the reader to work out which of the gene's isoforms this "all-variant" pair misses.
+    """
+    forward: PrimerOut | None = None
+    reverse: PrimerOut | None = None
+    amplicon_len: int                # identical in every covered transcript
+    covered: list[str] = []
+    uncovered: list[str] = []
+    reference: str = ""              # whose exon numbering `exons` refers to
+    exons: list[int] = []            # the two exons the primers sit in, 1-based
+    flags: list[str] = []
+
+
 class GeneSummary(BaseModel):
     nm_count: int                   # distinct mRNA sequences, not accessions
     merged_accession_count: int = 0  # accessions folded into another's identical sequence
@@ -130,6 +149,9 @@ class AnalyzeResponse(BaseModel):
     target_mrna: str = ""            # target transcript mRNA (for the cDNA sequence view)
     transcripts: list[TranscriptVerdict]
     summary: GeneSummary
+    # One pair for every variant of the gene (total-expression assay). None when no pair
+    # amplifies even two transcripts at one size.
+    pan_variant: PanVariantOut | None = None
     meta: dict
 
 

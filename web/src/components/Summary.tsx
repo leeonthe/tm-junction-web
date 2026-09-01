@@ -4,6 +4,7 @@ import PrimerCard from "./PrimerCard";
 import JunctionDesigner from "./JunctionDesigner";
 import ConventionalDesigner from "./ConventionalDesigner";
 import GeneOverview from "./GeneOverview";
+import PanVariantCard from "./PanVariantCard";
 import GraphCard from "./GraphCard";
 import VerdictTable from "./VerdictTable";
 
@@ -32,6 +33,7 @@ export default function Summary({
       )}
       <JunctionDesigner mrna={result.target_mrna} verdict={result.target_verdict} />
       <GeneOverview result={result} />
+      <PanVariantCard result={result} />
       <GraphCard result={result} />
       <section className="card">
         <div className="card-head">

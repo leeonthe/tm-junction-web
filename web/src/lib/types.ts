@@ -61,6 +61,17 @@ export interface GeneSummary {
   conventional_count: number; needs_eej_count: number;
   hard_case_count: number; coord_non_unique_count: number;
 }
+/** One pair for the whole gene: total expression rather than one isoform. */
+export interface PanVariant {
+  forward: Primer | null; reverse: Primer | null;
+  /** Identical in every covered transcript — a second size would be a second band. */
+  amplicon_len: number;
+  covered: string[]; uncovered: string[];
+  /** Whose exon numbering `exons` refers to. */
+  reference: string;
+  exons: number[];
+  flags: string[];
+}
 export interface AnalyzeResponse {
   target_accession: string;
   gene: GeneInfo;
@@ -69,6 +80,7 @@ export interface AnalyzeResponse {
   target_mrna: string;
   transcripts: TranscriptVerdict[];
   summary: GeneSummary;
+  pan_variant?: PanVariant | null;
   meta: Record<string, unknown>;
 }
 export interface ApiError { error: string; message: string }
