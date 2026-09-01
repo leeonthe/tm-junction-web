@@ -80,20 +80,26 @@ def _pick_representative(members: list[str], accs: dict, target_acc: str | None)
 
 def _same_sequence_groups(accs: dict, seqs: dict[str, str],
                           target_acc: str | None = None) -> tuple[list[str], dict[str, list[str]]]:
-    """Fold accessions whose mRNA sequences are byte-identical into one transcript each.
+    """Fold accessions that are the same molecule into one transcript each.
+
+    Same molecule means: byte-identical mRNA AND the identical exon structure at the
+    identical GRCh38 coordinates. Both are checked because both are what the claim rests
+    on — the accession number is not evidence of anything. (Across every gene cached here
+    the two criteria never disagree; requiring both keeps a coincidence of sequence at a
+    different locus from being folded away silently.)
 
     RefSeq issues several accessions for one molecule — TP53 alone has 25 NM accessions
     for 13 distinct sequences, e.g. NM_001126115.2 and NM_001276697.3, both "transcript
     variant 5". Treating those as separate isoforms is not a cosmetic duplication: each is
-    then compared against a byte-identical sibling, no primer can tell them apart, and the
-    tool calls a perfectly designable transcript EEJ-infeasible. What distinguishes an
-    isoform is its sequence, not the number of accessions RefSeq has minted for it.
+    then compared against an identical sibling, no primer can tell them apart, and the tool
+    calls a perfectly designable transcript EEJ-infeasible.
 
     Returns (representatives in the input order, {representative: other accessions}).
     """
-    by_seq: dict[str, list[str]] = {}
+    by_seq: dict[tuple, list[str]] = {}
     for a in accs:
-        by_seq.setdefault(seqs[a], []).append(a)
+        key = (seqs[a], tuple(map(tuple, accs[a]["exons"])))
+        by_seq.setdefault(key, []).append(a)
     order = {a: i for i, a in enumerate(accs)}
     reps: list[str] = []
     same: dict[str, list[str]] = {}

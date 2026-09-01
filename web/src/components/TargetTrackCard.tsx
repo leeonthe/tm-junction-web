@@ -30,6 +30,17 @@ export default function TargetTrackCard({
         <div>
           <h3 className="card-title">Your transcript</h3>
           <p className="sub">{target_accession} · GRCh38 · click an exon for its sequence</p>
+          {/* RefSeq gave this molecule more than one accession. Saying so here, where the
+              user reads about THEIR transcript, is what makes the fold visible rather than
+              a row that quietly went missing from the gene. */}
+          {!!target_verdict.same_sequence_accessions?.length && (
+            <p className="sub tt-same">
+              Same sequence and exon structure as{" "}
+              <b>{target_verdict.same_sequence_accessions.join(", ")}</b> — one transcript
+              under {target_verdict.same_sequence_accessions.length + 1} accessions, so it is
+              not compared against itself.
+            </p>
+          )}
         </div>
       </div>
       <ExonTrackGraph transcripts={[target_verdict]} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} mrna={result.target_mrna} />
@@ -37,10 +48,19 @@ export default function TargetTrackCard({
         <div className="sibling-note">
           <span className="sn-label">Distinguished from {siblings.length} other {gene.symbol} isoform{siblings.length !== 1 ? "s" : ""}:</span>
           <span className="sn-chips">
-            {siblings.map((s) => (
-              <button key={s.accession} className="chip-ex" title={`Analyze ${s.accession}`}
-                onClick={() => onSelect(s.accession)}>{s.accession}</button>
-            ))}
+            {siblings.map((s) => {
+              // A chip can stand for several accessions — one molecule, one comparison.
+              const same = s.same_sequence_accessions ?? [];
+              return (
+                <button key={s.accession} className="chip-ex"
+                  title={same.length
+                    ? `Analyze ${s.accession} — identical to ${same.join(", ")}`
+                    : `Analyze ${s.accession}`}
+                  onClick={() => onSelect(s.accession)}>
+                  {s.accession}{!!same.length && <span className="chip-plus">+{same.length}</span>}
+                </button>
+              );
+            })}
           </span>
           <button className="btn btn-ghost sn-explore" onClick={onExplore}>
             See the whole gene <ArrowRight />

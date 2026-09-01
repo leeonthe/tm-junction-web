@@ -48,6 +48,21 @@ def test_mane_speaks_for_the_group_when_the_target_is_elsewhere():
     assert _pick_representative(["NM_000009.1", "NM_000002.1"], a, None) == "NM_000002.1"
 
 
+def test_identical_sequence_is_not_enough_without_the_structure():
+    """Both criteria, because both are what the claim rests on.
+
+    Same molecule means the same mRNA AND the same exons at the same coordinates. A
+    coincidence of sequence at a different structure is not the same transcript, and
+    folding it away would hide a real isoform behind another's accession.
+    """
+    a = accs(acc("NM_000001.1", exons=((1, 100), (200, 300))),
+             acc("NM_000002.1", exons=((1, 100), (250, 350))))
+    seqs = {"NM_000001.1": "ACGT", "NM_000002.1": "ACGT"}
+    reps, same = _same_sequence_groups(a, seqs)
+    assert reps == ["NM_000001.1", "NM_000002.1"]
+    assert same == {"NM_000001.1": [], "NM_000002.1": []}
+
+
 def test_sequences_decide_it_accessions_do_not():
     """Same variant NAME, different sequence: still two transcripts."""
     a = accs(acc("NM_000001.1"), acc("NM_000002.1"))

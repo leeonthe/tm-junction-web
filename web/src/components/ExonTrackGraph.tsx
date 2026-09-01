@@ -207,20 +207,33 @@ export default function ExonTrackGraph({
             const sp = junctionSpanX(d, a);
             if (sp) brackets.push({ x1: sp[0], x2: sp[1], magenta: true, label: `exon ${d}–exon ${a}` });
           }
+          const same = t.same_sequence_accessions ?? [];
           return (
             <g key={t.accession}>
               {isTarget && (
                 <rect x={8} y={top + i * rowH + 2} width={W - 16} height={rowH - 4} rx={10}
                   fill="var(--brand-tint)" stroke="color-mix(in srgb,var(--brand) 30%,transparent)" />
               )}
-              <text x={20} y={cy + 4} fontFamily="var(--mono)" fontSize={12.5}
+              <text x={20} y={same.length ? cy : cy + 4} fontFamily="var(--mono)" fontSize={12.5}
                 fontWeight={isTarget ? 700 : 500} fill={isTarget ? "var(--ink)" : "var(--text)"}>
                 {t.accession}
               </text>
+              {/* The accessions folded into this row: identical mRNA and identical exon
+                  structure, so they are this same molecule and are NOT compared against it.
+                  Named here so the row accounts for every accession the gene has. */}
+              {!!same.length && (
+                <text x={20} y={cy + 13} fontSize={10} fontFamily="var(--mono)" fill="var(--faint)">
+                  = {same.join(", ")}
+                </text>
+              )}
+              <title>{same.length
+                ? `${t.accession} — identical sequence and exon structure to `
+                  + `${same.join(", ")}; one transcript, not ${same.length + 1}`
+                : t.accession}</title>
               {t.is_mane && (
                 <>
-                  <rect x={20 + t.accession.length * 7.1 + 6} y={cy - 9} width={38} height={15} rx={4} fill="var(--brand-tint)" />
-                  <text x={20 + t.accession.length * 7.1 + 9} y={cy + 2} fontSize={9.5} fontWeight={700} fill="var(--brand-ink)">MANE</text>
+                  <rect x={20 + t.accession.length * 7.1 + 6} y={(same.length ? cy - 4 : cy) - 9} width={38} height={15} rx={4} fill="var(--brand-tint)" />
+                  <text x={20 + t.accession.length * 7.1 + 9} y={(same.length ? cy - 4 : cy) + 2} fontSize={9.5} fontWeight={700} fill="var(--brand-ink)">MANE</text>
                 </>
               )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
