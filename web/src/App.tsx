@@ -207,7 +207,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
         <span className="acc">{target_accession}</span>
         <span className="arrow-sm"><ArrowRight /></span>
         <div className="gene-chips">
-          <span className="gchip">{variantLabel(target_verdict.variant)}</span>
+          <span className="gchip">{variantLabel(target_verdict.variant, summary.nm_count)}</span>
           <span className="gchip"><b>{gene.symbol}</b></span>
           <span className="gchip">Gene <b>{gene.gene_id}</b></span>
           <span className="gchip"><b>{gene.assembly}</b></span>

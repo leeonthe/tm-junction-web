@@ -333,6 +333,15 @@ def analyze_events(accession: str, k: int = 20):
 
     exons_by_acc = {a: t["exons"] for a, t in accs.items()}
 
+    # A gene with more than one NM has isoforms to tell apart, so each one has a variant
+    # designation; if the product report omitted it, read it off the sequence record's own
+    # title rather than leaving the transcript unnamed. (Nothing to do for a sole NM: NCBI
+    # numbers no variant when there is nothing to number it against.)
+    if len(accs) > 1:
+        for a, t in accs.items():
+            if not t.get("variant"):
+                t["variant"] = ncbi.variant_from_title(a)
+
     # One transcript per SEQUENCE, not per accession: a byte-identical twin is the same
     # molecule, and comparing a transcript against it would find nothing that tells the two
     # apart — see _same_sequence_groups. The target always represents its own group.

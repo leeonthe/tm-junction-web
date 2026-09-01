@@ -33,12 +33,21 @@ export function signed(v: number, digits = 2): string {
 /**
  * NCBI's isoform designation for a transcript, as shown under its accession.
  *
- * NCBI numbers a variant only when the gene HAS more than one to tell apart, so a missing
- * name is not missing data — it is the mono-isoform case, and saying so is more useful than
- * a blank. `short` drops the "transcript " prefix where the column is narrow.
+ * "mono-isoform" is a claim about the GENE — that it has a single transcript — so it is
+ * read off the isoform count, never off a missing name. Inferring it from the absence of a
+ * variant designation labelled every transcript of every gene mono-isoform whenever the
+ * field did not arrive (an engine older than this build sends none), which is exactly the
+ * case where the label is most wrong.
+ *
+ * `short` drops the "transcript " prefix where the column is too narrow to carry it.
  */
-export function variantLabel(variant: string | null | undefined, short = false): string {
+export function variantLabel(
+  variant: string | null | undefined, isoformCount: number, short = false,
+): string {
+  if (isoformCount <= 1) return "mono-isoform";
   const v = (variant ?? "").trim();
-  if (!v) return "mono-isoform";
+  // A gene with isoforms to tell apart has a designation for each; say it is missing rather
+  // than claim the gene has only this one.
+  if (!v) return "variant not named";
   return short ? v.replace(/^transcript\s+/i, "") : v;
 }

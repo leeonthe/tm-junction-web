@@ -37,7 +37,7 @@ export default function VerdictTable({
                   {t.is_mane && <span className="badge-mane">MANE</span>}
                   {/* Which isoform this accession IS, in NCBI's own words — the accession
                       alone does not say, and "variant 5" is how the literature refers to it. */}
-                  <span className="tacc-variant">{variantLabel(t.variant)}</span>
+                  <span className="tacc-variant">{variantLabel(t.variant, transcripts.length)}</span>
                   {/* One molecule, several RefSeq accessions. Naming them here is the point
                       of folding them: the reader can still find their accession in the
                       table, and can see it is not a separate isoform to design against. */}

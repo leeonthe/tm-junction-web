@@ -106,9 +106,31 @@ def get_sequence(accession: str) -> str:
         f"{EUTILS}/efetch.fcgi?db=nuccore&id={accession}&rettype=fasta&retmode=text"
         + (f"&api_key={API_KEY}" if API_KEY else "")
     )
-    seq = "".join(l.strip() for l in fasta.splitlines() if not l.startswith(">")).upper()
-    _write_json(CACHE_DIR / "sequence" / f"{accession}.json", {"accession": accession, "seq": seq})
+    lines = fasta.splitlines()
+    seq = "".join(l.strip() for l in lines if not l.startswith(">")).upper()
+    # The defline names the isoform ("... (GAPDH), transcript variant 1, mRNA"). Kept because
+    # it is already in hand: it is the fallback when the gene's product report omits `name`,
+    # and re-fetching a whole record later just to read its title would be absurd.
+    title = next((l[1:].strip() for l in lines if l.startswith(">")), "")
+    _write_json(CACHE_DIR / "sequence" / f"{accession}.json",
+                {"accession": accession, "seq": seq, "title": title})
     return seq
+
+
+_VARIANT_IN_TITLE = re.compile(r"\btranscript variant\s+([^,;]+)", re.IGNORECASE)
+
+
+def variant_from_title(accession: str) -> str | None:
+    """NCBI's variant designation read off the sequence record's defline, or None.
+
+    Second source for the same fact the product report's `name` carries, for the case where
+    that field is absent. Cache-only: a record whose title was never stored is not worth a
+    network round trip to label a row, and the title arrives free the next time the sequence
+    itself is fetched.
+    """
+    cached = _read_json(CACHE_DIR / "sequence" / f"{accession}.json") or {}
+    m = _VARIANT_IN_TITLE.search(cached.get("title") or "")
+    return f"transcript variant {m.group(1).strip()}" if m else None
 
 
 # ---------------------------------------------------------------- parsing

@@ -94,7 +94,7 @@ export default function GeneTranscriptPicker({
                 {/* Which isoform it is, in NCBI's words — under the accession, as in the
                     verdict table, so the same transcript reads the same way in both. */}
                 <text x={20} y={cy + 13} fontSize={10.5} fill="var(--faint)">
-                  {variantLabel(t.variant, true)}
+                  {variantLabel(t.variant, transcripts.length, true)}
                 </text>
                 {t.is_mane && (
                   <>
