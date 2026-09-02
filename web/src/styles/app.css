@@ -280,6 +280,16 @@ td .tacc{font-family:var(--mono);font-weight:600;color:var(--ink)}
 .annot{font-size:11.5px;color:var(--faint)}
 .stat-note{margin-top:10px;font-size:12.5px;color:var(--muted)}
 .stat-note b{color:var(--ink);font-weight:600}
+/* An engine older than this page answers every request and silently omits what it does
+   not implement, so the warning has to be as loud as a failure would have been. */
+.engine-stale{display:flex;gap:12px;align-items:flex-start;margin-bottom:18px;padding:14px 16px;
+  background:color-mix(in srgb,var(--hard) 8%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--hard) 35%,transparent);border-radius:var(--r-sm)}
+.engine-stale .es-ic{flex:none;color:var(--hard);display:flex}
+.engine-stale h4{margin:0 0 4px;font-size:13.5px;font-weight:700;color:var(--ink)}
+.engine-stale p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.5}
+.engine-stale .es-fix{margin-top:6px}
+.engine-stale code{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
 /* All-variant pair: the product SIZE is the headline, because one size is what makes the
    assay quantifiable — see PanVariantCard. */
 .pv-head{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 12px}

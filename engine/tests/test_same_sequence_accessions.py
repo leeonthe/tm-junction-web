@@ -30,6 +30,24 @@ def test_identical_sequences_collapse_to_one_transcript():
     assert same["NM_000003.1"] == []
 
 
+def test_three_or_more_accessions_leave_exactly_one_row():
+    """The ticket's "if more than two" case, which no cached gene actually exhibits.
+
+    Keep one, remove ALL the others, and name every one of them under the kept transcript —
+    so the row still accounts for each accession the gene has.
+    """
+    same = ((1, 100), (200, 300))
+    a = accs(acc("NM_000004.1", exons=same), acc("NM_000002.1", exons=same, mane=True),
+             acc("NM_000003.1", exons=same), acc("NM_000009.1", exons=((1, 100), (250, 350))))
+    seqs = {"NM_000004.1": "ACGT", "NM_000002.1": "ACGT", "NM_000003.1": "ACGT",
+            "NM_000009.1": "TTTT"}
+    reps, folded = _same_sequence_groups(a, seqs)
+    assert reps == ["NM_000002.1", "NM_000009.1"]                 # MANE speaks for the trio
+    assert folded["NM_000002.1"] == ["NM_000003.1", "NM_000004.1"]
+    # Nothing lost: every accession is either a row or named under one.
+    assert set(reps) | {x for v in folded.values() for x in v} == set(a)
+
+
 def test_the_analyzed_accession_represents_its_own_group():
     """The user asked about their accession, not about a synonym of it."""
     a = accs(acc("NM_000001.1", mane=True), acc("NM_000002.1"))

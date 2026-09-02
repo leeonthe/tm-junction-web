@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from . import ncbi
 from .analyze import AnalysisError, analyze, analyze_events, lookup_gene
-from .models import AnalyzeResponse, GeneLookupResponse
+from .models import FEATURES, AnalyzeResponse, GeneLookupResponse
 
 app = FastAPI(title="TmJunction Engine", version="0.1.0")
 
@@ -43,7 +43,12 @@ class AnalyzeRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    """Liveness plus what this build implements — see models.FEATURES.
+
+    A deploy that never happened looks exactly like a healthy engine until you ask it for
+    something it does not have, so /health answers both questions at once.
+    """
+    return {"status": "ok", "features": FEATURES}
 
 
 @app.get("/suggest")

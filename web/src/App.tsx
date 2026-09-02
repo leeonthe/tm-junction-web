@@ -6,6 +6,7 @@ import Nav from "./components/Nav";
 import Hero from "./components/Hero";
 import GeneTranscriptPicker from "./components/GeneTranscriptPicker";
 import VerdictBanner from "./components/VerdictBanner";
+import EngineVersionNotice from "./components/EngineVersionNotice";
 import PrimerCard from "./components/PrimerCard";
 import ConventionalDesigner from "./components/ConventionalDesigner";
 import JunctionDesigner from "./components/JunctionDesigner";
@@ -214,6 +215,8 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
           <span className="gchip"><b>{summary.nm_count}</b> NM isoform{summary.nm_count === 1 ? "" : "s"}</span>
         </div>
       </div>
+
+      <EngineVersionNotice result={result} />
 
       <div className="tabs">
         <button className={`tab ${tab === "summary" ? "on" : ""}`} onClick={() => setTab("summary")}>Summary</button>

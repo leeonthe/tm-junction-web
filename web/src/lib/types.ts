@@ -81,6 +81,7 @@ export interface AnalyzeResponse {
   transcripts: TranscriptVerdict[];
   summary: GeneSummary;
   pan_variant?: PanVariant | null;
+  /** meta.features names what the ENGINE implements — see EngineVersionNotice. */
   meta: Record<string, unknown>;
 }
 export interface ApiError { error: string; message: string }

@@ -4,6 +4,20 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+# What this build of the engine can do, sent with every analysis and on /health.
+#
+# A deployed engine older than the frontend answers every request happily and silently
+# omits whatever it does not implement: a pre-fold engine returns TP53's 25 accessions as
+# 25 transcripts, and the page renders them as if that were the current answer. That is
+# indistinguishable, from the outside, from the feature being broken — it cost two rounds
+# of "not fixed yet" on tickets 27 and 27.1. Naming the capabilities lets the client say
+# which it is.
+FEATURES = [
+    "fold_identical_accessions",   # 27: one transcript per molecule, not per accession
+    "variant_labels",              # 27.1: NCBI's "transcript variant N" per transcript
+    "pan_variant",                 # 25: one pair for every variant of the gene
+]
+
 
 class Exon(BaseModel):
     order: int

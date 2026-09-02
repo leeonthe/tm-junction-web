@@ -9,7 +9,7 @@ from __future__ import annotations
 from . import ncbi, overlap, panvariant, primers
 from .amplify import AmplifyResult, analyze_amplifiability, cumulative_exon_ends
 from .models import (
-    AnalyzeResponse, Exon, GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
+    FEATURES, AnalyzeResponse, Exon, GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
     GeneTranscriptOut, JunctionOut, PanVariantOut, PrimerDesignOut, PrimerOut,
     TranscriptVerdict, UniqueRegionOut,
 )
@@ -411,7 +411,7 @@ def analyze_events(accession: str, k: int = 20):
             amplicon_len=pan.amplicon_len, covered=pan.covered, uncovered=pan.uncovered,
             reference=pan.reference, exons=pan.exons, flags=pan.flags,
         ),
-        meta={"assembly": "GRCh38", "k": k},
+        meta={"assembly": "GRCh38", "k": k, "features": FEATURES},
     )
     yield {"type": "progress", "pct": 100, "detail": "Done"}
     yield {"type": "result", "result": response}
