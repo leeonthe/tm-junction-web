@@ -290,7 +290,7 @@ export default function ExonTrackGraph({
                   <g key={ci} style={{ cursor: "inherit" }}
                     onMouseMove={(ev) => { if (drag.current.active) return; setTip({ kind: "junction", x: ev.clientX, y: ev.clientY, label: c.label, t }); }}>
                     <path d={`M${c.x1} ${yb + 5} L${c.x1} ${yb} L${c.x2} ${yb} L${c.x2} ${yb + 5}`}
-                      fill="none" stroke={c.magenta ? "var(--eej-combo)" : "var(--eej)"}
+                      fill="none" stroke={c.magenta ? "var(--eej-combo)" : "var(--eej-single)"}
                       strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     {/* Invisible hover target for the tooltip. It gets a minimum width the
                         DRAWN bracket must not have: overhanging exons is only a problem when
@@ -359,7 +359,7 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
   if (tip.kind === "junction") {
     return (
       <div className="exon-tip" style={style}>
-        <div className="et-head"><b style={{ color: "var(--eej)" }}>Recommended EEJ</b></div>
+        <div className="et-head"><b style={{ color: "var(--eej-single)" }}>Recommended EEJ</b></div>
         <div className="et-line mono">{tip.label}</div>
         <div className="et-line">Unique to this isoform. The bracket marks the connection, not
           one exact spot.</div>
@@ -409,7 +409,7 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
       {isComboExon ? (
         <>
           <div className="et-line et-good">EEJ + Exon combination</div>
-          <div className="et-line et-good">Exon target sites: {uspan || `${e.tx_begin}–${e.tx_end}`}</div>
+          <div className="et-line et-good">Primer target sites: {uspan || `${e.tx_begin}–${e.tx_end}`}</div>
         </>
       ) : sites > 0 && uspan ? (
         <>
@@ -423,7 +423,7 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
         </>
       ) : <div className="et-line et-muted">Shared sequence — no unique primer site here</div>}
       {primerHere && <div className="et-line et-primer">★ Forward primer anchored here</div>}
-      {pairRole && !isComboExon && <div className="et-line et-pair">★ Target site — {pairRole} primer of the specific pair</div>}
+      {pairRole && !isComboExon && <div className="et-line et-pair">★ Primer target site — {pairRole} primer of the specific pair</div>}
       {pinned
         ? <ExonSequence exon={e} t={t} isTarget={isTarget} mrna={mrna} />
         : <div className="et-line et-hint">Click to pin · sequence</div>}

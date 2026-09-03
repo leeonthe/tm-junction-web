@@ -16,7 +16,7 @@ export default function VerdictBanner({ v }: { v: TranscriptVerdict }) {
 
   const chip = v.tier === "CONVENTIONAL" ? "Distinctly amplifiable · EEJ-independent primer"
     : v.tier === "NEEDS_EEJ" ? "EEJ-dependent — needs an exon–exon junction primer"
-    : "EEJ-infeasible · no single unique feature";
+    : "Infeasible · no single unique feature";
 
   return (
     <section className={`verdict ${verdictClass[v.tier]}`}>

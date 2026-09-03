@@ -7,9 +7,13 @@ import ExonTrackGraph from "./ExonTrackGraph";
 const LEGEND = [
   { token: "--conv", label: "EEJ-independent" },
   { token: "--eej", label: "EEJ-dependent" },
-  { token: "--hard", label: "EEJ-infeasible" },
-  { token: "--amp-pair", label: "Target site" },
-  { token: "--eej-combo", label: "EEJ pair" },
+  { token: "--hard", label: "Infeasible" },
+  { token: "--amp-pair", label: "Primer target site" },
+  // The two primer strategies are drawn as brackets on the track, and each owns its colour:
+  // the single-EEJ bracket used to borrow the EEJ-dependent tier's, so recolouring the tier
+  // moved the marker too and neither could be set independently of the other.
+  { token: "--eej-single", label: "Single EEJ primer" },
+  { token: "--eej-combo", label: "Double EEJ primer pair" },
 ] as const;
 
 // Spare colors offered beyond the tiers' default colors. Chosen to be visually distinct
@@ -18,11 +22,13 @@ const SPARES = ["#16A34A", "#0D9488", "#F97316", "#EC4899", "#7C3AED", "#B45309"
 
 // "What is this" hover text for the target-site legend entries (shown as a title on the ⓘ marker).
 const HINTS: Record<string, string> = {
-  "--amp-pair": "Target site — the exon region to put your primer(s): an EEJ-independent exon pair, "
-    + "or a junction+exon combo's discriminating exon region. Only sequence that DISTINGUISHES the "
-    + "transcript is a target site.",
-  "--eej-combo": "EEJ pair — two exon–exon junctions that together isolate this transcript "
-    + "(a two-junction combination); both are marked and both junction primers are needed.",
+  "--amp-pair": "Primer target site — the exon region to put your primer(s): an EEJ-independent "
+    + "exon pair, or a junction+exon combo's discriminating exon region. Only sequence that "
+    + "DISTINGUISHES the transcript is a primer target site.",
+  "--eej-single": "Single EEJ primer — the one exon–exon junction a primer must span to be "
+    + "specific to this transcript; the bracket joins the two exons it is spliced from.",
+  "--eej-combo": "Double EEJ primer pair — two exon–exon junctions that together isolate this "
+    + "transcript; both are marked and both junction primers are needed.",
 };
 
 /**
@@ -173,7 +179,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           </h3>
           <p className="sub">GRCh38 · colored by amplification tier</p>
         </div>
-        {/* Two rows: the three tiers on top, the two target-site markers (with ⓘ hints) below. */}
+        {/* Two rows: the three tiers on top, the three design markers (with ⓘ hints) below. */}
         <div className="legend legend-2row" ref={legendRef}>
           <div className="legend-row">{LEGEND.slice(0, 3).map(legendItem)}</div>
           <div className="legend-row">{LEGEND.slice(3).map(legendItem)}</div>
@@ -184,9 +190,14 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           the same ink it uses on the track. The long explanation of WHY a bracket marks a
           range rather than a spot lives in the marker's own hover text on the graph. */}
       <p className="g-note">
-        <BracketGlyph /> single junction primer
+        <BracketGlyph /> Single EEJ primer
         <span className="g-sep">·</span>
-        <BracketGlyph combo /> double junction primer
+        <BracketGlyph combo /> Double EEJ primer pair
+        <span className="g-sep">·</span>
+        {/* The yellow the track paints a target site with, next to the brackets it sits
+            beside on the graph — the key names every mark the reader can see, not only the
+            two drawn as line art. */}
+        <TargetGlyph /> Primer target site
         <span className="g-sep">·</span>
         window size k={k}
       </p>
@@ -220,10 +231,20 @@ function StrandBadge({ strand }: { strand?: string }) {
 function BracketGlyph({ combo = false }: { combo?: boolean }) {
   return (
     <svg className="g-glyph" width="20" height="9" viewBox="0 0 20 9" role="img"
-      aria-label={combo ? "magenta bracket" : "red bracket"}>
+      aria-label={combo ? "double EEJ bracket" : "single EEJ bracket"}>
       <path d="M2 8 L2 2 L18 2 L18 8" fill="none"
-        stroke={combo ? "var(--eej-combo)" : "var(--eej)"} strokeWidth="2"
+        stroke={combo ? "var(--eej-combo)" : "var(--eej-single)"} strokeWidth="2"
         strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** The target-site box, in the same yellow the track fills an exon region with. */
+function TargetGlyph() {
+  return (
+    <svg className="g-glyph" width="14" height="10" viewBox="0 0 14 10" role="img"
+      aria-label="yellow box">
+      <rect x="1" y="1" width="12" height="8" rx="2" fill="var(--amp-pair)" />
     </svg>
   );
 }

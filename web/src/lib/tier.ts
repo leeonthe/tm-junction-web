@@ -15,7 +15,7 @@ export const tierChipClass: Record<Tier, string> = {
 export const tierLabel: Record<Tier, string> = {
   CONVENTIONAL: "EEJ-independent",
   NEEDS_EEJ: "EEJ-dependent",
-  NO_SINGLE_UNIQUE_JUNCTION: "EEJ-infeasible",
+  NO_SINGLE_UNIQUE_JUNCTION: "Infeasible",
 };
 
 export const verdictClass: Record<Tier, string> = {

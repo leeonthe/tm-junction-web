@@ -9,7 +9,7 @@ interface Suggestion { primary: string; secondary?: string }
 /** What the user is providing. "sequence" takes no NCBI lookup — the arms ARE the input. */
 export type Mode = "accession" | "gene" | "sequence";
 
-/** The mode the app opens on. Gene name is the friendlier entry point: most users know the
+/** The mode the app opens on. Gene symbol is the friendlier entry point: most users know the
  *  symbol, not the accession, and it leads into the variant picker. */
 export const DEFAULT_MODE: Mode = "gene";
 
@@ -101,20 +101,19 @@ export default function Hero({
     <header className="hero">
       <div className="wrap hero-in">
         <span className="eyebrow"><b />Tm-guided exon–exon junction RT-PCR</span>
-        <h1>One transcript,
-        Clean primers.</h1>
+        <h1>Exon Junction Primer</h1>
         <p className="lede">
-        Amplify one isoform. Not its siblings. <br></br>
-    {seqMode
-      ? <>Paste the two sides of a junction to design an EEJ primer <br />against your own sequence.</>
-      : geneMode
-      ? <>Search a human gene to browse its transcripts,<br />then pick a variant to analyze.</>
-      : <>Enter a RefSeq accession to find unique primer regions <br />for transcript-specific RT-PCR.</>}
+          Primer design tool for transcript-specific PCR/qPCR.<br />
+          {seqMode
+            ? <>Paste the two sides of a junction to design an EEJ primer against your own sequence.</>
+            : geneMode
+            ? <>Search a human gene to browse its transcripts, then pick a variant to analyze.</>
+            : <>Enter a RefSeq accession to find unique primer regions.</>}
         </p>
 
         <div className="mode-toggle" role="tablist" aria-label="Search by">
           <button role="tab" aria-selected={geneMode} className={`mode-tab ${geneMode ? "on" : ""}`}
-            onClick={() => switchMode("gene")}>Gene name</button>
+            onClick={() => switchMode("gene")}>Gene symbol</button>
           <button role="tab" aria-selected={mode === "accession"} className={`mode-tab ${mode === "accession" ? "on" : ""}`}
             onClick={() => switchMode("accession")}>NCBI ID (Refseq)</button>
           <button role="tab" aria-selected={seqMode} className={`mode-tab ${seqMode ? "on" : ""}`}
@@ -129,7 +128,11 @@ export default function Hero({
         <div className="search-wrap">
           <form className="search" onSubmit={(e) => { e.preventDefault(); submit(); }}>
             <input className="mono" value={value} spellCheck={false}
-              aria-label={geneMode ? "Gene name" : "Transcript accession"}
+              aria-label={geneMode ? "Gene symbol" : "Transcript accession"}
+              // An example of the thing itself, in the box: the shape of a gene symbol is not
+              // obvious from an empty field, and the chips below are read after the box, not
+              // before it.
+              placeholder={geneMode ? EXAMPLES.gene[0] : EXAMPLES.accession[0]}
               autoComplete="off"
               onChange={(e) => { setValue(e.target.value); setActive(-1); setFocused(true); }}
               onFocus={() => setFocused(true)}

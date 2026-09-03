@@ -71,7 +71,7 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
             junction designer does.
           </li>
           <li>
-            <b className="t-hard-ink">EEJ-infeasible</b> — neither exists. No single primer pair can
+            <b className="t-hard-ink">Infeasible</b> — neither exists. No single primer pair can
             separate this isoform, and a junction-combination strategy is required.
           </li>
         </ul>

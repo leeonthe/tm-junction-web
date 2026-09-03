@@ -13,7 +13,7 @@
   --ok:#0F9D58; --ok-tint:#E7F6EE; --ok-line:#0F9D58;
   --bad:#E5484D; --bad-tint:#FCEDED; --bad-line:#E5484D;
   --amp-pair:#EAB308; --amp-pair-tint:#FBF3D0;
-  --eej-combo:#C026D3;
+  --eej-combo:#C026D3; --eej-single:#E5484D;
   --pick-exon:#94A3B8; --pick-exon-on:#475569;   /* neutral exon blocks in the gene picker */
   --shadow-card:0 2px 20px 7px rgba(16,24,40,.045);
   --r-pill:99px; --r-lg:28px; --r-md:18px; --r-sm:12px;
@@ -39,7 +39,7 @@
   --conv:#4F9CF9; --conv-tint:#152439; --eej:#F2686C; --eej-tint:#331A1C;
   --hard:#8B95A3; --hard-tint:#1D2530; --shadow-card:0 2px 26px 6px rgba(0,0,0,.4);
   --ok:#4ADE80; --ok-tint:#12271B; --ok-line:#3FB56B; --bad:#F2686C; --bad-tint:#331A1C; --bad-line:#C0474B;
-  --amp-pair:#FACC15; --amp-pair-tint:#3A3410; --eej-combo:#E879F9;
+  --amp-pair:#FACC15; --amp-pair-tint:#3A3410; --eej-combo:#E879F9; --eej-single:#F2686C;
   --pick-exon:#64748B; --pick-exon-on:#CBD5E1;
 }}
 :root[data-theme="dark"]{
@@ -51,7 +51,7 @@
   --conv:#4F9CF9; --conv-tint:#152439; --eej:#F2686C; --eej-tint:#331A1C;
   --hard:#8B95A3; --hard-tint:#1D2530; --shadow-card:0 2px 26px 6px rgba(0,0,0,.4);
   --ok:#4ADE80; --ok-tint:#12271B; --ok-line:#3FB56B; --bad:#F2686C; --bad-tint:#331A1C; --bad-line:#C0474B;
-  --amp-pair:#FACC15; --amp-pair-tint:#3A3410; --eej-combo:#E879F9;
+  --amp-pair:#FACC15; --amp-pair-tint:#3A3410; --eej-combo:#E879F9; --eej-single:#F2686C;
   --pick-exon:#64748B; --pick-exon-on:#CBD5E1;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
