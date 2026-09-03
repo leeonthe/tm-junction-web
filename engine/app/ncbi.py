@@ -120,17 +120,69 @@ def get_sequence(accession: str) -> str:
 _VARIANT_IN_TITLE = re.compile(r"\btranscript variant\s+([^,;]+)", re.IGNORECASE)
 
 
-def variant_from_title(accession: str) -> str | None:
-    """NCBI's variant designation read off the sequence record's defline, or None.
-
-    Second source for the same fact the product report's `name` carries, for the case where
-    that field is absent. Cache-only: a record whose title was never stored is not worth a
-    network round trip to label a row, and the title arrives free the next time the sequence
-    itself is fetched.
-    """
-    cached = _read_json(CACHE_DIR / "sequence" / f"{accession}.json") or {}
-    m = _VARIANT_IN_TITLE.search(cached.get("title") or "")
+def variant_in(title: str | None) -> str | None:
+    """"...(GAPDH), transcript variant 1, mRNA" -> "transcript variant 1"."""
+    m = _VARIANT_IN_TITLE.search(title or "")
     return f"transcript variant {m.group(1).strip()}" if m else None
+
+
+def record_titles(accessions: list[str]) -> dict[str, str]:
+    """RefSeq record titles by accession — the record you get by searching the ID itself.
+
+    The gene's product report names each isoform ("transcript variant 1"), but that is one
+    surface of NCBI and it can be silent. The record's own title carries the same
+    designation and is the surface a user checks by hand, so it is the second source when
+    the first says nothing. Cache-first, and batched: one esummary call covers every
+    accession still missing, rather than one call per row.
+    """
+    out: dict[str, str] = {}
+    missing: list[str] = []
+    for a in accessions:
+        cached = _read_json(CACHE_DIR / "title" / f"{a}.json")
+        if cached and cached.get("title"):
+            out[a] = cached["title"]
+            continue
+        # Free if the sequence was fetched by this build: its defline is the same title.
+        seq_cached = _read_json(CACHE_DIR / "sequence" / f"{a}.json") or {}
+        if seq_cached.get("title"):
+            out[a] = seq_cached["title"]
+            _write_json(CACHE_DIR / "title" / f"{a}.json", {"accession": a, "title": out[a]})
+            continue
+        missing.append(a)
+    if not missing:
+        return out
+    try:
+        raw = _http_get_text(
+            f"{EUTILS}/esummary.fcgi?db=nuccore&id={','.join(missing)}&retmode=json"
+            + (f"&api_key={API_KEY}" if API_KEY else ""))
+        result = (json.loads(raw) or {}).get("result") or {}
+    except Exception:
+        return out                      # a label is not worth failing an analysis over
+    for uid in result.get("uids") or []:
+        rec = result.get(uid) or {}
+        acc = rec.get("accessionversion") or ""
+        title = rec.get("title") or ""
+        if acc and title:
+            out[acc] = title
+            _write_json(CACHE_DIR / "title" / f"{acc}.json", {"accession": acc, "title": title})
+    return out
+
+
+def fill_variants(transcripts: list[dict]) -> None:
+    """Give every transcript NCBI's variant designation, in place.
+
+    Only for a gene with isoforms to tell apart: NCBI numbers no variant when there is a
+    single NM, and that absence is the mono-isoform case rather than a gap to fill.
+    """
+    if len(transcripts) < 2:
+        return
+    missing = [t["accession"] for t in transcripts if not t.get("variant")]
+    if not missing:
+        return
+    titles = record_titles(missing)
+    for t in transcripts:
+        if not t.get("variant"):
+            t["variant"] = variant_in(titles.get(t["accession"]))
 
 
 # ---------------------------------------------------------------- parsing

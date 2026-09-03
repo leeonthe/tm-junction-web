@@ -146,3 +146,54 @@ def test_a_sole_isoform_has_no_variant_number():
     r = analyze("NM_001101.5")
     assert len(r.transcripts) == 1
     assert r.transcripts[0].variant is None
+
+
+def test_the_variant_is_read_off_the_record_when_the_gene_report_omits_it():
+    """Ticket 27.1: "can be found in NCBI database when Refseq ID is searched".
+
+    The gene's product report names each isoform, but that is one surface of NCBI and it
+    can be silent. The record you get by searching the accession carries the same
+    designation in its title, so it is the second source — and the picker needs it as much
+    as the verdict table, since that is where the numbers were missing.
+    """
+    import copy
+    from app import ncbi
+    from app.analyze import analyze, lookup_gene
+
+    real = ncbi.get_product_report
+
+    def without_names(symbol):
+        d = copy.deepcopy(real(symbol))
+        for r in d.get("reports") or []:
+            for tr in (r.get("product") or {}).get("transcripts") or []:
+                tr.pop("name", None)
+        return d
+
+    ncbi.get_product_report = without_names
+    try:
+        picker = {t_.accession: t_.variant for t_ in lookup_gene("GAPDH").transcripts}
+        table = {v.accession: v.variant for v in analyze("NM_002046.7").transcripts}
+    finally:
+        ncbi.get_product_report = real
+
+    # The ticket's own examples, recovered with the report saying nothing.
+    for got in (picker, table):
+        assert got["NM_002046.7"] == "transcript variant 1"
+        assert got["NM_001289745.3"] == "transcript variant 3"
+        assert all(got.values())
+
+
+def test_a_title_names_its_variant_or_it_does_not():
+    from app.ncbi import variant_in
+    assert variant_in("Homo sapiens ... (GAPDH), transcript variant 1, mRNA") == "transcript variant 1"
+    assert variant_in("Homo sapiens ... (TP53), transcript variant X2, mRNA") == "transcript variant X2"
+    assert variant_in("Homo sapiens beta-actin (ACTB), mRNA") is None
+    assert variant_in(None) is None
+
+
+def test_a_sole_transcript_is_left_alone():
+    """No variant to number, so nothing is fetched and nothing is invented."""
+    from app import ncbi
+    one = [{"accession": "NM_001101.5"}]
+    ncbi.fill_variants(one)
+    assert one[0].get("variant") is None

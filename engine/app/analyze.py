@@ -39,6 +39,9 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
     if not transcripts:
         raise AnalysisError("NOT_FOUND", f"“{name}” has no NM (mRNA) RefSeq transcripts on GRCh38.")
 
+    # Every isoform gets its designation, from the product report or from the record's own
+    # title — the picker names variants as much as the verdict table does.
+    ncbi.fill_variants(transcripts)
     # One entry per distinct molecule — several accessions for one exon structure are one
     # transcript, and listing them separately invites picking a "different" variant that is
     # the same sequence. See _same_structure_groups.
@@ -334,13 +337,8 @@ def analyze_events(accession: str, k: int = 20):
     exons_by_acc = {a: t["exons"] for a, t in accs.items()}
 
     # A gene with more than one NM has isoforms to tell apart, so each one has a variant
-    # designation; if the product report omitted it, read it off the sequence record's own
-    # title rather than leaving the transcript unnamed. (Nothing to do for a sole NM: NCBI
-    # numbers no variant when there is nothing to number it against.)
-    if len(accs) > 1:
-        for a, t in accs.items():
-            if not t.get("variant"):
-                t["variant"] = ncbi.variant_from_title(a)
+    # designation; where the product report omitted it, take it from the record's own title.
+    ncbi.fill_variants(list(accs.values()))
 
     # One transcript per SEQUENCE, not per accession: a byte-identical twin is the same
     # molecule, and comparing a transcript against it would find nothing that tells the two
