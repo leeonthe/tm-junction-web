@@ -82,12 +82,16 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
 
   // Live, per-session color overrides keyed by token; applied as CSS custom properties.
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  // "legend:--eej" | "key:--eej" — the token alone would open both copies at once.
   const [openToken, setOpenToken] = useState<string | null>(null);
   // Each token's current effective color (override or CSS default), captured when a palette opens.
   const [effective, setEffective] = useState<Record<string, string>>({});
   // Each token's DEFAULT color, i.e. what it would show with no override — the palette's base.
   const [defaults, setDefaults] = useState<Record<string, string>>({});
   const legendRef = useRef<HTMLDivElement>(null);
+  // The overrides live on the card, and both the legend and the key sit inside it — so the
+  // card is what resolves current colours and what "outside" means for a click.
+  const cardRef = useRef<HTMLElement>(null);
 
   /** Resolve every token from the cascade at `el`. Both reads happen when a palette opens,
    *  so a theme switch between opens is picked up. */
@@ -100,22 +104,22 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
     return out;
   };
 
-  const openPalette = (token: string) =>
+  const openPalette = (id: string) =>
     setOpenToken((t) => {
-      if (t === token) return null;
+      if (t === id) return null;
       // Effective from inside the card (overrides apply there); defaults from the root, which
       // the overrides never touch — reading both off the same element would return the same
       // thing and put the palette back to following the current colors.
-      setEffective(readTokens(legendRef.current));
+      setEffective(readTokens(cardRef.current));
       setDefaults(readTokens(document.documentElement));
-      return token;
+      return id;
     });
 
   // Close the palette on outside click or Escape.
   useEffect(() => {
     if (!openToken) return;
     const onDown = (e: MouseEvent) => {
-      if (legendRef.current && !legendRef.current.contains(e.target as Node)) setOpenToken(null);
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) setOpenToken(null);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpenToken(null); };
     document.addEventListener("mousedown", onDown);
@@ -136,6 +140,36 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
     setOpenToken(null);
   };
 
+  const palette = (token: string, label: string, up = false) => (
+    <div className={`sw-pop${up ? " up" : ""}`} role="dialog" aria-label={`${label} color`}>
+      <div className="sw-grid">
+        {buildCells(defaults, effective).map((c) => (
+          <button
+            type="button"
+            key={c}
+            className={`sw-cell${effective[token] === c ? " on" : ""}`}
+            style={{ background: c }}
+            aria-label={c}
+            onClick={() => pick(token, c)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  /** A key entry: the glyph as it is drawn on the track, and clicking it recolours it. */
+  const keyItem = (token: string, label: string, glyph: React.ReactNode) => (
+    <span className="g-key" key={token}>
+      <button type="button" className="g-key-btn"
+        aria-label={`Change ${label} color`}
+        aria-expanded={openToken === `key:${token}`}
+        onClick={() => openPalette(`key:${token}`)}>
+        {glyph} {label}
+      </button>
+      {openToken === `key:${token}` && palette(token, label, true)}
+    </span>
+  );
+
   const legendItem = ({ token, label }: { token: string; label: string }) => (
     <span className="lg" key={token} style={{ position: "relative" }}>
       <button
@@ -143,35 +177,20 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
         className="sw sw-btn"
         style={{ background: `var(${token})` }}
         aria-label={`Change ${label} color`}
-        aria-expanded={openToken === token}
-        onClick={() => openPalette(token)}
+        aria-expanded={openToken === `legend:${token}`}
+        onClick={() => openPalette(`legend:${token}`)}
       />
       {label}
       {HINTS[token] && (
         <span className="lg-info" title={HINTS[token]} tabIndex={0}
           role="img" aria-label={HINTS[token]}>i</span>
       )}
-      {openToken === token && (
-        <div className="sw-pop" role="dialog" aria-label={`${label} color`}>
-          <div className="sw-grid">
-            {buildCells(defaults, effective).map((c) => (
-              <button
-                type="button"
-                key={c}
-                className={`sw-cell${effective[token] === c ? " on" : ""}`}
-                style={{ background: c }}
-                aria-label={c}
-                onClick={() => pick(token, c)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {openToken === `legend:${token}` && palette(token, label)}
     </span>
   );
 
   return (
-    <section className="card" style={overrides as React.CSSProperties}>
+    <section className="card" ref={cardRef} style={overrides as React.CSSProperties}>
       <div className="card-head">
         <div>
           <h3 className="card-title">
@@ -189,15 +208,15 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
       {/* A key, not a paragraph: each marker gets the short name of what it means, drawn in
           the same ink it uses on the track. The long explanation of WHY a bracket marks a
           range rather than a spot lives in the marker's own hover text on the graph. */}
+      {/* Each entry is drawn in the ink it uses on the track AND recolours it: the key is
+          where a reader is already looking at the mark they want to change, so making them
+          go back up to the legend swatch for the same token is a detour. */}
       <p className="g-note">
-        <BracketGlyph /> Single EEJ primer
+        {keyItem("--eej-single", "Single EEJ primer", <BracketGlyph />)}
         <span className="g-sep">·</span>
-        <BracketGlyph combo /> Double EEJ primer pair
+        {keyItem("--eej-combo", "Double EEJ primer pair", <BracketGlyph combo />)}
         <span className="g-sep">·</span>
-        {/* The yellow the track paints a target site with, next to the brackets it sits
-            beside on the graph — the key names every mark the reader can see, not only the
-            two drawn as line art. */}
-        <TargetGlyph /> Primer target site
+        {keyItem("--amp-pair", "Primer target site", <TargetGlyph />)}
         <span className="g-sep">·</span>
         window size k={k}
       </p>

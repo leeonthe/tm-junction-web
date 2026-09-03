@@ -253,6 +253,16 @@ main.wrap{padding:24px 24px 96px;display:flex;flex-direction:column;gap:28px}
 .sw-cell.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)}
 .scroll-x{overflow-x:auto}
 .g-note{font-size:12.5px;color:var(--faint);margin:14px 0 0}
+/* Every key entry is also its colour control, so it has to read as one: the glyph and its
+   label click together, and the popover opens UPWARD — the key sits at the foot of the
+   card, where a downward menu would hang off the end of it. */
+.g-key{position:relative;display:inline-block}
+.g-key-btn{font-family:inherit;font-size:inherit;color:inherit;background:none;border:0;
+  padding:2px 4px;margin:0 -4px;border-radius:6px;cursor:pointer}
+.g-key-btn:hover{color:var(--muted);background:var(--surface-2)}
+.g-key-btn:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.sw-pop.up{top:auto;bottom:calc(100% + 8px)}
+.sw-pop.up::before{top:auto;bottom:-5px}
 /* marker glyphs drawn inline in the note, sitting on the text baseline */
 .g-note .g-glyph{vertical-align:-1px;margin:0 1px}
 /* Separator between the key's entries — spaced enough that each glyph reads with its own
