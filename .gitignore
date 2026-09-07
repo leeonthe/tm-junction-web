@@ -35,6 +35,9 @@ coverage/
 # (.gitignore does not support inline comments — keep each pattern on its own line)
 # Obsidian design & decision docs (local planning)
 tm-junction-web-obsidian/
+tm-junction-web-obsidian*.zip
+# local agent session state — never source
+.claude/
 # static design reference
 design-mocks/
 # original loader asset (derived dna-blue*.svg live in web/public)
