@@ -1,6 +1,5 @@
 import type { AnalyzeResponse, ApiError, GeneLookupResponse } from "./types";
-
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+import { apiBase } from "./apiBase";
 
 export class AnalyzeError extends Error {
   code: string;
@@ -14,7 +13,7 @@ export interface RemoteSuggestion { accession: string; gene: string }
 
 export async function suggest(q: string, signal?: AbortSignal): Promise<RemoteSuggestion[]> {
   try {
-    const res = await fetch(`${API_URL}/suggest?q=${encodeURIComponent(q)}`, { signal });
+    const res = await fetch(`${await apiBase()}/suggest?q=${encodeURIComponent(q)}`, { signal });
     if (!res.ok) return [];
     const d = await res.json();
     return (d.suggestions ?? []) as RemoteSuggestion[];
@@ -27,7 +26,7 @@ export async function suggest(q: string, signal?: AbortSignal): Promise<RemoteSu
 export async function lookupGene(symbol: string, signal?: AbortSignal): Promise<GeneLookupResponse> {
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/gene/${encodeURIComponent(symbol.trim())}`, { signal });
+    res = await fetch(`${await apiBase()}/gene/${encodeURIComponent(symbol.trim())}`, { signal });
   } catch {
     throw new AnalyzeError("NETWORK", "Can't reach the engine. Is the Python backend running?");
   }
@@ -43,7 +42,7 @@ export interface GeneSuggestion { symbol: string; description: string }
 
 export async function suggestGenes(q: string, signal?: AbortSignal): Promise<GeneSuggestion[]> {
   try {
-    const res = await fetch(`${API_URL}/suggest_genes?q=${encodeURIComponent(q)}`, { signal });
+    const res = await fetch(`${await apiBase()}/suggest_genes?q=${encodeURIComponent(q)}`, { signal });
     if (!res.ok) return [];
     const d = await res.json();
     return (d.suggestions ?? []) as GeneSuggestion[];
@@ -65,7 +64,7 @@ export async function analyzeStream(
 ): Promise<AnalyzeResponse> {
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/analyze/stream?accession=${encodeURIComponent(accession)}`, { signal });
+    res = await fetch(`${await apiBase()}/analyze/stream?accession=${encodeURIComponent(accession)}`, { signal });
   } catch {
     throw new AnalyzeError("NETWORK", "Can't reach the engine. Is the Python backend running?");
   }
@@ -102,7 +101,7 @@ export async function analyzeStream(
 export async function analyze(accession: string): Promise<AnalyzeResponse> {
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/analyze`, {
+    res = await fetch(`${await apiBase()}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accession }),

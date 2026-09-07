@@ -1,0 +1,4 @@
+fastapi>=0.110
+httpx>=0.27
+pydantic>=2.6
+primer3-py>=2.0

@@ -1,0 +1,198 @@
+{
+  "reports": [
+    {
+      "product": {
+        "gene_id": "4609",
+        "symbol": "MYC",
+        "description": "MYC proto-oncogene, bHLH transcription factor",
+        "tax_id": "9606",
+        "taxname": "Homo sapiens",
+        "common_name": "human",
+        "type": "PROTEIN_CODING",
+        "transcripts": [
+          {
+            "accession_version": "NM_001354870.1",
+            "name": "transcript variant 2",
+            "length": 4515,
+            "cds": {
+              "accession_version": "NM_001354870.1",
+              "range": [
+                {
+                  "begin": "1161",
+                  "end": "2522",
+                  "orientation": "plus"
+                }
+              ]
+            },
+            "genomic_locations": [
+              {
+                "genomic_accession_version": "NC_000008.11",
+                "sequence_name": "Chromosome 8 Reference GRCh38.p14 Primary Assembly",
+                "genomic_range": {
+                  "begin": "127735434",
+                  "end": "127742951",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "127735434",
+                    "end": "127736623",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "127738251",
+                    "end": "127739019",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "127740396",
+                    "end": "127742951",
+                    "orientation": "plus",
+                    "order": 3
+                  }
+                ]
+              },
+              {
+                "genomic_accession_version": "NC_060932.1",
+                "sequence_name": "Chromosome 8 Alternate T2T-CHM13v2.0",
+                "genomic_range": {
+                  "begin": "128862888",
+                  "end": "128870405",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "128862888",
+                    "end": "128864077",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "128865705",
+                    "end": "128866473",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "128867850",
+                    "end": "128870405",
+                    "orientation": "plus",
+                    "order": 3
+                  }
+                ]
+              }
+            ],
+            "ensembl_transcript": "ENST00000524013.2",
+            "protein": {
+              "accession_version": "NP_001341799.1",
+              "name": "myc proto-oncogene protein",
+              "length": 453,
+              "isoform_name": "isoform 2",
+              "ensembl_protein": "ENSP00000430235.2"
+            },
+            "type": "PROTEIN_CODING"
+          },
+          {
+            "accession_version": "NM_002467.6",
+            "name": "transcript variant 1",
+            "length": 3721,
+            "cds": {
+              "accession_version": "NM_002467.6",
+              "range": [
+                {
+                  "begin": "364",
+                  "end": "1728",
+                  "orientation": "plus"
+                }
+              ]
+            },
+            "genomic_locations": [
+              {
+                "genomic_accession_version": "NC_000008.11",
+                "sequence_name": "Chromosome 8 Reference GRCh38.p14 Primary Assembly",
+                "genomic_range": {
+                  "begin": "127736231",
+                  "end": "127742951",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "127736231",
+                    "end": "127736623",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "127738248",
+                    "end": "127739019",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "127740396",
+                    "end": "127742951",
+                    "orientation": "plus",
+                    "order": 3
+                  }
+                ]
+              },
+              {
+                "genomic_accession_version": "NC_060932.1",
+                "sequence_name": "Chromosome 8 Alternate T2T-CHM13v2.0",
+                "genomic_range": {
+                  "begin": "128863685",
+                  "end": "128870405",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "128863685",
+                    "end": "128864077",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "128865702",
+                    "end": "128866473",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "128867850",
+                    "end": "128870405",
+                    "orientation": "plus",
+                    "order": 3
+                  }
+                ]
+              }
+            ],
+            "ensembl_transcript": "ENST00000621592.8",
+            "protein": {
+              "accession_version": "NP_002458.2",
+              "name": "myc proto-oncogene protein",
+              "length": 454,
+              "isoform_name": "isoform 1",
+              "ensembl_protein": "ENSP00000478887.2"
+            },
+            "type": "PROTEIN_CODING",
+            "select_category": "MANE_SELECT"
+          }
+        ],
+        "transcript_count": 2,
+        "protein_count": 2,
+        "transcript_type_counts": [
+          {
+            "type": "PROTEIN_CODING",
+            "count": 2
+          }
+        ]
+      },
+      "query": [
+        "MYC"
+      ]
+    }
+  ],
+  "total_count": 1
+}

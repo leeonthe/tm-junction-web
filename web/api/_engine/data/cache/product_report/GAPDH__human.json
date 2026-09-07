@@ -1,0 +1,905 @@
+{
+  "reports": [
+    {
+      "product": {
+        "gene_id": "2597",
+        "symbol": "GAPDH",
+        "description": "glyceraldehyde-3-phosphate dehydrogenase",
+        "tax_id": "9606",
+        "taxname": "Homo sapiens",
+        "common_name": "human",
+        "type": "PROTEIN_CODING",
+        "transcripts": [
+          {
+            "accession_version": "NM_001256799.3",
+            "name": "transcript variant 2",
+            "length": 1386,
+            "cds": {
+              "accession_version": "NM_001256799.3",
+              "range": [
+                {
+                  "begin": "304",
+                  "end": "1185",
+                  "orientation": "plus"
+                }
+              ]
+            },
+            "genomic_locations": [
+              {
+                "genomic_accession_version": "NC_000012.12",
+                "sequence_name": "Chromosome 12 Reference GRCh38.p14 Primary Assembly",
+                "genomic_range": {
+                  "begin": "6535264",
+                  "end": "6538371",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6535264",
+                    "end": "6535469",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6536494",
+                    "end": "6536593",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6536684",
+                    "end": "6536790",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6536920",
+                    "end": "6537010",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6537101",
+                    "end": "6537216",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6537309",
+                    "end": "6537390",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6537584",
+                    "end": "6537996",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6538101",
+                    "end": "6538371",
+                    "orientation": "plus",
+                    "order": 8
+                  }
+                ]
+              },
+              {
+                "genomic_accession_version": "NC_060936.1",
+                "sequence_name": "Chromosome 12 Alternate T2T-CHM13v2.0",
+                "genomic_range": {
+                  "begin": "6545620",
+                  "end": "6548727",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6545620",
+                    "end": "6545825",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6546850",
+                    "end": "6546949",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6547040",
+                    "end": "6547146",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6547276",
+                    "end": "6547366",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6547457",
+                    "end": "6547572",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6547665",
+                    "end": "6547746",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6547940",
+                    "end": "6548352",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6548457",
+                    "end": "6548727",
+                    "orientation": "plus",
+                    "order": 8
+                  }
+                ]
+              }
+            ],
+            "ensembl_transcript": "ENST00000396858.5",
+            "protein": {
+              "accession_version": "NP_001243728.1",
+              "name": "glyceraldehyde-3-phosphate dehydrogenase",
+              "length": 293,
+              "isoform_name": "isoform 2",
+              "ensembl_protein": "ENSP00000380067.1"
+            },
+            "type": "PROTEIN_CODING"
+          },
+          {
+            "accession_version": "NM_001289745.3",
+            "name": "transcript variant 3",
+            "length": 1377,
+            "cds": {
+              "accession_version": "NM_001289745.3",
+              "range": [
+                {
+                  "begin": "169",
+                  "end": "1176",
+                  "orientation": "plus"
+                }
+              ]
+            },
+            "genomic_locations": [
+              {
+                "genomic_accession_version": "NC_000012.12",
+                "sequence_name": "Chromosome 12 Reference GRCh38.p14 Primary Assembly",
+                "genomic_range": {
+                  "begin": "6534517",
+                  "end": "6538371",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6534517",
+                    "end": "6534661",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6534810",
+                    "end": "6534861",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6536494",
+                    "end": "6536593",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6536684",
+                    "end": "6536790",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6536920",
+                    "end": "6537010",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6537101",
+                    "end": "6537216",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6537309",
+                    "end": "6537390",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6537584",
+                    "end": "6537996",
+                    "orientation": "plus",
+                    "order": 8
+                  },
+                  {
+                    "begin": "6538101",
+                    "end": "6538371",
+                    "orientation": "plus",
+                    "order": 9
+                  }
+                ]
+              },
+              {
+                "genomic_accession_version": "NC_060936.1",
+                "sequence_name": "Chromosome 12 Alternate T2T-CHM13v2.0",
+                "genomic_range": {
+                  "begin": "6544873",
+                  "end": "6548727",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6544873",
+                    "end": "6545017",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6545166",
+                    "end": "6545217",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6546850",
+                    "end": "6546949",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6547040",
+                    "end": "6547146",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6547276",
+                    "end": "6547366",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6547457",
+                    "end": "6547572",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6547665",
+                    "end": "6547746",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6547940",
+                    "end": "6548352",
+                    "orientation": "plus",
+                    "order": 8
+                  },
+                  {
+                    "begin": "6548457",
+                    "end": "6548727",
+                    "orientation": "plus",
+                    "order": 9
+                  }
+                ]
+              }
+            ],
+            "ensembl_transcript": "ENST00000396861.5",
+            "protein": {
+              "accession_version": "NP_001276674.1",
+              "name": "glyceraldehyde-3-phosphate dehydrogenase",
+              "length": 335,
+              "isoform_name": "isoform 1",
+              "ensembl_protein": "ENSP00000380070.1"
+            },
+            "type": "PROTEIN_CODING"
+          },
+          {
+            "accession_version": "NM_001289746.2",
+            "name": "transcript variant 4",
+            "length": 1525,
+            "cds": {
+              "accession_version": "NM_001289746.2",
+              "range": [
+                {
+                  "begin": "317",
+                  "end": "1324",
+                  "orientation": "plus"
+                }
+              ]
+            },
+            "genomic_locations": [
+              {
+                "genomic_accession_version": "NC_000012.12",
+                "sequence_name": "Chromosome 12 Reference GRCh38.p14 Primary Assembly",
+                "genomic_range": {
+                  "begin": "6534517",
+                  "end": "6538371",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6534517",
+                    "end": "6534861",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6536494",
+                    "end": "6536593",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6536684",
+                    "end": "6536790",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6536920",
+                    "end": "6537010",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6537101",
+                    "end": "6537216",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6537309",
+                    "end": "6537390",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6537584",
+                    "end": "6537996",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6538101",
+                    "end": "6538371",
+                    "orientation": "plus",
+                    "order": 8
+                  }
+                ]
+              },
+              {
+                "genomic_accession_version": "NC_060936.1",
+                "sequence_name": "Chromosome 12 Alternate T2T-CHM13v2.0",
+                "genomic_range": {
+                  "begin": "6544873",
+                  "end": "6548727",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6544873",
+                    "end": "6545217",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6546850",
+                    "end": "6546949",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6547040",
+                    "end": "6547146",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6547276",
+                    "end": "6547366",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6547457",
+                    "end": "6547572",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6547665",
+                    "end": "6547746",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6547940",
+                    "end": "6548352",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6548457",
+                    "end": "6548727",
+                    "orientation": "plus",
+                    "order": 8
+                  }
+                ]
+              }
+            ],
+            "ensembl_transcript": "ENST00000396859.5",
+            "protein": {
+              "accession_version": "NP_001276675.1",
+              "name": "glyceraldehyde-3-phosphate dehydrogenase",
+              "length": 335,
+              "isoform_name": "isoform 1",
+              "ensembl_protein": "ENSP00000380068.1"
+            },
+            "type": "PROTEIN_CODING"
+          },
+          {
+            "accession_version": "NM_001357943.2",
+            "name": "transcript variant 7",
+            "length": 1231,
+            "cds": {
+              "accession_version": "NM_001357943.2",
+              "range": [
+                {
+                  "begin": "77",
+                  "end": "1030",
+                  "orientation": "plus"
+                }
+              ]
+            },
+            "genomic_locations": [
+              {
+                "genomic_accession_version": "NC_000012.12",
+                "sequence_name": "Chromosome 12 Reference GRCh38.p14 Primary Assembly",
+                "genomic_range": {
+                  "begin": "6534517",
+                  "end": "6538371",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6534517",
+                    "end": "6534569",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6534810",
+                    "end": "6534861",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6536494",
+                    "end": "6536593",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6536738",
+                    "end": "6536790",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6536920",
+                    "end": "6537010",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6537101",
+                    "end": "6537216",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6537309",
+                    "end": "6537390",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6537584",
+                    "end": "6537996",
+                    "orientation": "plus",
+                    "order": 8
+                  },
+                  {
+                    "begin": "6538101",
+                    "end": "6538371",
+                    "orientation": "plus",
+                    "order": 9
+                  }
+                ]
+              },
+              {
+                "genomic_accession_version": "NC_060936.1",
+                "sequence_name": "Chromosome 12 Alternate T2T-CHM13v2.0",
+                "genomic_range": {
+                  "begin": "6544873",
+                  "end": "6548727",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6544873",
+                    "end": "6544925",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6545166",
+                    "end": "6545217",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6546850",
+                    "end": "6546949",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6547094",
+                    "end": "6547146",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6547276",
+                    "end": "6547366",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6547457",
+                    "end": "6547572",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6547665",
+                    "end": "6547746",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6547940",
+                    "end": "6548352",
+                    "orientation": "plus",
+                    "order": 8
+                  },
+                  {
+                    "begin": "6548457",
+                    "end": "6548727",
+                    "orientation": "plus",
+                    "order": 9
+                  }
+                ]
+              }
+            ],
+            "ensembl_transcript": "ENST00000920791.1",
+            "protein": {
+              "accession_version": "NP_001344872.1",
+              "name": "glyceraldehyde-3-phosphate dehydrogenase",
+              "length": 317,
+              "isoform_name": "isoform 4",
+              "ensembl_protein": "ENSP00000590850.1"
+            },
+            "type": "PROTEIN_CODING"
+          },
+          {
+            "accession_version": "NM_002046.7",
+            "name": "transcript variant 1",
+            "length": 1285,
+            "cds": {
+              "accession_version": "NM_002046.7",
+              "range": [
+                {
+                  "begin": "77",
+                  "end": "1084",
+                  "orientation": "plus"
+                }
+              ]
+            },
+            "genomic_locations": [
+              {
+                "genomic_accession_version": "NC_000012.12",
+                "sequence_name": "Chromosome 12 Reference GRCh38.p14 Primary Assembly",
+                "genomic_range": {
+                  "begin": "6534517",
+                  "end": "6538371",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6534517",
+                    "end": "6534569",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6534810",
+                    "end": "6534861",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6536494",
+                    "end": "6536593",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6536684",
+                    "end": "6536790",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6536920",
+                    "end": "6537010",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6537101",
+                    "end": "6537216",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6537309",
+                    "end": "6537390",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6537584",
+                    "end": "6537996",
+                    "orientation": "plus",
+                    "order": 8
+                  },
+                  {
+                    "begin": "6538101",
+                    "end": "6538371",
+                    "orientation": "plus",
+                    "order": 9
+                  }
+                ]
+              },
+              {
+                "genomic_accession_version": "NC_060936.1",
+                "sequence_name": "Chromosome 12 Alternate T2T-CHM13v2.0",
+                "genomic_range": {
+                  "begin": "6544873",
+                  "end": "6548727",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6544873",
+                    "end": "6544925",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6545166",
+                    "end": "6545217",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6546850",
+                    "end": "6546949",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6547040",
+                    "end": "6547146",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6547276",
+                    "end": "6547366",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6547457",
+                    "end": "6547572",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6547665",
+                    "end": "6547746",
+                    "orientation": "plus",
+                    "order": 7
+                  },
+                  {
+                    "begin": "6547940",
+                    "end": "6548352",
+                    "orientation": "plus",
+                    "order": 8
+                  },
+                  {
+                    "begin": "6548457",
+                    "end": "6548727",
+                    "orientation": "plus",
+                    "order": 9
+                  }
+                ]
+              }
+            ],
+            "ensembl_transcript": "ENST00000229239.10",
+            "protein": {
+              "accession_version": "NP_002037.2",
+              "name": "glyceraldehyde-3-phosphate dehydrogenase",
+              "length": 335,
+              "isoform_name": "isoform 1",
+              "ensembl_protein": "ENSP00000229239.5"
+            },
+            "type": "PROTEIN_CODING",
+            "select_category": "MANE_SELECT"
+          },
+          {
+            "accession_version": "NR_152150.2",
+            "name": "transcript variant 6",
+            "length": 763,
+            "genomic_locations": [
+              {
+                "genomic_accession_version": "NC_000012.12",
+                "sequence_name": "Chromosome 12 Reference GRCh38.p14 Primary Assembly",
+                "genomic_range": {
+                  "begin": "6534517",
+                  "end": "6538371",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6534517",
+                    "end": "6534569",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6534810",
+                    "end": "6534861",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6536494",
+                    "end": "6536593",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6536684",
+                    "end": "6536790",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6536920",
+                    "end": "6537010",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6537101",
+                    "end": "6537189",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6538101",
+                    "end": "6538371",
+                    "orientation": "plus",
+                    "order": 7
+                  }
+                ]
+              },
+              {
+                "genomic_accession_version": "NC_060936.1",
+                "sequence_name": "Chromosome 12 Alternate T2T-CHM13v2.0",
+                "genomic_range": {
+                  "begin": "6544873",
+                  "end": "6548727",
+                  "orientation": "plus"
+                },
+                "exons": [
+                  {
+                    "begin": "6544873",
+                    "end": "6544925",
+                    "orientation": "plus",
+                    "order": 1
+                  },
+                  {
+                    "begin": "6545166",
+                    "end": "6545217",
+                    "orientation": "plus",
+                    "order": 2
+                  },
+                  {
+                    "begin": "6546850",
+                    "end": "6546949",
+                    "orientation": "plus",
+                    "order": 3
+                  },
+                  {
+                    "begin": "6547040",
+                    "end": "6547146",
+                    "orientation": "plus",
+                    "order": 4
+                  },
+                  {
+                    "begin": "6547276",
+                    "end": "6547366",
+                    "orientation": "plus",
+                    "order": 5
+                  },
+                  {
+                    "begin": "6547457",
+                    "end": "6547545",
+                    "orientation": "plus",
+                    "order": 6
+                  },
+                  {
+                    "begin": "6548457",
+                    "end": "6548727",
+                    "orientation": "plus",
+                    "order": 7
+                  }
+                ]
+              }
+            ],
+            "ensembl_transcript": "ENST00000889647.1",
+            "type": "NON_CODING"
+          }
+        ],
+        "transcript_count": 6,
+        "protein_count": 5,
+        "transcript_type_counts": [
+          {
+            "type": "PROTEIN_CODING",
+            "count": 5
+          },
+          {
+            "type": "NON_CODING",
+            "count": 1
+          }
+        ]
+      },
+      "query": [
+        "GAPDH"
+      ]
+    }
+  ],
+  "total_count": 1
+}
