@@ -47,3 +47,7 @@ project's Figma system (Inter, `#237AF2`, bordered cards) — see the vault's UI
 Engine: feature-complete for v1 (8 passing regression tests locked to the validated
 GAPDH/MYC matrix). Web: builds clean, renders the full result flow. Next: `primer3`
 QC pass, genome-wide specificity check, analytics DB, deploy.
+
+## License
+MIT — see [LICENSE](LICENSE). Depends on [primer3-py](https://github.com/libnano/primer3-py)
+(GPL-2.0) as a pip package for primer QC thermodynamics.
