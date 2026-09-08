@@ -48,25 +48,67 @@ def _base_accession(acc: str) -> str:
 
 # ---------------------------------------------------------------- live helpers
 
-def _http_get_json(url: str, headers: dict | None = None) -> dict:
+class RateLimited(Exception):
+    """NCBI said 429 and kept saying it through every retry.
+
+    Kept distinct from an ordinary HTTP failure because the answer to the caller is
+    different: nothing is wrong with the request, the shared egress IP is simply over
+    NCBI's per-IP budget this second — retrying shortly will work. main.py maps this to
+    a 503 with that message instead of a 500 with a stack trace, which is what a single
+    unretried 429 used to become.
+    """
+
+
+# NCBI allows ~3 requests/second per IP without an API key (10/s with one). An analyze of
+# an uncached gene fires one fetch per isoform back to back, and on serverless hosting the
+# egress IP is shared with strangers — so the engine paces itself rather than betting the
+# whole request on never being the one over the line.
+_MIN_INTERVAL = 0.11 if API_KEY else 0.35
+_last_call = 0.0
+
+
+def _paced_get(url: str, headers: dict | None = None):
+    """One NCBI GET: paced under the per-IP budget, retried with backoff on 429/5xx."""
+    import time
+
     import httpx
+
+    global _last_call
+    delays = (0.5, 1.0, 2.0)                    # after attempts 1..3; 4 attempts total
+    for attempt in range(len(delays) + 1):
+        wait = _MIN_INTERVAL - (time.monotonic() - _last_call)
+        if wait > 0:
+            time.sleep(wait)
+        _last_call = time.monotonic()
+        with httpx.Client(timeout=30) as c:
+            r = c.get(url, headers=headers)
+        if r.status_code == 429 or r.status_code >= 500:
+            if attempt < len(delays):
+                # Honor Retry-After when NCBI names a delay; else back off blind.
+                try:
+                    retry_after = float(r.headers.get("retry-after", ""))
+                except ValueError:
+                    retry_after = 0.0
+                time.sleep(max(delays[attempt], min(retry_after, 10.0)))
+                continue
+            if r.status_code == 429:
+                raise RateLimited(url)
+        r.raise_for_status()
+        return r
+    raise RateLimited(url)                      # unreachable; keeps type-checkers honest
+
+
+def _http_get_json(url: str, headers: dict | None = None) -> dict:
     h = {"Accept": "application/json"}
     if API_KEY:
         h["api-key"] = API_KEY
     if headers:
         h.update(headers)
-    with httpx.Client(timeout=30) as c:
-        r = c.get(url, headers=h)
-        r.raise_for_status()
-        return r.json()
+    return _paced_get(url, h).json()
 
 
 def _http_get_text(url: str) -> str:
-    import httpx
-    with httpx.Client(timeout=30) as c:
-        r = c.get(url)
-        r.raise_for_status()
-        return r.text
+    return _paced_get(url).text
 
 
 # ---------------------------------------------------------------- public API

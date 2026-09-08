@@ -63,6 +63,12 @@ def suggest_genes(q: str, limit: int = 8) -> dict:
     return {"suggestions": ncbi.suggest_genes(q, limit)}
 
 
+# A 429 from NCBI that survived the client's own retries: the request was fine, the
+# shared egress IP is over NCBI's per-IP budget this second. 503 + the honest message,
+# because the 500-with-stack-trace this used to become reads as "the tool is broken".
+_RATE_LIMIT = {"error": "NCBI_RATE_LIMIT", "message": "NCBI is rate-limiting requests from this server right now — nothing is wrong with your query. Try again in a few seconds."}
+
+
 @app.get("/gene/{symbol}", response_model=GeneLookupResponse)
 def gene_lookup(symbol: str):
     """Human gene name -> its NM transcripts + exon alignment (no classification).
@@ -72,6 +78,9 @@ def gene_lookup(symbol: str):
     except AnalysisError as e:
         status = 404 if e.code == "NOT_FOUND" else 400
         return JSONResponse(status_code=status, content={"error": e.code, "message": e.message})
+    except ncbi.RateLimited:
+        return JSONResponse(status_code=503, content=_RATE_LIMIT,
+                            headers={"Retry-After": "5"})
 
 
 @app.post("/analyze", response_model=AnalyzeResponse)
@@ -80,6 +89,9 @@ def analyze_endpoint(req: AnalyzeRequest):
         return analyze(req.accession, k=req.k)
     except AnalysisError as e:
         return JSONResponse(status_code=400, content={"error": e.code, "message": e.message})
+    except ncbi.RateLimited:
+        return JSONResponse(status_code=503, content=_RATE_LIMIT,
+                            headers={"Retry-After": "5"})
 
 
 @app.get("/analyze/stream")
@@ -97,6 +109,8 @@ def analyze_stream(accession: str, k: int = 20):
                            f"data: {json.dumps({'pct': ev['pct'], 'detail': ev['detail']})}\n\n")
         except AnalysisError as e:
             yield f"event: failed\ndata: {json.dumps({'error': e.code, 'message': e.message})}\n\n"
+        except ncbi.RateLimited:
+            yield f"event: failed\ndata: {json.dumps(_RATE_LIMIT)}\n\n"
         except Exception as e:  # pragma: no cover - upstream/network failure
             yield f"event: failed\ndata: {json.dumps({'error': 'UPSTREAM_ERROR', 'message': str(e)})}\n\n"
 
@@ -110,3 +124,6 @@ def analyze_get(accession: str, k: int = 20):
         return analyze(accession, k=k)
     except AnalysisError as e:
         return JSONResponse(status_code=400, content={"error": e.code, "message": e.message})
+    except ncbi.RateLimited:
+        return JSONResponse(status_code=503, content=_RATE_LIMIT,
+                            headers={"Retry-After": "5"})
