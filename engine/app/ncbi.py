@@ -164,6 +164,50 @@ def get_sequence(accession: str) -> str:
     return seq
 
 
+def get_sequences(accessions: list[str]) -> dict[str, str]:
+    """mRNA sequences for many accessions — cache-first, ONE efetch for all the misses.
+
+    The per-accession loop this replaces was the engine's biggest NCBI spender: an
+    uncached 25-isoform gene (NRXN1) made 25 serial efetch calls, and under NCBI's
+    per-IP request budget — shared, on serverless hosting, with strangers — that is how
+    a plain gene search turns into 429s. efetch takes a comma-joined id list, so all
+    the misses travel in a single request; the multi-FASTA comes back split by header,
+    each record keyed by the accession its defline starts with. Titles are kept, as in
+    get_sequence, because they are the fallback source for variant designations.
+    """
+    out: dict[str, str] = {}
+    missing: list[str] = []
+    for a in accessions:
+        cached = _read_json(CACHE_DIR / "sequence" / f"{a}.json")
+        if cached:
+            out[a] = cached["seq"].upper()
+        else:
+            missing.append(a)
+    for i in range(0, len(missing), 100):        # eutils is comfortable at 100 ids/call
+        chunk = missing[i:i + 100]
+        fasta = _http_get_text(
+            f"{EUTILS}/efetch.fcgi?db=nuccore&id={','.join(chunk)}&rettype=fasta&retmode=text"
+            + (f"&api_key={API_KEY}" if API_KEY else ""))
+        for rec in fasta.split("\n>"):
+            rec = rec.lstrip(">")
+            if not rec.strip():
+                continue
+            header, _, body = rec.partition("\n")
+            acc = header.split()[0].strip()
+            seq = "".join(body.split()).upper()
+            if not seq:
+                continue
+            out[acc] = seq
+            _write_json(CACHE_DIR / "sequence" / f"{acc}.json",
+                        {"accession": acc, "seq": seq, "title": header.strip()})
+    # Anything efetch did not return (retired id, odd defline) still gets its own call —
+    # correctness beats saving one request when the batch and the answer disagree.
+    for a in accessions:
+        if a not in out:
+            out[a] = get_sequence(a)
+    return out
+
+
 _VARIANT_IN_TITLE = re.compile(r"\btranscript variant\s+([^,;]+)", re.IGNORECASE)
 
 

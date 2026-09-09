@@ -327,12 +327,12 @@ def analyze_events(accession: str, k: int = 20):
     n = len(accs)
     yield {"type": "progress", "pct": 10, "detail": f"{symbol}: {n} NM isoform{'s' if n != 1 else ''}"}
 
-    # fetch sequences (cache-first) — the main cost; emit progress per transcript
-    seqs: dict[str, str] = {}
-    for i, a in enumerate(accs):
-        seqs[a] = ncbi.get_sequence(a)
-        yield {"type": "progress", "pct": 10 + round(68 * (i + 1) / n),
-               "detail": f"Fetching mRNA sequences {i + 1}/{n}"}
+    # Fetch sequences — the main cost. Cache-first, and every miss travels in ONE efetch
+    # rather than a call per isoform: the per-transcript loop this replaces is what turned
+    # a big uncached gene into a burst of NCBI requests and, on a shared egress IP, 429s.
+    yield {"type": "progress", "pct": 30, "detail": f"Fetching mRNA sequences ({n})…"}
+    seqs = ncbi.get_sequences(list(accs))
+    yield {"type": "progress", "pct": 78, "detail": "Sequences fetched"}
 
     exons_by_acc = {a: t["exons"] for a, t in accs.items()}
 

@@ -91,3 +91,38 @@ def test_calls_are_paced_under_the_per_ip_budget(monkeypatch):
         ncbi._paced_get("http://x")
     # The first call may run free; the following ones must wait their share.
     assert len([s for s in slept if s > 0]) >= 2
+
+
+def test_sequences_travel_in_one_request_not_one_each(monkeypatch):
+    """25 uncached isoforms must cost ONE efetch — the per-isoform loop was the 429 factory."""
+    calls = []
+
+    def fake_get_text(url):
+        calls.append(url)
+        ids = url.split("id=")[1].split("&")[0].split(",")
+        return "\n".join(f">{a} Homo sapiens FAKE (FAKE), transcript variant {i+1}, mRNA\nACGT\nACGT"
+                         for i, a in enumerate(ids))
+
+    monkeypatch.setattr(ncbi, "_http_get_text", fake_get_text)
+    monkeypatch.setattr(ncbi, "_read_json", lambda p: None)      # everything is a miss
+    monkeypatch.setattr(ncbi, "_write_json", lambda p, o: None)
+    accs = [f"NM_{900000+i}.1" for i in range(25)]
+    seqs = ncbi.get_sequences(accs)
+    assert len(calls) == 1                       # one request, not twenty-five
+    assert set(seqs) == set(accs)
+    assert all(s == "ACGTACGT" for s in seqs.values())
+
+
+def test_the_batch_survives_a_record_efetch_forgot(monkeypatch):
+    """A missing record falls back to its own fetch instead of failing the analysis."""
+    def fake_get_text(url):
+        ids = url.split("id=")[1].split("&")[0].split(",")
+        if len(ids) > 1:                          # the batch: drop the last record
+            ids = ids[:-1]
+        return "\n".join(f">{a} desc\nGGCC" for a in ids)
+
+    monkeypatch.setattr(ncbi, "_http_get_text", fake_get_text)
+    monkeypatch.setattr(ncbi, "_read_json", lambda p: None)
+    monkeypatch.setattr(ncbi, "_write_json", lambda p, o: None)
+    seqs = ncbi.get_sequences(["NM_1.1", "NM_2.1", "NM_3.1"])
+    assert set(seqs) == {"NM_1.1", "NM_2.1", "NM_3.1"}
