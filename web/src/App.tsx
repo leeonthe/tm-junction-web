@@ -14,6 +14,7 @@ import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
 import Summary from "./components/Summary";
 import Method from "./components/Method";
+import Guide from "./components/Guide";
 import CustomJunctionResult, { EMPTY_ARMS, type Arms } from "./components/CustomJunction";
 import { DEFAULT_MODE, type Mode } from "./components/Hero";
 import LoadingState from "./components/LoadingState";
@@ -48,6 +49,7 @@ export default function App() {
   // The Method page replaces the result flow; any analysis already loaded is kept in state,
   // so leaving it returns to exactly where the user was.
   const [showMethod, setShowMethod] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   // What the hero is asking for. "sequence" is a self-contained mode: the arms replace the
   // search bar and the designer below replaces the analysis, with no NCBI lookup involved.
   const [mode, setMode] = useState<Mode>(DEFAULT_MODE);
@@ -144,6 +146,7 @@ export default function App() {
     setBusy(false);
     setTab("summary");
     setShowMethod(false);
+    setShowGuide(false);
     setMode(DEFAULT_MODE);
     setResetKey((k) => k + 1);   // remount Hero so its input clears
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -151,17 +154,33 @@ export default function App() {
 
   function openMethod() {
     setShowMethod(true);
+    setShowGuide(false);            // the two pages replace each other, not stack
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function closeMethod() {
     setShowMethod(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+  function openGuide() {
+    setShowGuide(true);
+    setShowMethod(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function closeGuide() {
+    setShowGuide(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
     <>
-      <Nav onHome={reset} onMethod={openMethod} methodOn={showMethod} />
-      {showMethod ? (
+      <Nav onHome={reset} onGuide={openGuide} guideOn={showGuide}
+        onMethod={openMethod} methodOn={showMethod} />
+      {showGuide ? (
+        <main className="wrap">
+          <Guide onBack={closeGuide} onMethod={openMethod}
+            backLabel={result ? "Back to results" : "Back to search"} />
+        </main>
+      ) : showMethod ? (
         <main className="wrap">
           <Method onBack={closeMethod} backLabel={result ? "Back to results" : "Back to search"} />
         </main>

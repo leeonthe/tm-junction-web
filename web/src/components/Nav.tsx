@@ -13,8 +13,10 @@ function currentTheme(): Theme {
   return set === "dark" || set === "light" ? set : systemTheme();
 }
 
-export default function Nav({ onHome, onMethod, methodOn }: {
-  onHome: () => void; onMethod: () => void; methodOn: boolean;
+export default function Nav({ onHome, onGuide, guideOn, onMethod, methodOn }: {
+  onHome: () => void;
+  onGuide: () => void; guideOn: boolean;
+  onMethod: () => void; methodOn: boolean;
 }) {
   const [theme, setTheme] = useState<Theme>(currentTheme);
 
@@ -45,6 +47,10 @@ export default function Nav({ onHome, onMethod, methodOn }: {
         </button>
 
         <div className="nav-links">
+          {/* The pair reads in the order a new user needs them: what to click, then why
+              the numbers are right. */}
+          <button type="button" className={`navlink ${guideOn ? "on" : ""}`}
+            aria-current={guideOn ? "page" : undefined} onClick={onGuide}>How to use</button>
           <button type="button" className={`navlink ${methodOn ? "on" : ""}`}
             aria-current={methodOn ? "page" : undefined} onClick={onMethod}>Method</button>
           <button className="icon-btn" type="button" onClick={toggleTheme}
