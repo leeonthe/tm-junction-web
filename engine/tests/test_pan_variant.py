@@ -203,3 +203,29 @@ def test_no_pair_at_all_is_reported_as_none():
     """A single-exon transcript has no junction to cross, so there is nothing to offer."""
     tmap = {"NM_300001.1": _tx([(1000, 1299)])}
     assert panvariant.design(tmap, {"NM_300001.1": EX1}) is None
+
+
+def test_several_ranked_options_not_one():
+    """Ticket 33: the whole-transcript designer offers a list, like the EEJ-independent one.
+
+    Best first — coverage above all, then clean over flagged — with no duplicate oligo
+    pairs, and the single-answer design() is exactly options[0].
+    """
+    tmap, seqs = _gene("GAPDH")
+    opts = panvariant.design_options(tmap, seqs)
+    assert len(opts) >= 3
+    assert all(len(o.covered) == 5 for o in opts)          # coverage never sacrificed
+    pairs = [(o.forward.seq, o.reverse.seq) for o in opts]
+    assert len(set(pairs)) == len(pairs)                   # genuinely different pairs
+    for o in opts:
+        sizes = {a: _amplifies(seqs[a], o.forward.seq, o.reverse.seq) for a in o.covered}
+        assert all(sizes.values())
+        assert {e - s for s, e in sizes.values()} == {o.amplicon_len}
+    best = panvariant.design(tmap, seqs)
+    assert (best.forward.seq, best.reverse.seq) == pairs[0]
+
+
+def test_the_response_lists_the_options():
+    r = analyze("NM_002046.7")
+    assert len(r.pan_variant_options) >= 3
+    assert r.pan_variant.forward.seq == r.pan_variant_options[0].forward.seq

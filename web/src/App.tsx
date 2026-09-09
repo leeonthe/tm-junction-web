@@ -12,6 +12,7 @@ import ConventionalDesigner from "./components/ConventionalDesigner";
 import JunctionDesigner from "./components/JunctionDesigner";
 import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
+import PanVariantCard from "./components/PanVariantCard";
 import Summary from "./components/Summary";
 import Method from "./components/Method";
 import Guide from "./components/Guide";
@@ -20,7 +21,7 @@ import { DEFAULT_MODE, type Mode } from "./components/Hero";
 import LoadingState from "./components/LoadingState";
 import { ArrowRight } from "./components/icons";
 
-type Tab = "summary" | "amplify" | "gene";
+type Tab = "summary" | "pan" | "amplify" | "gene";
 interface RunOpts { keepTab?: boolean; soft?: boolean; silent?: boolean; fromGene?: boolean }
 
 const HISTORY_KEY = "tmj.history";
@@ -239,11 +240,14 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
 
       <div className="tabs">
         <button className={`tab ${tab === "summary" ? "on" : ""}`} onClick={() => setTab("summary")}>Summary</button>
+        <button className={`tab ${tab === "pan" ? "on" : ""}`} onClick={() => setTab("pan")}>Whole transcript amplification</button>
         <button className={`tab ${tab === "amplify" ? "on" : ""}`} onClick={() => setTab("amplify")}>Amplifiability</button>
         <button className={`tab ${tab === "gene" ? "on" : ""}`} onClick={() => setTab("gene")}>Gene classification</button>
       </div>
 
       {tab === "summary" && <Summary result={result} busy={busy} onSelect={onSelect} />}
+
+      {tab === "pan" && <PanVariantCard result={result} />}
 
       {tab === "amplify" && (
         <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>

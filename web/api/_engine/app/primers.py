@@ -421,19 +421,18 @@ def _design_exon_pair(amp: AmplifyResult, seq: str, cum: list[int],
     )
 
 
-def _p3_pair(seq: str, a: tuple[int, int], b: tuple[int, int]):
+def _p3_ranked(seq: str, a: tuple[int, int], b: tuple[int, int]):
     """primer3 pair design confined to sense-strand spans a (left) and b (right).
 
-    Returns ((f_start, f_oligo, f_eval), (r_start, r_oligo, r_eval)) with starts =
-    0-based binding-site starts on the mRNA, oligos 5'->3' as ordered, or None.
-    Pairs come back in primer3's own penalty order; the first one that also passes OUR
-    QC gate wins, else the top pair is kept and design() flags it LOW_QC.
+    Returns a ranked list of ((f_start, f_oligo, f_eval), (r_start, r_oligo, r_eval)) with
+    starts = 0-based binding-site starts on the mRNA, oligos 5'->3' as ordered. Pairs that
+    pass OUR QC gate come first (each class in primer3's own penalty order); [] on failure.
     """
     (a_lo, a_hi), (b_lo, b_hi) = a, b
     lo = max(AMPLICON_MIN, b_lo - a_hi + 2 * LEN_MIN - 1)  # shortest reachable product
     hi = b_hi - a_lo + 1
     if lo > hi:
-        return None
+        return []
     try:
         res = primer3.bindings.design_primers(
             {
@@ -460,20 +459,23 @@ def _p3_pair(seq: str, a: tuple[int, int], b: tuple[int, int]):
                 "PRIMER_PAIR_WT_PRODUCT_SIZE_LT": 0.05,
             })
     except Exception:
-        return None
-    best = None
+        return []
+    # QC-passing pairs first (primer3's own penalty order within each class), then the
+    # best-effort ones — a caller wanting one pair takes [0]; the whole-transcript
+    # designer takes several, so one placement can feed a real options list.
+    passing, fallback, seen = [], [], set()
     for i in range(res.get("PRIMER_PAIR_NUM_RETURNED", 0)):
         f_seq = res[f"PRIMER_LEFT_{i}_SEQUENCE"].upper()
         r_seq = res[f"PRIMER_RIGHT_{i}_SEQUENCE"].upper()
+        if (f_seq, r_seq) in seen:
+            continue
+        seen.add((f_seq, r_seq))
         f_start = res[f"PRIMER_LEFT_{i}"][0]
         r_pos, r_len = res[f"PRIMER_RIGHT_{i}"]   # r_pos = 3'-most template index
         f_ev, r_ev = _evaluate(f_seq, TM_MIN), _evaluate(r_seq, TM_MIN)
         cand = ((f_start, f_seq, f_ev), (r_pos - r_len + 1, r_seq, r_ev))
-        if f_ev.ok and r_ev.ok:
-            return cand
-        if best is None:
-            best = cand
-    return best
+        (passing if f_ev.ok and r_ev.ok else fallback).append(cand)
+    return passing + fallback
 
 
 def _region_best(seq: str, lo: int, hi: int, as_reverse: bool):
@@ -489,6 +491,12 @@ def _region_best(seq: str, lo: int, hi: int, as_reverse: bool):
             if best_key is None or key > best_key:
                 best_key, best = key, (s, oligo, ev)
     return best
+
+
+def _p3_pair(seq: str, a: tuple[int, int], b: tuple[int, int]):
+    """The single best pair from _p3_ranked, or None — the one-pair callers' entry."""
+    ranked = _p3_ranked(seq, a, b)
+    return ranked[0] if ranked else None
 
 
 def _sweep_pair(seq: str, a: tuple[int, int], b: tuple[int, int]):

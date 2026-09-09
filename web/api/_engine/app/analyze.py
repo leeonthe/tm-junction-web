@@ -282,6 +282,14 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
     )
 
 
+def _pan_out(pan) -> PanVariantOut:
+    return PanVariantOut(
+        forward=_primer_out(pan.forward), reverse=_primer_out(pan.reverse),
+        amplicon_len=pan.amplicon_len, covered=pan.covered, uncovered=pan.uncovered,
+        reference=pan.reference, exons=pan.exons, flags=pan.flags,
+    )
+
+
 def _primer_out(p) -> PrimerOut | None:
     if p is None:
         return None
@@ -382,8 +390,8 @@ def analyze_events(accession: str, k: int = 20):
 
     # The other question a user can ask of a gene: one pair for ALL of its variants. Design
     # it over the folded set, so coverage counts distinct transcripts rather than accessions.
-    yield {"type": "progress", "pct": 97, "detail": "Designing an all-variant pair…"}
-    pan = panvariant.design({a: accs[a] for a in reps}, seqs, order=reps)
+    yield {"type": "progress", "pct": 97, "detail": "Designing whole-transcript pairs…"}
+    pan_opts = panvariant.design_options({a: accs[a] for a in reps}, seqs, order=reps)
 
     summary = GeneSummary(
         nm_count=len(reps),
@@ -410,11 +418,8 @@ def analyze_events(accession: str, k: int = 20):
         ),
         transcripts=verdicts,
         summary=summary,
-        pan_variant=None if pan is None else PanVariantOut(
-            forward=_primer_out(pan.forward), reverse=_primer_out(pan.reverse),
-            amplicon_len=pan.amplicon_len, covered=pan.covered, uncovered=pan.uncovered,
-            reference=pan.reference, exons=pan.exons, flags=pan.flags,
-        ),
+        pan_variant=_pan_out(pan_opts[0]) if pan_opts else None,
+        pan_variant_options=[_pan_out(o) for o in pan_opts],
         meta={"assembly": "GRCh38", "k": k, "features": FEATURES},
     )
     yield {"type": "progress", "pct": 100, "detail": "Done"}

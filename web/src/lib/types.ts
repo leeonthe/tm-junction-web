@@ -83,6 +83,8 @@ export interface AnalyzeResponse {
   transcripts: TranscriptVerdict[];
   summary: GeneSummary;
   pan_variant?: PanVariant | null;
+  /** Ranked whole-transcript pair options; pan_variant is options[0]. */
+  pan_variant_options?: PanVariant[];
   /** meta.features names what the ENGINE implements — see EngineVersionNotice. */
   meta: Record<string, unknown>;
 }

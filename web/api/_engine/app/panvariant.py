@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 
 from .amplify import Interval, cumulative_exon_ends
 from .primers import (
-    AMPLICON_MAX, AMPLICON_MIN, AMPLICON_OPT, LEN_MIN, Primer, _mk_primer, _p3_pair,
+    AMPLICON_MAX, AMPLICON_MIN, AMPLICON_OPT, LEN_MIN, Primer, _mk_primer, _p3_ranked,
     _sweep_pair,
     heterodimer_tm, revcomp, STRUCT_TM_MAX,
 )
@@ -113,16 +113,35 @@ def _coverage(pair: tuple[str, str], seqs: dict[str, str],
     return covered, [a for a in accs if a not in sizes[size]], size
 
 
+# How many options the whole-transcript designer offers, and how many distinct pairs a
+# single junction placement may contribute — several placements is the interesting axis
+# (different junctions, different products), so one junction may not fill the list alone.
+MAX_OPTIONS = 5
+PER_PLACEMENT = 3
+
+
 def design(transcripts: dict[str, dict], seqs: dict[str, str],
            order: list[str] | None = None) -> PanVariant | None:
-    """Best single pair for the gene: most variants covered, one product size, two exons.
+    """The single best pair — see design_options; kept for callers wanting one answer."""
+    got = design_options(transcripts, seqs, order)
+    return got[0] if got else None
+
+
+def design_options(transcripts: dict[str, dict], seqs: dict[str, str],
+                   order: list[str] | None = None) -> list[PanVariant]:
+    """Ranked pair options for the gene: most variants covered, one product size, two exons.
+
+    A list, not a winner, for the same reason the EEJ-independent designer offers one: the
+    best pair by this ranking is not always the best pair for someone's assay (a probe to
+    fit, a size to match an old gel, a primer already in the freezer). Best first — most
+    variants covered, then clean over flagged, then the tidier product.
 
     `transcripts` maps accession -> {"exons": [...]} in transcript order; `order` fixes the
     reporting order (defaults to the mapping's).
     """
     accs = list(order or transcripts)
     if not accs:
-        return None
+        return []
     exons_by_acc = {a: [tuple(e) for e in transcripts[a]["exons"]] for a in accs}
 
     # The search space is which JUNCTION to straddle, not which region to sit in: the pair
@@ -143,12 +162,12 @@ def design(transcripts: dict[str, dict], seqs: dict[str, str],
                         if _consecutive_index(exons_by_acc[a], key) is not None]
             placements[key] = (carriers, ref, jx)
     if not placements:
-        return None
+        return []
 
     ranked = sorted(placements.items(),
                     key=lambda kv: (-len(kv[1][0]), kv[1][1], kv[1][2]))
 
-    best: PanVariant | None = None
+    options: list[PanVariant] = []
     tried = 0
     for _key, (carriers, ref, jx) in ranked:
         # No early exit on carrier count: a junction carried by one variant can still yield a
@@ -170,34 +189,48 @@ def design(transcripts: dict[str, dict], seqs: dict[str, str],
         # way, and handing over a 5 kb template to place a 140 bp product inside 400 of them
         # costs seconds per call. Coordinates come back window-relative.
         sub = seq[lo:hi + 1]
-        pick = (_p3_pair(sub, (0, boundary - 1 - lo), (boundary - lo, hi - lo))
-                or _sweep_pair(sub, (0, boundary - 1 - lo), (boundary - lo, hi - lo)))
-        if not pick:
+        picks = _p3_ranked(sub, (0, boundary - 1 - lo), (boundary - lo, hi - lo))[:PER_PLACEMENT]
+        if not picks:
+            one = _sweep_pair(sub, (0, boundary - 1 - lo), (boundary - lo, hi - lo))
+            picks = [one] if one else []
+        for pick in picks:
+            (f_rel, f_seq, f_ev), (r_rel, r_seq, r_ev) = pick
+            f_start, r_start = f_rel + lo, r_rel + lo
+            covered, uncovered, size = _coverage((f_seq, r_seq), seqs, accs)
+            if size is None or not covered or not (AMPLICON_MIN <= size <= AMPLICON_MAX):
+                continue
+            flags: list[str] = []
+            if not (f_ev.ok and r_ev.ok):
+                flags.append("LOW_QC")
+            if heterodimer_tm(f_seq, r_seq) >= STRUCT_TM_MAX:
+                flags.append("PAIR_DIMER")
+            options.append(PanVariant(
+                forward=_mk_primer(f_seq, f_ev, "conventional", "forward",
+                                   f"exon {_exon_order(cum, f_start)} (all-variant)", pos=f_start),
+                reverse=_mk_primer(r_seq, r_ev, "conventional", "reverse",
+                                   f"exon {_exon_order(cum, r_start)} (all-variant)", pos=r_start),
+                amplicon_len=size, covered=covered, uncovered=uncovered, reference=ref,
+                exons=[_exon_order(cum, f_start), _exon_order(cum, r_start)],
+                flags=sorted(set(flags)),
+            ))
+        full_clean = [o for o in options
+                      if len(o.covered) == len(accs) and not o.flags]
+        if len(full_clean) >= MAX_OPTIONS:
+            break                                           # enough of the best class
+    options.sort(key=lambda o: (-len(o.covered), bool(o.flags),
+                                abs(o.amplicon_len - AMPLICON_OPT)))
+    # Dedup by oligo pair — the same primers can fall out of two overlapping placements.
+    seen: set[tuple[str, str]] = set()
+    out: list[PanVariant] = []
+    for o in options:
+        key = (o.forward.seq, o.reverse.seq)
+        if key in seen:
             continue
-        (f_rel, f_seq, f_ev), (r_rel, r_seq, r_ev) = pick
-        f_start, r_start = f_rel + lo, r_rel + lo
-        covered, uncovered, size = _coverage((f_seq, r_seq), seqs, accs)
-        if size is None or not covered or not (AMPLICON_MIN <= size <= AMPLICON_MAX):
-            continue
-        flags: list[str] = []
-        if not (f_ev.ok and r_ev.ok):
-            flags.append("LOW_QC")
-        if heterodimer_tm(f_seq, r_seq) >= STRUCT_TM_MAX:
-            flags.append("PAIR_DIMER")
-        cand = PanVariant(
-            forward=_mk_primer(f_seq, f_ev, "conventional", "forward",
-                               f"exon {_exon_order(cum, f_start)} (all-variant)", pos=f_start),
-            reverse=_mk_primer(r_seq, r_ev, "conventional", "reverse",
-                               f"exon {_exon_order(cum, r_start)} (all-variant)", pos=r_start),
-            amplicon_len=size, covered=covered, uncovered=uncovered, reference=ref,
-            exons=[_exon_order(cum, f_start), _exon_order(cum, r_start)],
-            flags=sorted(set(flags)),
-        )
-        if _better(cand, best):
-            best = cand
-        if len(covered) == len(accs) and not cand.flags:
-            return best                                     # everything, cleanly
-    return best
+        seen.add(key)
+        out.append(o)
+        if len(out) >= MAX_OPTIONS:
+            break
+    return out
 
 
 def _exon_order(cum: list[int], pos: int) -> int:
@@ -207,9 +240,4 @@ def _exon_order(cum: list[int], pos: int) -> int:
     return len(cum)
 
 
-def _better(cand: PanVariant, best: PanVariant | None) -> bool:
-    """More variants first; then a clean pair over a flagged one, then a tidier product."""
-    if best is None:
-        return True
-    return ((len(cand.covered), not cand.flags, -abs(cand.amplicon_len - AMPLICON_OPT))
-            > (len(best.covered), not best.flags, -abs(best.amplicon_len - AMPLICON_OPT)))
+

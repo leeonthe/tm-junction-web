@@ -1,21 +1,46 @@
-import { useState } from "react";
-import type { AnalyzeResponse } from "../lib/types";
+import { useEffect, useState } from "react";
+import type { AnalyzeResponse, PanVariant } from "../lib/types";
 import { Copy } from "./icons";
 import Info from "./Info";
 
 /**
- * One pair for the whole gene — the opposite question to the rest of the tool.
+ * Whole-transcript amplification — one pair for the gene rather than one isoform.
  *
- * Everywhere else the user is isolating ONE isoform. Here they are measuring the gene:
+ * Everywhere else the user is isolating ONE transcript. Here they are measuring the gene:
  * total expression, every variant in one band. That makes the product SIZE the headline
  * number rather than an afterthought — a pair giving 136 bp on four isoforms and 210 on the
  * fifth is two bands and an unquantifiable assay, so what this card has to state plainly is
  * how many transcripts share the size, and which ones do not.
+ *
+ * Ranked OPTIONS rather than a single winner, for the same reason the EEJ-independent
+ * designer lists five: the best pair by our ranking is not always the best for someone's
+ * assay — a probe that has to fit, a size to match an old gel, a primer already ordered.
+ * Coverage is never sacrificed by the ranking, but it can differ between options, so each
+ * row carries its own coverage count.
  */
 export default function PanVariantCard({ result }: { result: AnalyzeResponse }) {
-  const p = result.pan_variant;
+  const options: PanVariant[] =
+    result.pan_variant_options?.length
+      ? result.pan_variant_options
+      : result.pan_variant ? [result.pan_variant] : [];   // an older engine sends just one
+  const [sel, setSel] = useState(0);
   const [copied, setCopied] = useState(false);
-  if (!p?.forward || !p.reverse) return null;
+  useEffect(() => { setSel(0); }, [result.target_accession]);
+
+  const p = options[Math.min(sel, options.length - 1)];
+  if (!p?.forward || !p.reverse) {
+    return (
+      <section className="card">
+        <div className="card-head">
+          <h3 className="card-title">Whole transcript amplification</h3>
+        </div>
+        <p className="sub pp-idle">
+          No pair amplifies two or more of this gene's transcripts at a single product
+          size, so there is no whole-transcript assay to offer here.
+        </p>
+      </section>
+    );
+  }
 
   const total = p.covered.length + p.uncovered.length;
   const all = p.uncovered.length === 0;
@@ -26,7 +51,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
 
   function copyPair() {
     navigator.clipboard?.writeText(
-      `forward\t${p!.forward!.seq}\nreverse\t${p!.reverse!.seq}\namplicon\t${p!.amplicon_len} bp`);
+      `forward\t${p.forward!.seq}\nreverse\t${p.reverse!.seq}\namplicon\t${p.amplicon_len} bp`);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   }
@@ -35,7 +60,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
     <section className="card">
       <div className="card-head">
         <div>
-          <h3 className="card-title">All-variant pair · total expression</h3>
+          <h3 className="card-title">Whole transcript amplification</h3>
           <p className="sub">
             One pair for the gene rather than one isoform — every covered transcript gives
             the same single band.
@@ -45,6 +70,31 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
           {p.covered.length} of {total} {total === 1 ? "transcript" : "transcripts"}
         </span>
       </div>
+
+      {options.length > 1 && (
+        <div className="pp-options">
+          {options.map((o, i) => {
+            const on = i === Math.min(sel, options.length - 1);
+            return (
+              <button type="button" key={`${o.forward!.seq}:${o.reverse!.seq}`}
+                className={`pp-opt ${on ? "on" : ""}`} onClick={() => setSel(i)}
+                title="Show this pair's coverage and details below">
+                <span className="pp-role f">pair {i + 1}</span>
+                <span className="pp-seq mono">
+                  F 5′-{o.forward!.seq}-3′ · R 5′-{o.reverse!.seq}-3′
+                </span>
+                <span className="pp-meta mono">
+                  Tm <b>{o.forward!.tm.toFixed(1)}</b> / <b>{o.reverse!.tm.toFixed(1)}</b> °C
+                  {" · "}amplicon <b>{o.amplicon_len} bp</b>
+                  {" · "}covers <b>{o.covered.length}/{total}</b>
+                  {o.flags.includes("LOW_QC") && <span className="pv-flag"> · QC-relaxed</span>}
+                  {o.flags.includes("PAIR_DIMER") && <span className="pv-flag"> · pair dimer</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="pv-head">
         <div className="pv-stat">

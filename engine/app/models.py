@@ -167,9 +167,10 @@ class AnalyzeResponse(BaseModel):
     target_mrna: str = ""            # target transcript mRNA (for the cDNA sequence view)
     transcripts: list[TranscriptVerdict]
     summary: GeneSummary
-    # One pair for every variant of the gene (total-expression assay). None when no pair
-    # amplifies even two transcripts at one size.
+    # Whole-transcript amplification (total-expression assay): ranked pair options, most
+    # variants covered first. pan_variant stays as options[0] for older clients.
     pan_variant: PanVariantOut | None = None
+    pan_variant_options: list[PanVariantOut] = []
     meta: dict
 
 
