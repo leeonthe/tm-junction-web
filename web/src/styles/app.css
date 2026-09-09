@@ -767,6 +767,10 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .mth-back .rev{display:grid;place-items:center;width:15px;height:15px;transform:rotate(180deg)}
 .mth-back .rev svg{width:15px;height:15px;display:block}
 .mth-back.bottom{margin-top:4px}
+/* The guide's live colour demo: a miniature of the exon graph plus the real key controls,
+   boxed so it reads as a thing to poke rather than an illustration. */
+.guide-colordemo{margin-top:6px;padding:14px 16px 10px;background:var(--surface-2);
+  border:1px solid var(--border-2);border-radius:var(--r-sm)}
 /* the global h1 is the hero headline (15ch, balanced) — a page title needs full width */
 .mth-head h1{margin:10px 0 0;font-size:31px;line-height:1.22;font-weight:600;letter-spacing:-.035em;
   color:var(--ink);max-width:34ch;text-wrap:pretty}

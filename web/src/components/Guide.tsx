@@ -1,4 +1,99 @@
+import { useMemo, useState } from "react";
 import { ArrowRight } from "./icons";
+import { JunctionWorkbench, useJunctionSettings, type JunctionGeom } from "./JunctionWorkbench";
+import { BracketGlyph, TargetGlyph, buildCells } from "./GraphCard";
+
+/**
+ * The drag demo's junction is real: GAPDH NM_001289745.3, exon 1 | exon 2 — the junction
+ * the designer itself recommends for that transcript — 48 nt each side, taken from the
+ * seeded RefSeq sequence. A made-up sequence would behave differently from anything the
+ * user later meets; this one behaves exactly like the page they are being taught.
+ */
+const DEMO_ARM5 = "AAGGCGGCAGGGGCGGGCGCAGGCCGGATGTGTTCGCGCCGCTGCGGG";
+const DEMO_ARM3 = "CCGAGCCACATCGCTCAGACACCATGGGGAAGGTGAAGGTCGGAGTCA";
+
+/** The junction designer, live, exactly as it runs after a real analysis. */
+function DragDemo() {
+  const s = useJunctionSettings();
+  const geom = useMemo((): JunctionGeom => {
+    const seq = DEMO_ARM5 + DEMO_ARM3;
+    const jx = DEMO_ARM5.length;
+    return {
+      seq, jx, leftBound: 0, rightBound: seq.length, winStart: 0, winEnd: seq.length,
+      classOf: (i) => (i < jx ? "ex-a" : "ex-b"),
+      leftLabel: "5′ arm", rightLabel: "3′ arm",
+    };
+  }, []);
+  return <JunctionWorkbench geom={geom} s={s} reseedKey="guide-demo" />;
+}
+
+/** The graph key's colour picker, live: pick a colour, the mini track follows. */
+const DEMO_TOKENS = [
+  { token: "--eej-single", label: "Single EEJ primer", glyph: <BracketGlyph /> },
+  { token: "--eej-combo", label: "Double EEJ primer pair", glyph: <BracketGlyph combo /> },
+  { token: "--amp-pair", label: "Primer target site", glyph: <TargetGlyph /> },
+];
+
+function ColorDemo() {
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState<string | null>(null);
+  const [defaults, setDefaults] = useState<Record<string, string>>({});
+
+  const openFor = (token: string) => {
+    setDefaults(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const out: Record<string, string> = {};
+      for (const { token: k } of DEMO_TOKENS) out[k] = cs.getPropertyValue(k).trim().toUpperCase();
+      return out;
+    });
+    setOpen((o) => (o === token ? null : token));
+  };
+  const effective = { ...defaults, ...Object.fromEntries(
+    Object.entries(overrides).map(([k, v]) => [k, v.toUpperCase()])) };
+
+  return (
+    <div className="guide-colordemo" style={overrides as React.CSSProperties}>
+      {/* A miniature of the exon graph, drawn with the same tokens the picker changes —
+          the point of the demo is watching the mark follow the choice. */}
+      <svg width="100%" height="56" viewBox="0 0 560 56" aria-label="Colour demo track">
+        <line x1={10} y1={34} x2={550} y2={34} stroke="var(--border-2)" strokeWidth={1.5} />
+        {[[10, 60], [110, 40], [190, 46], [300, 40], [380, 56], [480, 70]].map(([x, w], i) => (
+          <rect key={i} x={x} y={26} width={w} height={16} rx={3}
+            fill={i === 2 ? "var(--amp-pair)" : "var(--eej)"} />
+        ))}
+        <path d="M72 22 L72 12 L108 12 L108 22" fill="none" stroke="var(--eej-single)"
+          strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M342 22 L342 12 L378 12 L378 22" fill="none" stroke="var(--eej-combo)"
+          strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <p className="g-note" style={{ margin: "6px 0 0" }}>
+        {DEMO_TOKENS.map(({ token, label, glyph }, i) => (
+          <span key={token}>
+            {i > 0 && <span className="g-sep">·</span>}
+            <span className="g-key">
+              <button type="button" className="g-key-btn" aria-expanded={open === token}
+                aria-label={`Change ${label} color`} onClick={() => openFor(token)}>
+                {glyph} {label}
+              </button>
+              {open === token && (
+                <div className="sw-pop up" role="dialog" aria-label={`${label} color`}>
+                  <div className="sw-grid">
+                    {buildCells(defaults, effective).map((c) => (
+                      <button type="button" key={c} aria-label={c}
+                        className={`sw-cell${effective[token] === c ? " on" : ""}`}
+                        style={{ background: c }}
+                        onClick={() => { setOverrides((o) => ({ ...o, [token]: c })); setOpen(null); }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </span>
+          </span>
+        ))}
+      </p>
+    </div>
+  );
+}
 
 /**
  * The how-to page. The Method page answers "why are these numbers right"; this one answers
@@ -57,6 +152,11 @@ export default function Guide({ onBack, onMethod, backLabel }: {
           The yellow marks on the exon graph are primer target sites — the regions that
           actually distinguish your transcript. Hover any exon or bracket for its details.
         </p>
+        <p>
+          Every colour on the graph can be changed — click a swatch in the legend, or an
+          entry in the key under the graph. Try it here; the marks follow your choice:
+        </p>
+        <ColorDemo />
       </section>
 
       <section className="card mth-card">
@@ -70,12 +170,18 @@ export default function Guide({ onBack, onMethod, backLabel }: {
         <p>
           For an <b>EEJ-dependent</b> target, the junction designer opens on a suggested
           primer (highlighted on the sequence). Drag across the sequence to move or resize
-          it — the verdict updates live. A primer is valid when its whole-primer Tm sits in
-          your range while each arm alone stays at least 15&nbsp;°C below it; that gap is
-          what stops the primer firing on isoforms that carry only one side of the junction.
-          The <i>Second primer</i> panel then finds a Tm-matched partner for a normal
-          amplicon, and <i>Copy pair</i> gives both oligos.
+          it — every Tm below recalculates as you go. A primer is valid when its
+          whole-primer Tm sits in your range while each arm alone stays at least
+          15&nbsp;°C below it; that gap is what stops the primer firing on isoforms that
+          carry only one side of the junction. The <i>Second primer</i> panel then finds a
+          Tm-matched partner for a normal amplicon, and <i>Copy pair</i> gives both oligos.
         </p>
+        <p>
+          This one is live — GAPDH's exon&nbsp;1–exon&nbsp;2 junction, the real designer.
+          Drag across the letters and watch the verdict and the three Tm cards react;
+          drag a window that sits all on one side and see <em>why</em> it fails:
+        </p>
+        <DragDemo />
         <p className="mth-note">
           Tm values follow the reaction conditions in the settings panel (Na⁺/K⁺, Mg²⁺,
           dNTPs, primer concentration). Set them to match your master mix before trusting

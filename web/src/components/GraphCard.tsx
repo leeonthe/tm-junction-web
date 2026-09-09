@@ -247,7 +247,7 @@ function StrandBadge({ strand }: { strand?: string }) {
    renders too inconsistently across fonts to stand in for it. The bracket takes
    the colour of the design it marks: one junction (red) or a two-junction pair (magenta),
    matching the tokens the track itself strokes them with. */
-function BracketGlyph({ combo = false }: { combo?: boolean }) {
+export function BracketGlyph({ combo = false }: { combo?: boolean }) {
   return (
     <svg className="g-glyph" width="20" height="9" viewBox="0 0 20 9" role="img"
       aria-label={combo ? "double EEJ bracket" : "single EEJ bracket"}>
@@ -259,7 +259,7 @@ function BracketGlyph({ combo = false }: { combo?: boolean }) {
 }
 
 /** The target-site box, in the same yellow the track fills an exon region with. */
-function TargetGlyph() {
+export function TargetGlyph() {
   return (
     <svg className="g-glyph" width="14" height="10" viewBox="0 0 14 10" role="img"
       aria-label="yellow box">
