@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { GeneLookupResponse } from "../lib/types";
-import { variantLabel } from "../lib/format";
+import { foldedEntry, variantLabel } from "../lib/format";
 
 /**
  * Gene-name result: a reference alignment of every NM transcript for the gene, so the
@@ -110,7 +110,8 @@ export default function GeneTranscriptPicker({
                     fill="var(--faint)">+{same.length}</text>
                 )}
                 <title>{same.length
-                  ? `${t.accession} — identical exon structure to ${same.join(", ")}: `
+                  ? `${t.accession} — identical exon structure to ${same.map((a, k) =>
+                      foldedEntry(a, t.same_structure_variants?.[k], t.variant)).join(", ")}: `
                     + "the same transcript under another accession"
                   : t.accession}</title>
                 {/* intron connector + neutral exon blocks */}

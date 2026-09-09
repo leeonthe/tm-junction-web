@@ -1,6 +1,7 @@
 import type { AnalyzeResponse } from "../lib/types";
 import ExonTrackGraph from "./ExonTrackGraph";
 import { ArrowRight } from "./icons";
+import { foldedEntry } from "../lib/format";
 
 /**
  * Amplifiability tab (Func #1) — focused on the ONE target transcript: its own exon
@@ -36,7 +37,8 @@ export default function TargetTrackCard({
           {!!target_verdict.same_sequence_accessions?.length && (
             <p className="sub tt-same">
               Same sequence and exon structure as{" "}
-              <b>{target_verdict.same_sequence_accessions.join(", ")}</b> — one transcript
+              <b>{target_verdict.same_sequence_accessions.map((a, i) =>
+                foldedEntry(a, target_verdict.same_sequence_variants?.[i], target_verdict.variant)).join(", ")}</b> — one transcript
               under {target_verdict.same_sequence_accessions.length + 1} accessions, so it is
               not compared against itself.
             </p>

@@ -197,3 +197,40 @@ def test_a_sole_transcript_is_left_alone():
     one = [{"accession": "NM_001101.5"}]
     ncbi.fill_variants(one)
     assert one[0].get("variant") is None
+
+
+def test_the_fold_is_name_blind_and_keeps_both_names():
+    """Ticket 32: one molecule, two accessions, two DIFFERENT variant names.
+
+    The grouping keys on sequence + exon structure and never reads the name, so a
+    beta2/beta3-style pair folds regardless — and the folded accession's own designation
+    rides along, aligned, so the row can show both. (The ticket's live example,
+    NM_001330091.2/NM_001330092.2, is NOT such a pair on current NCBI records: their
+    exon 6 acceptors differ by 9 nt, so they are distinguishable and correctly kept
+    apart. The rule still has to hold for pairs that ARE identical.)
+    """
+    same = ((1, 100), (200, 300))
+    a = accs(acc("NM_000001.1", exons=same), acc("NM_000002.1", exons=same))
+    a["NM_000001.1"]["variant"] = "transcript variant beta2"
+    a["NM_000002.1"]["variant"] = "transcript variant beta3"
+    seqs = {"NM_000001.1": "ACGT", "NM_000002.1": "ACGT"}
+    reps, folded = _same_sequence_groups(a, seqs)
+    assert reps == ["NM_000001.1"]
+    assert folded["NM_000001.1"] == ["NM_000002.1"]
+    # What analyze passes through to the response, aligned with the accession list.
+    assert [a[x]["variant"] for x in folded["NM_000001.1"]] == ["transcript variant beta3"]
+
+
+def test_the_ticketed_nrxn1_pair_is_genuinely_different_and_stays_apart():
+    """Guards the premise check: beta2/beta3 differ at exon 6's acceptor (9 nt), so the
+    fold must NOT combine them — each has junction k-mers the other lacks."""
+    from app import ncbi
+    _, _, _, _, _, ts = ncbi.nm_transcripts(ncbi.get_product_report("NRXN1"))
+    a = next(t_ for t_ in ts if t_["accession"] == "NM_001330091.2")
+    b = next(t_ for t_ in ts if t_["accession"] == "NM_001330092.2")
+    assert a["exons"] != b["exons"]
+    assert ncbi.get_sequence(a["accession"]) != ncbi.get_sequence(b["accession"])
+    reps, _f = _same_sequence_groups(
+        {t_["accession"]: t_ for t_ in ts},
+        {t_["accession"]: ncbi.get_sequence(t_["accession"]) for t_ in ts})
+    assert "NM_001330091.2" in reps and "NM_001330092.2" in reps

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import { tierColorVar, tierLabel } from "../lib/tier";
+import { foldedEntry } from "../lib/format";
 
 type Tip =
   | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null }
@@ -223,7 +224,8 @@ export default function ExonTrackGraph({
                   Named here so the row accounts for every accession the gene has. */}
               {!!same.length && (
                 <text x={20} y={cy + 13} fontSize={10} fontFamily="var(--mono)" fill="var(--faint)">
-                  = {same.join(", ")}
+                  = {same.map((a, k) =>
+                    foldedEntry(a, t.same_sequence_variants?.[k], t.variant)).join(", ")}
                 </text>
               )}
               <title>{same.length

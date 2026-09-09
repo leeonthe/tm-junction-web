@@ -43,6 +43,8 @@ export interface TranscriptVerdict {
    *  accessions for one molecule, so they are folded into this row rather than listed as
    *  separate isoforms — no primer can distinguish sequences that do not differ. */
   same_sequence_accessions?: string[];
+  /** Their variant designations, aligned — shown when a folded twin's name differs. */
+  same_sequence_variants?: (string | null)[];
   is_mane: boolean; tier: Tier;
   amplifiable: boolean; needs_eej: boolean;
   unique_regions: UniqueRegion[]; unique_junctions: Junction[];
@@ -94,6 +96,7 @@ export interface GeneTranscriptRef {
   /** Other accessions with the identical exon structure — the same molecule, another
    *  accession. Structure rather than sequence: /gene fetches no sequences. */
   same_structure_accessions?: string[];
+  same_structure_variants?: (string | null)[];
   is_mane: boolean; exon_count: number; length: number;
   cds_begin: number | null; cds_end: number | null; exons: GeneExonRef[];
 }

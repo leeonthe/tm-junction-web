@@ -1,6 +1,6 @@
 import type { TranscriptVerdict } from "../lib/types";
 import { tierChipClass, tierColorVar, tierLabel } from "../lib/tier";
-import { variantLabel } from "../lib/format";
+import { foldedEntry, variantLabel } from "../lib/format";
 
 export default function VerdictTable({
   transcripts, targetAccession, onSelect,
@@ -43,7 +43,8 @@ export default function VerdictTable({
                       table, and can see it is not a separate isoform to design against. */}
                   {!!t.same_sequence_accessions?.length && (
                     <span className="tacc-same" title="Identical mRNA sequence — the same transcript under another accession">
-                      = {t.same_sequence_accessions.join(", ")}
+                      = {t.same_sequence_accessions.map((a, i) =>
+                        foldedEntry(a, t.same_sequence_variants?.[i], t.variant)).join(", ")}
                     </span>
                   )}
                 </td>

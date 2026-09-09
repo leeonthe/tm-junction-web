@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { variantLabel } from "./format";
+import { foldedEntry, variantLabel } from "./format";
 
 /**
  * "mono-isoform" is a claim about the GENE — that it has exactly one NM transcript. It used
@@ -31,5 +31,26 @@ describe("variantLabel", () => {
     expect(variantLabel("transcript variant 13", 13, true)).toBe("variant 13");
     expect(variantLabel("transcript variant 13", 13)).toBe("transcript variant 13");
     expect(variantLabel("variant alpha", 4, true)).toBe("variant alpha");
+  });
+});
+
+
+/**
+ * Ticket 32: NCBI can give one molecule two accessions AND two variant names. The fold is
+ * name-blind (it keys on sequence + structure), so such a pair collapses to one row — and
+ * the row must then carry BOTH names, or the absorbed one becomes unfindable.
+ */
+describe("foldedEntry", () => {
+  it("appends the folded variant when it differs from the representative's", () => {
+    expect(foldedEntry("NM_001330092.2", "transcript variant beta3", "transcript variant beta2"))
+      .toBe("NM_001330092.2 (variant beta3)");
+  });
+  it("stays terse when the names agree — TP53's twelve twins all share their number", () => {
+    expect(foldedEntry("NM_001276697.3", "transcript variant 5", "transcript variant 5"))
+      .toBe("NM_001276697.3");
+  });
+  it("shows just the accession when the folded variant is unknown", () => {
+    expect(foldedEntry("NM_000001.1", null, "transcript variant 2")).toBe("NM_000001.1");
+    expect(foldedEntry("NM_000001.1", "  ", "transcript variant 2")).toBe("NM_000001.1");
   });
 });

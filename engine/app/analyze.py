@@ -46,14 +46,17 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
     # transcript, and listing them separately invites picking a "different" variant that is
     # the same sequence. See _same_structure_groups.
     reps, same_struct = _same_structure_groups(transcripts)
+    by_acc = {t["accession"]: t for t in transcripts}
     out: list[GeneTranscriptOut] = []
     for t in reps:
         exons = t["exons"]                      # genomic (begin,end), ascending
         cds = t.get("cds")
+        folded = same_struct.get(t["accession"], [])
         out.append(GeneTranscriptOut(
             accession=t["accession"],
             variant=t.get("variant"),
-            same_structure_accessions=same_struct.get(t["accession"], []),
+            same_structure_accessions=folded,
+            same_structure_variants=[by_acc[n].get("variant") for n in folded],
             is_mane=t["is_mane"],
             exon_count=len(exons),
             length=sum(e - b + 1 for b, e in exons),
@@ -212,7 +215,8 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                     seq: str, cds: tuple[int, int] | None,
                     amp: AmplifyResult, coord_non_unique: bool,
                     same_sequence: list[str] | None = None,
-                    variant: str | None = None) -> TranscriptVerdict:
+                    variant: str | None = None,
+                    same_variants: list[str | None] | None = None) -> TranscriptVerdict:
     junctions = [
         JunctionOut(donor_order=j.donor_order, acceptor_order=j.acceptor_order,
                     label=_junction_label(j.donor_order, j.acceptor_order))
@@ -263,6 +267,7 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         accession=acc,
         variant=variant,
         same_sequence_accessions=list(same_sequence or []),
+        same_sequence_variants=list(same_variants or []),
         is_mane=is_mane,
         tier=amp.tier,
         amplifiable=amp.amplifiable,
@@ -362,7 +367,8 @@ def analyze_events(accession: str, k: int = 20):
         coord_nu = bool(overlap.non_unique_partners(t["exons"], sib_exons))
         verdicts.append(_amp_to_verdict(a, t["is_mane"], t["exons"], seqs[a],
                                         t.get("cds"), amp, coord_nu,
-                                        same_seq.get(a, []), t.get("variant")))
+                                        same_seq.get(a, []), t.get("variant"),
+                                        [accs[x].get("variant") for x in same_seq.get(a, [])]))
 
     yield {"type": "progress", "pct": 94, "detail": "Designing Tm-guided primers…"}
     tgt = accs[target_acc]

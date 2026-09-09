@@ -51,3 +51,23 @@ export function variantLabel(
   if (!v) return "variant not named";
   return short ? v.replace(/^transcript\s+/i, "") : v;
 }
+
+
+/**
+ * One folded accession, as shown under the transcript that represents it.
+ *
+ * NCBI can give the same molecule two accessions AND two variant names (ticket 32's
+ * concern), and a fold that keeps only the representative's name would erase the other —
+ * a reader searching for "variant beta3" must find it on the row that absorbed it. The
+ * variant is appended only when it differs from the representative's: TP53's twins all
+ * share their number, and repeating it twelve times would bury the one row where the
+ * names genuinely diverge.
+ */
+export function foldedEntry(
+  accession: string, variant: string | null | undefined,
+  repVariant: string | null | undefined,
+): string {
+  const v = (variant ?? "").trim();
+  if (!v || v === (repVariant ?? "").trim()) return accession;
+  return `${accession} (${v.replace(/^transcript\s+/i, "")})`;
+}

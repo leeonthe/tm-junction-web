@@ -99,6 +99,10 @@ class TranscriptVerdict(BaseModel):
     # transcript, so they are folded into this verdict and named here rather than compared
     # against it: no primer can distinguish sequences that do not differ.
     same_sequence_accessions: list[str] = []
+    # The folded accessions' own variant designations, aligned with the list above. NCBI
+    # can name the SAME molecule two different variants (ticket 32's premise), so a folded
+    # row must be able to show both names, not just the representative's.
+    same_sequence_variants: list[str | None] = []
     is_mane: bool
     tier: str                       # CONVENTIONAL | NEEDS_EEJ | NO_SINGLE_UNIQUE_JUNCTION
     amplifiable: bool
@@ -181,6 +185,7 @@ class GeneTranscriptOut(BaseModel):
     # Other accessions with the identical exon structure — the same molecule under another
     # accession. Structure, not sequence: /gene deliberately fetches no sequences.
     same_structure_accessions: list[str] = []
+    same_structure_variants: list[str | None] = []   # aligned; see TranscriptVerdict
     is_mane: bool
     exon_count: int
     length: int            # total mRNA length in nt (sum of exon lengths)
