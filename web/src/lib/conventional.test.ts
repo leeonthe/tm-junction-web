@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PAIRS, ampRange, findPairs, spansJunction, type PairArgs } from "./conventional";
+import { MAX_PAIRS, ampRange, findPairs, resolveUniqueSide, spansJunction, type PairArgs } from "./conventional";
 import { revComp } from "./partner";
 import { DEFAULT_CONDITIONS, tm } from "./tm";
 
@@ -252,5 +252,43 @@ describe("a geometric slice is not a guarantee of pairs", () => {
     // A slice of the SAME feasible range chosen to exclude every real product size.
     const slice = findPairs({ ...args, ampMin: 120, ampMax: lo - 1 });
     expect(slice.length).toBe(0);
+  });
+});
+
+
+/**
+ * BCL2 NM_000633.3 in miniature: the unique region fills the LAST exon, so a forward
+ * primer inside it has every junction behind it — that orientation can never make a
+ * two-exon product, and pinning the unique side to "forward" left the panel at 0 pairs
+ * for any Tm while a clean reverse-orientation design existed. The side the engine
+ * suggests is a preference; geometry gets the veto.
+ */
+describe("resolveUniqueSide — a terminal-exon region flips its primer", () => {
+  const K = 20;
+  it("flips forward->reverse when the region sits in the last exon", () => {
+    // Junctions at 150 and 330; unique windows start only after the last one.
+    expect(resolveUniqueSide([150, 330, 520], [[340, 480]], K, "forward")).toBe("reverse");
+  });
+  it("flips reverse->forward when the region sits in the first exon", () => {
+    expect(resolveUniqueSide([150, 330, 520], [[10, 100]], K, "reverse")).toBe("forward");
+  });
+  it("keeps the suggestion when a junction is reachable", () => {
+    expect(resolveUniqueSide([150, 330, 520], [[100, 200]], K, "forward")).toBe("forward");
+    expect(resolveUniqueSide([150, 330, 520], [[100, 200]], K, "reverse")).toBe("reverse");
+  });
+  it("leaves the suggestion alone when structure is unknown or nothing is viable", () => {
+    expect(resolveUniqueSide(null, [[340, 480]], K, "forward")).toBe("forward");
+    expect(resolveUniqueSide([520], [[10, 480]], K, "forward")).toBe("forward");
+  });
+  it("a flipped search actually returns pairs where the pinned one returned none", () => {
+    // Unique windows confined to the last exon of the fixture.
+    const uniq3: [number, number][] = [[960, 1150]];
+    const pinned = findPairs(uniq({ uniqueStarts: uniq3, requireUniqueIn: "forward", ampMin: 80, ampMax: 600, dTmMax: 3 }));
+    expect(pinned.length).toBe(0);
+    const side = resolveUniqueSide(EXON_ENDS, uniq3, K, "forward");
+    expect(side).toBe("reverse");
+    const flipped = findPairs(uniq({ uniqueStarts: uniq3, requireUniqueIn: side, ampMin: 80, ampMax: 600, dTmMax: 3 }));
+    expect(flipped.length).toBeGreaterThan(0);
+    for (const p of flipped) expect(spansJunction(EXON_ENDS, p.forward.s, p.reverse.e)).toBe(true);
   });
 });

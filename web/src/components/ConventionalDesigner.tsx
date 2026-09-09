@@ -7,7 +7,7 @@ import {
 import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR,
 } from "../lib/partner";
-import { ampRange, findPairs, type PairArgs, type PairOption } from "../lib/conventional";
+import { ampRange, findPairs, openingSearch, resolveUniqueSide, type PairArgs, type PairOption } from "../lib/conventional";
 import { numStr } from "../lib/format";
 import CdnaView from "./CdnaView";
 import { Copy } from "./icons";
@@ -107,8 +107,10 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
     if (!r?.window_starts?.length) return null;
     const uniqueStarts = r.window_starts.map(([a, b]) => [a - 1, b - 1] as [number, number]);
     // The engine puts the specific primer on the side of the transcript its unique region
-    // sits in; follow it, so these options and the recommendation above agree on roles.
-    const requireUniqueIn = r.side === "reverse" ? "reverse" as const : "forward" as const;
+    // sits in; follow it — unless that orientation cannot reach a junction (a terminal-exon
+    // region), in which case flip, as the engine itself does. See resolveUniqueSide.
+    const requireUniqueIn = resolveUniqueSide(
+      exonEnds, uniqueStarts, k, r.side === "reverse" ? "reverse" : "forward");
     return {
       kind: "region" as const, fwdRegion: null, revRegion: null,
       uniqueStarts, requireUniqueIn,
@@ -128,30 +130,17 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
     tmMin: s.tmMin, tmMax: s.tmMax, ampMin: 0, ampMax: 0, dTmMax: 0, cond: s.cond,
   }), [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond]);
 
-  const initial = useMemo(() => {
-    const lo = Math.max(AMP_FLOOR, feasible?.min ?? 150);
-    const hi = feasible?.max ?? AMP_CEIL;
-    const usual = 250 >= lo && 150 <= hi
-      ? { min: Math.max(150, lo), max: Math.min(250, hi) }   // the usual window, if it fits
-      : { min: lo, max: Math.min(lo + 100, hi) };            // else start at the shortest product
-    // "Fits" is about geometry; whether any PAIR melts right inside that slice is another
-    // question, and opening on a window that answers "0 pairs" hands the user an empty
-    // panel with homework. FGFR1 NM_001174066.2: exon 1 is 53 nt, so products run
-    // 215-322 bp — the usual cap at 250 left a 35 bp sliver holding nothing, while the
-    // full range held five clean pairs. If the opening slice is empty and the whole
-    // feasible range is not, open on the whole range; the user can always narrow.
-    if (plan && feasible && (usual.min > lo || usual.max < hi)) {
-      const probe = (min: number, max: number) => findPairs({
-        mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
-        uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn,
-        exonEnds, tmMin: s.tmMin, tmMax: s.tmMax,
-        ampMin: min, ampMax: max, dTmMax: DEFAULT_DTM_MAX, cond: s.cond,
-      }).length;
-      if (probe(usual.min, usual.max) === 0 && probe(lo, hi) > 0) return { min: lo, max: hi };
-    }
-    return usual;
+  // Everything the panel opens with — window, Tm range, Tm match — probed so the first
+  // render shows a design whenever one exists at any reasonable setting. See openingSearch.
+  const initial = useMemo(() => openingSearch(
+    plan ? {
+      mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
+      uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn,
+      exonEnds, tmMin: s.tmMin, tmMax: s.tmMax, dTmMax: DEFAULT_DTM_MAX, cond: s.cond,
+    } : { mrna, k, exonEnds, tmMin: s.tmMin, tmMax: s.tmMax, dTmMax: DEFAULT_DTM_MAX, cond: s.cond },
+    feasible ?? null, AMP_FLOOR,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feasible, plan]);
+  ), [feasible, plan]);
 
   const [ampMin, setAmpMin] = useState(initial.min);
   const [ampMax, setAmpMax] = useState(initial.max);
@@ -169,6 +158,10 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
   useEffect(() => {
     setAmpMin(initial.min); setMinStr(String(initial.min));
     setAmpMax(initial.max); setMaxStr(String(initial.max));
+    // A widened opening (a target with nothing at the defaults) seeds the rail too, so the
+    // settings on screen are the settings that produced the list.
+    if (initial.tmMin !== s.tmMin || initial.tmMax !== s.tmMax) s.seedTm(initial.tmMin, initial.tmMax);
+    if (initial.dTmMax !== dTmMax) { setDTmMax(initial.dTmMax); setDTmStr(numStr(initial.dTmMax)); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planKey]);
 

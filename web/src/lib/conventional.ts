@@ -299,6 +299,113 @@ export function ampRange(a: PairArgs): { min: number; max: number } | null {
   return max >= min && Number.isFinite(min) ? { min, max } : null;
 }
 
+/**
+ * Which primer of the pair must carry the unique window — the engine's suggestion,
+ * overridden when geometry forbids it.
+ *
+ * The engine reports which SIDE of the transcript a unique region favors, but a region in
+ * a terminal exon makes one orientation impossible outright: a forward primer inside the
+ * LAST exon has every junction behind it, so its product can never cross one and the
+ * two-exon rule rejects every pair (BCL2 NM_000633.3 — unique region is the whole 5.4 kb
+ * final exon, and the panel sat at "0 pairs" for any Tm while the engine, which flips
+ * orientation in exactly this case, designed a clean 140 bp pair). Mirror the flip: keep
+ * the suggested side when a junction is reachable, switch when it is not.
+ */
+export function resolveUniqueSide(
+  exonEnds: number[] | null | undefined,
+  uniqueStarts: [number, number][],
+  k: number,
+  preferred: "forward" | "reverse",
+): "forward" | "reverse" {
+  if (!exonEnds || exonEnds.length < 2 || !uniqueStarts.length) return preferred;
+  const firstJunction = exonEnds[0];
+  const lastJunction = exonEnds[exonEnds.length - 2];
+  // A forward containing a unique window starts at some run start; it can span a junction
+  // only if one lies downstream of the earliest possible start. A reverse ends at a run's
+  // window end (+k); it needs a junction upstream of the latest possible end.
+  const earliestStart = Math.min(...uniqueStarts.map(([a]) => a));
+  const latestEnd = Math.max(...uniqueStarts.map(([, b]) => b)) + k;
+  const forwardViable = earliestStart < lastJunction;
+  const reverseViable = latestEnd > firstJunction;
+  if (preferred === "forward" && !forwardViable && reverseViable) return "reverse";
+  if (preferred === "reverse" && !reverseViable && forwardViable) return "forward";
+  return preferred;
+}
+
+/**
+ * The amplicon window the pair panel OPENS on — chosen so it is never empty while the
+ * feasible range holds a pair.
+ *
+ * The usual 150-250 band is only a preference: "it overlaps the feasible range" is a
+ * statement about geometry, and a slice of the range can hold zero pairs while the range
+ * holds plenty (FGFR1 NM_001174066.2 — exon 1 is 53 nt, products run 215-322 bp, and the
+ * 215-250 sliver melts nothing at the default Tm while 215-322 holds five clean pairs).
+ * So the slice is probed before it is offered, and an empty slice falls back to the whole
+ * feasible range. `windowArgs` carries everything but the amplicon bounds.
+ */
+export function openingWindow(
+  windowArgs: Omit<PairArgs, "ampMin" | "ampMax">,
+  feasible: { min: number; max: number } | null,
+  floor: number,
+): { min: number; max: number } {
+  const lo = Math.max(floor, feasible?.min ?? 150);
+  const hi = feasible?.max ?? 2000;
+  const usual = 250 >= lo && 150 <= hi
+    ? { min: Math.max(150, lo), max: Math.min(250, hi) }   // the usual window, if it fits
+    : { min: lo, max: Math.min(lo + 100, hi) };            // else start at the shortest product
+  if (feasible && (usual.min > lo || usual.max < hi)) {
+    const count = (min: number, max: number) =>
+      findPairs({ ...windowArgs, ampMin: min, ampMax: max } as PairArgs).length;
+    if (count(usual.min, usual.max) === 0 && count(lo, hi) > 0) return { min: lo, max: hi };
+  }
+  return usual;
+}
+
+/**
+ * Everything the pair panel opens WITH — window, Tm range, Tm match — chosen so the first
+ * render shows a design whenever one exists at any reasonable setting.
+ *
+ * The ladder exists because "no pair at the defaults" spans two very different truths. For
+ * most targets it means the opening WINDOW was wrong (openingWindow fixes that). But a
+ * handful of real targets have nothing at the default 60-65 °C at ALL: HK1
+ * NM_001322366.1's unique region is 55 GC-rich nt whose specific oligos melt near 66 °C;
+ * FGFR2 NM_001144914.1's unique feature is 2 nt at the far 3' tail, reachable only near
+ * 57 °C with a long product. The verdict promises those transcripts a design, and one
+ * exists — at settings a person would try next anyway. So the opening probes outward,
+ * defaults first, and returns the FIRST rung that yields pairs; the rail displays whatever
+ * was returned, so the settings shown are always the settings used.
+ */
+export const OPENING_LADDER: { tmMin: number; tmMax: number; dTmMax: number }[] = [
+  { tmMin: 58, tmMax: 67, dTmMax: 1.5 },
+  { tmMin: 58, tmMax: 67, dTmMax: 3 },
+  { tmMin: 55, tmMax: 70, dTmMax: 3 },
+  { tmMin: 55, tmMax: 70, dTmMax: 5 },
+  // Last resorts, for targets whose specificity lives somewhere thermodynamically awkward:
+  // YWHAZ NM_001135701.2's unique 49 nt run so GC-hot its oligos melt near 73 °C, and one
+  // NRXN1 exon-pair target must put a primer inside an 18 nt AT-rich exon that cannot
+  // exceed ~50 °C. The engine shows those compromised designs (flagged LOW_QC) rather
+  // than nothing; the panel does the same, with the stretched settings in plain view.
+  { tmMin: 55, tmMax: 75, dTmMax: 3 },
+  { tmMin: 45, tmMax: 75, dTmMax: 8 },
+];
+
+export function openingSearch(
+  windowArgs: Omit<PairArgs, "ampMin" | "ampMax">,
+  feasible: { min: number; max: number } | null,
+  floor: number,
+): { min: number; max: number; tmMin: number; tmMax: number; dTmMax: number } {
+  const w = openingWindow(windowArgs, feasible, floor);
+  const at = (a: typeof OPENING_LADDER[number], min: number, max: number) =>
+    findPairs({ ...windowArgs, ...a, ampMin: min, ampMax: max } as PairArgs).length;
+  const asked = { tmMin: windowArgs.tmMin, tmMax: windowArgs.tmMax, dTmMax: windowArgs.dTmMax };
+  if (!feasible || at(asked, w.min, w.max) > 0) return { ...w, ...asked };
+  const lo = Math.max(floor, feasible.min), hi = feasible.max;
+  for (const rung of OPENING_LADDER) {
+    if (at(rung, lo, hi) > 0) return { min: lo, max: hi, ...rung };
+  }
+  return { ...w, ...asked };               // nothing anywhere — honest emptiness, with guidance
+}
+
 function lowerBound(sorted: number[], target: number): number {
   let lo = 0, hi = sorted.length;
   while (lo < hi) {

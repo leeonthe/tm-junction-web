@@ -184,8 +184,16 @@ export function useJunctionSettings() {
     });
   }
 
+  /** Set both Tm bounds at once — the pair panel's opening ladder (see openingSearch)
+   *  seeds a widened range for targets with nothing at the defaults, and the rail then
+   *  shows exactly the range the list was made with. */
+  function seedTm(min: number, max: number) {
+    setTmMin(min); setMinStr(String(min));
+    setTmMax(max); setMaxStr(String(max));
+  }
+
   return {
-    tmMin, tmMax, minStr, maxStr, editMin, commitMin, editMax, commitMax,
+    tmMin, tmMax, minStr, maxStr, editMin, commitMin, editMax, commitMax, seedTm,
     cond, condStr, editCond, commitCond, resetConditions, saltRef,
   };
 }
