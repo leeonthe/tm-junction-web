@@ -131,10 +131,27 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
   const initial = useMemo(() => {
     const lo = Math.max(AMP_FLOOR, feasible?.min ?? 150);
     const hi = feasible?.max ?? AMP_CEIL;
-    return 250 >= lo && 150 <= hi
+    const usual = 250 >= lo && 150 <= hi
       ? { min: Math.max(150, lo), max: Math.min(250, hi) }   // the usual window, if it fits
       : { min: lo, max: Math.min(lo + 100, hi) };            // else start at the shortest product
-  }, [feasible]);
+    // "Fits" is about geometry; whether any PAIR melts right inside that slice is another
+    // question, and opening on a window that answers "0 pairs" hands the user an empty
+    // panel with homework. FGFR1 NM_001174066.2: exon 1 is 53 nt, so products run
+    // 215-322 bp — the usual cap at 250 left a 35 bp sliver holding nothing, while the
+    // full range held five clean pairs. If the opening slice is empty and the whole
+    // feasible range is not, open on the whole range; the user can always narrow.
+    if (plan && feasible && (usual.min > lo || usual.max < hi)) {
+      const probe = (min: number, max: number) => findPairs({
+        mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
+        uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn,
+        exonEnds, tmMin: s.tmMin, tmMax: s.tmMax,
+        ampMin: min, ampMax: max, dTmMax: DEFAULT_DTM_MAX, cond: s.cond,
+      }).length;
+      if (probe(usual.min, usual.max) === 0 && probe(lo, hi) > 0) return { min: lo, max: hi };
+    }
+    return usual;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feasible, plan]);
 
   const [ampMin, setAmpMin] = useState(initial.min);
   const [ampMax, setAmpMax] = useState(initial.max);

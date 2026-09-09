@@ -231,3 +231,26 @@ describe("amplicons must span at least two exons", () => {
     expect(ampRange(uniq({ exonEnds: [1200] }))).toBeNull();
   });
 });
+
+
+/**
+ * FGFR1 NM_001174066.2 in miniature: a 7c exon-pair target whose first exon is so short
+ * that every product is long. The designer's opening amplicon window used to clamp to the
+ * usual 150-250 band whenever it overlapped the feasible range at all — leaving, here, a
+ * sliver holding zero pairs while the full range held plenty. The window logic lives in the
+ * component, but the invariant it must respect is testable right here: a slice of the
+ * feasible range can be empty while the full range is not, so "the usual window fits
+ * geometrically" is not evidence it contains a single pair.
+ */
+describe("a geometric slice is not a guarantee of pairs", () => {
+  it("finds pairs in the full feasible range that a narrow slice misses", () => {
+    const args = pairArgs({ ampMin: 120, ampMax: 300, dTmMax: 3 });
+    const full = findPairs(args);
+    expect(full.length).toBeGreaterThan(0);
+    const sizes = full.map((p) => p.ampLen);
+    const lo = Math.min(...sizes);
+    // A slice of the SAME feasible range chosen to exclude every real product size.
+    const slice = findPairs({ ...args, ampMin: 120, ampMax: lo - 1 });
+    expect(slice.length).toBe(0);
+  });
+});
