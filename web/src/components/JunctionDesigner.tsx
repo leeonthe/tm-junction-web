@@ -6,8 +6,8 @@ import {
 } from "./JunctionWorkbench";
 import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_AMP_MAX, DEFAULT_AMP_MIN,
-  DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR,
-  feasibleAmplicons, findPartnerOptions, revComp, type PartnerOption, type Side,
+  DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR, LONG_AMPLICON,
+  ampCeil, feasibleAmplicons, findPartnerOptions, revComp, type PartnerOption, type Side,
 } from "../lib/partner";
 import { numStr } from "../lib/format";
 import type { TmConditions, WindowEval } from "../lib/tm";
@@ -365,6 +365,13 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
   const [selId, setSelId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // The hard ceiling on the amplicon inputs. A combo whose distinguishing exon sits far
+  // from the junction needs a product longer than the free-search cap, and the cap must
+  // not be what makes the isoform undesignable — lib/partner raises it to reach the exon.
+  const ceil = ev
+    ? ampCeil({ eejS: ev.s, eejE: ev.e, side: force?.side, region: force?.region })
+    : AMP_CEIL;
+
   function editMin(raw: string) {
     takeOver();
     setMinStr(raw);
@@ -382,11 +389,11 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
     setMaxStr(raw);
     const v = parseInt(raw, 10);
     const floor = auto?.min ?? ampMin;
-    if (!Number.isNaN(v) && v > floor && v <= AMP_CEIL) setAmpMax(v);
+    if (!Number.isNaN(v) && v > floor && v <= ceil) setAmpMax(v);
   }
   function commitMax() {
     const v = parseInt(maxStr, 10);
-    const c = Number.isNaN(v) ? ampMax : Math.min(AMP_CEIL, Math.max(v, ampMin + 1));
+    const c = Number.isNaN(v) ? ampMax : Math.min(ceil, Math.max(v, ampMin + 1));
     setAmpMax(c); setMaxStr(String(c));
   }
   /** First manual edit of either amplicon input: bake any auto-stretched window into
@@ -519,7 +526,7 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
                 onChange={(e) => editMin(e.target.value)} onBlur={commitMin} onKeyDown={enterBlur} />
               <span className="dash">–</span>
               <input type="number" value={auto ? String(effMax) : maxStr} min={effMin + 1}
-                max={AMP_CEIL} inputMode="numeric"
+                max={ceil} inputMode="numeric"
                 onChange={(e) => editMax(e.target.value)} onBlur={commitMax} onKeyDown={enterBlur} />
               <span className="unit">bp</span>
             </label>
@@ -555,12 +562,21 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
             the junction</> : null}: the nearest possible amplicon is{" "}
           <b>{auto.nearest} bp</b>, so the window was stretched to {effMin}–{effMax} bp
           automatically. Edit the amplicon inputs to take over.
+          {auto.nearest >= LONG_AMPLICON && <> That is a <b>long product</b>: fine for
+            endpoint PCR, too long for qPCR.</>}
         </p>
       )}
 
       {!ev?.spans ? (
         <p className="sub pp-idle">
           Drag a junction-spanning selection above to get second-primer options.
+        </p>
+      ) : options.length === 0 && !feasible ? (
+        <p className="sub pp-idle">
+          No partner primer can be placed for this selection
+          {force ? <> — exon {force.exonOrder}'s distinguishing region cannot be reached from
+            this junction</> : <> — there is no room on either side of it</>}. No amplicon or
+          Tm setting changes that.
         </p>
       ) : options.length === 0 ? (
         <p className="sub pp-idle">
@@ -600,6 +616,12 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
               );
             })}
           </div>
+          {chosen && !auto && chosen.ampLen >= LONG_AMPLICON && (
+            <p className="sub pp-idle">
+              The chosen pair makes a <b>{chosen.ampLen} bp</b> product — a long amplicon, fine
+              for endpoint PCR but too long for qPCR.
+            </p>
+          )}
           {fwdSeq && revSeq && (
             <div className="pp-foot">
               <div className="pp-pair mono">

@@ -18,6 +18,17 @@ import Info from "./Info";
  * Coverage is never sacrificed by the ranking, but it can differ between options, so each
  * row carries its own coverage count.
  */
+
+/**
+ * What the QC-relaxed flag means, spelled out where the flag is. It answered "what does
+ * QC-relaxed mean??" on a ticket, so the words sit on the chip itself rather than in the
+ * guide. The criteria mirror the engine's per-primer gate (primers.py `_evaluate`).
+ */
+const QC_RELAXED_HELP =
+  "QC-relaxed: at least one primer of this pair misses one of the tool's own primer checks " +
+  "(Tm 57–63 °C, GC 40–60%, a G or C at the 3′ end, hairpin and self-dimer Tm below 45 °C, " +
+  "no run of 5+ identical bases). It is offered as a best-effort option, not a fully vetted one.";
+
 export default function PanVariantCard({ result }: { result: AnalyzeResponse }) {
   const options: PanVariant[] =
     result.pan_variant_options?.length
@@ -87,7 +98,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
                   Tm <b>{o.forward!.tm.toFixed(1)}</b> / <b>{o.reverse!.tm.toFixed(1)}</b> °C
                   {" · "}amplicon <b>{o.amplicon_len} bp</b>
                   {" · "}covers <b>{o.covered.length}/{total}</b>
-                  {o.flags.includes("LOW_QC") && <span className="pv-flag"> · QC-relaxed</span>}
+                  {o.flags.includes("LOW_QC") && <span className="pv-flag" title={QC_RELAXED_HELP}> · QC-relaxed</span>}
                   {o.flags.includes("PAIR_DIMER") && <span className="pv-flag"> · pair dimer</span>}
                 </span>
               </button>
@@ -128,7 +139,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
       <p className="pv-qc mono">
         Tm <b>{p.forward.tm.toFixed(1)}</b> / <b>{p.reverse.tm.toFixed(1)}</b> °C ·
         GC {p.forward.gc}% / {p.reverse.gc}% · {p.forward.length} / {p.reverse.length} nt
-        {p.flags.includes("LOW_QC") && <span className="pv-flag"> · QC-relaxed</span>}
+        {p.flags.includes("LOW_QC") && <span className="pv-flag" title={QC_RELAXED_HELP}> · QC-relaxed</span>}
         {p.flags.includes("PAIR_DIMER") && <span className="pv-flag"> · pair dimer</span>}
       </p>
 

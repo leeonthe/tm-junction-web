@@ -25,10 +25,23 @@ import { gcPercent, tm, type TmConditions } from "./tm";
 
 /** Hard bounds on the amplicon size inputs, bp. */
 export const AMP_FLOOR = 50;
+/**
+ * Ceiling for a FREE partner search. A junction+exon combo that pins the partner to a
+ * distinguishing region further away than this is not bound by it — see ampCeil. Without
+ * that, the cap silently made such isoforms undesignable: EGFR NM_001346897.2 needs an
+ * EEJ primer across exon 3–4 and a partner in exon 26, 2.7 kb downstream, so every sweep
+ * came back empty and the panel blamed the Tm match.
+ */
 export const AMP_CEIL = 2000;
 /** Default amplicon window, bp. */
 export const DEFAULT_AMP_MIN = 150;
 export const DEFAULT_AMP_MAX = 250;
+/**
+ * Products at or above this are LONG: routine for endpoint PCR, but past what qPCR
+ * chemistries amplify efficiently. The UI says so rather than presenting the pair as if
+ * it were a 150 bp qPCR product.
+ */
+export const LONG_AMPLICON = 1000;
 
 /** Partner primer length sweep, nt. */
 export const PARTNER_LEN_MIN = 18;
@@ -105,6 +118,34 @@ export interface PartnerArgs {
   region?: { lo: number; hi: number } | null;
 }
 
+/** The geometry a ceiling depends on — a subset of PartnerArgs so the UI can ask too. */
+export interface CeilArgs {
+  eejS: number;
+  eejE: number;
+  side?: Side | null;
+  region?: { lo: number; hi: number } | null;
+}
+
+/**
+ * The hard amplicon ceiling in effect for one search, bp.
+ *
+ * AMP_CEIL for a free partner. When the partner is pinned to a region (junction+exon
+ * combo), the ceiling is raised — never lowered — to the longest product that still
+ * overlaps that region, so a distinguishing exon 2–3 kb from the junction stays
+ * reachable. The size itself is not hidden: feasibleAmplicons reports it, and the UI
+ * marks anything ≥ LONG_AMPLICON as a long product.
+ *
+ * With no side given, both layouts are considered, so the value is safe to use before
+ * the side is decided (the inputs' max, for one).
+ */
+export function ampCeil(a: CeilArgs): number {
+  if (!a.region) return AMP_CEIL;
+  const down = a.region.hi + PARTNER_LEN_MAX - 1 - a.eejS;   // reverse partner reaching the far end
+  const up = a.eejE - (a.region.lo - PARTNER_LEN_MAX + 1);   // forward partner at the near end
+  const need = a.side === "downstream" ? down : a.side === "upstream" ? up : Math.max(down, up);
+  return Math.max(AMP_CEIL, need);
+}
+
 function score(o: PartnerOption): number {
   const gcDev = Math.max(0, 35 - o.gc, o.gc - 65);
   return -Math.abs(o.dTm) * 3
@@ -117,7 +158,7 @@ function score(o: PartnerOption): number {
 function sweep(a: PartnerArgs, side: Side): PartnerOption[] {
   const { mrna, eejS, eejE, eejTm, cond } = a;
   const ampMin = Math.max(AMP_FLOOR, Math.min(a.ampMin, a.ampMax));
-  const ampMax = Math.min(AMP_CEIL, Math.max(a.ampMin, a.ampMax));
+  const ampMax = Math.min(ampCeil({ ...a, side }), Math.max(a.ampMin, a.ampMax));
   const overlaps = (s: number, e: number) =>
     !a.region || (s < a.region.hi && e > a.region.lo);
   const dTmMax = Math.min(DTM_MAX_CEIL,
@@ -194,7 +235,7 @@ function sweep(a: PartnerArgs, side: Side): PartnerOption[] {
  */
 function hasRoom(a: PartnerArgs, side: Side): boolean {
   const ampMin = Math.max(AMP_FLOOR, Math.min(a.ampMin, a.ampMax));
-  const ampMax = Math.min(AMP_CEIL, Math.max(a.ampMin, a.ampMax));
+  const ampMax = Math.min(ampCeil({ ...a, side }), Math.max(a.ampMin, a.ampMax));
   const overlaps = (s: number, e: number) =>
     !a.region || (s < a.region.hi && e > a.region.lo);
   if (side === "downstream") {
@@ -225,7 +266,7 @@ export interface FeasibleAmplicons {
 /**
  * The full range of amplicon lengths that are geometrically POSSIBLE for this
  * selection, ignoring the user's window — the same index arithmetic as hasRoom,
- * swept over the hard [AMP_FLOOR, AMP_CEIL] bounds. Pure geometry, no Tm: the UI
+ * swept over the hard [AMP_FLOOR, ampCeil] bounds. Pure geometry, no Tm: the UI
  * consults this when the requested window yields nothing, to tell "no product can
  * exist in this window — the nearest one is N bp" (auto-widen the window) apart
  * from "products exist but none is Tm-matched" (say "loosen the Tm match").
@@ -246,9 +287,10 @@ export function feasibleAmplicons(a: {
     !a.region || (s < a.region.hi && e > a.region.lo);
   const range = (side: Side): FeasibleAmplicons | null => {
     let min = Infinity, max = -Infinity;
+    const ceil = ampCeil({ ...a, side });
     if (side === "downstream") {
       const reLo = Math.max(a.eejE + PARTNER_LEN_MIN, a.eejS + AMP_FLOOR);
-      const reHi = Math.min(a.mrna.length, a.eejS + AMP_CEIL);
+      const reHi = Math.min(a.mrna.length, a.eejS + ceil);
       for (let re = reLo; re <= reHi; re++)
         for (let len = PARTNER_LEN_MIN; len <= PARTNER_LEN_MAX; len++)
           if (re - len >= a.eejE && overlaps(re - len, re)) {
@@ -257,7 +299,7 @@ export function feasibleAmplicons(a: {
             break;
           }
     } else {
-      const fsLo = Math.max(0, a.eejE - AMP_CEIL);
+      const fsLo = Math.max(0, a.eejE - ceil);
       const fsHi = a.eejE - AMP_FLOOR;
       for (let fs = fsLo; fs <= fsHi; fs++)
         for (let len = PARTNER_LEN_MIN; len <= PARTNER_LEN_MAX; len++)

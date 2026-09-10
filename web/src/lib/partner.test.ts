@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR, MAX_OPTIONS,
-  PARTNER_LEN_MAX, PARTNER_LEN_MIN, feasibleAmplicons, findPartnerOptions, revComp,
+  AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR, MAX_OPTIONS,
+  PARTNER_LEN_MAX, PARTNER_LEN_MIN, ampCeil, feasibleAmplicons, findPartnerOptions, revComp,
 } from "./partner";
 import { DEFAULT_CONDITIONS, tm } from "./tm";
 
@@ -14,17 +14,18 @@ import { DEFAULT_CONDITIONS, tm } from "./tm";
  * yield candidates across the whole length sweep.
  */
 
-// 600 nt of mixed-composition sequence, deterministic (a simple LCG over ACGT).
-const MRNA = (() => {
+// Mixed-composition sequence, deterministic (a simple LCG over ACGT).
+const synth = (n: number) => {
   const b = "ACGT";
   let x = 12345;
   let out = "";
-  for (let i = 0; i < 600; i++) {
+  for (let i = 0; i < n; i++) {
     x = (x * 1103515245 + 12345) % 2 ** 31;
     out += b[(x >>> 8) % 4];
   }
   return out;
-})();
+};
+const MRNA = synth(600);
 
 const EEJ_S = 200, EEJ_E = 222;
 const EEJ_TM = tm(MRNA.slice(EEJ_S, EEJ_E), DEFAULT_CONDITIONS);
@@ -194,6 +195,73 @@ describe("feasibleAmplicons", () => {
     // 60 nt total with a 40 nt selection: no side has room for an 18 nt partner
     // inside the 50 bp amplicon floor.
     expect(feasibleAmplicons({ mrna: MRNA.slice(0, 60), eejS: 10, eejE: 50 })).toBeNull();
+  });
+});
+
+/**
+ * Ticket 30 (EGFR NM_001346897.2 / NM_001346899.2): a junction+exon combo whose
+ * distinguishing exon lies 2.7 kb past the junction. The partner MUST overlap that exon,
+ * so no product shorter than ~2740 bp exists — beyond the 2000 bp free-search cap. The cap
+ * used to bind here too, so every sweep was empty, feasibleAmplicons was null, and the
+ * panel told the user to loosen the Tm match, which could never have helped. The ceiling
+ * now stretches to reach a forced region; the free search keeps its cap.
+ */
+describe("far combo exon (EGFR NM_001346897.2 geometry)", () => {
+  // Same shape as the real transcript: 3848 nt, EEJ selection across the exon 3|4
+  // boundary at 685, distinguishing slice of the last exon at [3397, 3848).
+  const LONG = synth(3848);
+  const S = 675, E = 695;
+  const region = { lo: 3397, hi: 3848 };
+  const eejTm = tm(LONG.slice(S, E), DEFAULT_CONDITIONS);
+  const shortest = region.lo + 1 - S;                     // 2723 bp: partner just inside the slice
+  const base = { mrna: LONG, eejS: S, eejE: E, eejTm, cond: DEFAULT_CONDITIONS,
+                 side: "downstream" as const, region };
+
+  it("raises the ceiling only when a region is forced, and never below AMP_CEIL", () => {
+    expect(ampCeil({ eejS: S, eejE: E })).toBe(AMP_CEIL);
+    expect(ampCeil({ eejS: S, eejE: E, region: { lo: 800, hi: 900 } })).toBe(AMP_CEIL);
+    const c = ampCeil({ eejS: S, eejE: E, side: "downstream", region });
+    expect(c).toBe(region.hi + PARTNER_LEN_MAX - 1 - S);
+    expect(c).toBeGreaterThan(AMP_CEIL);
+    // With no side given the larger of the two layouts wins, so it is safe pre-decision.
+    expect(ampCeil({ eejS: S, eejE: E, region })).toBeGreaterThanOrEqual(c);
+  });
+
+  it("reports a feasible range instead of null, starting at the region", () => {
+    const f = feasibleAmplicons({ mrna: LONG, eejS: S, eejE: E, side: "downstream", region })!;
+    expect(f).not.toBeNull();
+    expect(f.side).toBe("downstream");
+    expect(f.min).toBe(shortest);
+    expect(f.min).toBeGreaterThan(AMP_CEIL);
+    expect(f.max).toBe(LONG.length - S);                  // capped by the sequence end
+  });
+
+  it("finds partners inside the exon once the window reaches it", () => {
+    // The default window is still dead — that is geometry, not a bug.
+    expect(findPartnerOptions({ ...base, ampMin: 150, ampMax: 250, dTmMax: DTM_MAX_CEIL })
+      .options).toHaveLength(0);
+    // A window pinned to the feasible minimum (what the UI's auto-stretch does) is alive.
+    const r = findPartnerOptions({ ...base, ampMin: shortest, ampMax: shortest + 100,
+                                   dTmMax: DTM_MAX_CEIL });
+    expect(r.eejRole).toBe("forward");
+    expect(r.options.length).toBeGreaterThan(0);
+    for (const o of r.options) {
+      expect(o.role).toBe("reverse");
+      expect(o.s).toBeLessThan(region.hi);
+      expect(o.e).toBeGreaterThan(region.lo);             // binds inside the distinguishing slice
+      expect(o.ampLen).toBe(o.e - S);
+      expect(o.ampLen).toBeGreaterThan(AMP_CEIL);
+      expect(o.seq).toBe(revComp(LONG.slice(o.s, o.e)));
+    }
+  });
+
+  it("keeps the free search capped at AMP_CEIL", () => {
+    // No region: the same selection on the same sequence may not reach past the cap.
+    const r = findPartnerOptions({ mrna: LONG, eejS: S, eejE: E, eejTm, cond: DEFAULT_CONDITIONS,
+                                   ampMin: AMP_FLOOR, ampMax: 3000, dTmMax: DTM_MAX_CEIL });
+    expect(r.options.length).toBeGreaterThan(0);
+    for (const o of r.options) expect(o.ampLen).toBeLessThanOrEqual(AMP_CEIL);
+    expect(feasibleAmplicons({ mrna: LONG, eejS: S, eejE: E })!.max).toBe(AMP_CEIL);
   });
 });
 
