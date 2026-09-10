@@ -4,13 +4,15 @@ import { JunctionWorkbench, useJunctionSettings, type JunctionGeom } from "./Jun
 import { BracketGlyph, TargetGlyph, buildCells } from "./GraphCard";
 
 /**
- * The drag demo's junction is real: GAPDH NM_001289745.3, exon 1 | exon 2 — the junction
+ * The drag demo's junction is real: GAPDH NM_001357943.2, exon 3 | exon 4 — the junction
  * the designer itself recommends for that transcript — 48 nt each side, taken from the
  * seeded RefSeq sequence. A made-up sequence would behave differently from anything the
- * user later meets; this one behaves exactly like the page they are being taught.
+ * user later meets; this one behaves exactly like the page they are being taught. This
+ * junction replaced the earlier exon 1 | 2 one, whose GC cliff auto-picked a primer with
+ * uncomfortably short arms: here the pick is a textbook 22-mer with 12 / 10 nt arms.
  */
-const DEMO_ARM5 = "AAGGCGGCAGGGGCGGGCGCAGGCCGGATGTGTTCGCGCCGCTGCGGG";
-const DEMO_ARM3 = "CCGAGCCACATCGCTCAGACACCATGGGGAAGGTGAAGGTCGGAGTCA";
+const DEMO_ARM5 = "GTGGATATTGTTGCCATCAATGACCCCTTCATTGACCTCAACTACATG";
+const DEMO_ARM3 = "GCTGAGAACGGGAAGCTTGTCATCAATGGAAATCCCATCACCATCTTC";
 
 /** The junction designer, live, exactly as it runs after a real analysis. */
 function DragDemo() {
@@ -26,6 +28,74 @@ function DragDemo() {
   }, []);
   return <JunctionWorkbench geom={geom} s={s} reseedKey="guide-demo" />;
 }
+
+/**
+ * One primer-design strategy, drawn the way the exon graph draws it: tier-coloured exons,
+ * yellow primer target sites, a red bracket for a single EEJ, magenta for a double. The
+ * five figures below are the full vocabulary of the graph's annotations — a reader who can
+ * parse these five can parse any transcript the tool shows them.
+ */
+function StrategyFig({ yellows = [], brackets = [], tier = "--eej" }: {
+  yellows?: number[];
+  brackets?: { from: number; to: number; combo?: boolean }[];
+  tier?: string;
+}) {
+  const X = [12, 92, 172, 252, 332, 412];      // 6 exons, fixed layout
+  const W = [56, 36, 42, 36, 42, 66];
+  const mid = (i: number) => X[i] + W[i] / 2;
+  return (
+    <svg className="strat-fig" viewBox="0 0 490 46" aria-hidden="true">
+      <line x1={8} y1={30} x2={484} y2={30} stroke="var(--border-2)" strokeWidth={1.5} />
+      {X.map((x, i) => (
+        <rect key={i} x={x} y={22} width={W[i]} height={16} rx={3}
+          fill={yellows.includes(i) ? "var(--amp-pair)" : `var(${tier})`} />
+      ))}
+      {brackets.map((b, k) => (
+        <path key={k}
+          d={`M${mid(b.from)} 18 L${mid(b.from)} 9 L${mid(b.to)} 9 L${mid(b.to)} 18`}
+          fill="none" stroke={b.combo ? "var(--eej-combo)" : "var(--eej-single)"}
+          strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+      ))}
+    </svg>
+  );
+}
+
+/** The five annotations, in the order of how much the design asks of the transcript. */
+const STRATEGIES: { name: string; fig: React.ReactNode; what: string }[] = [
+  {
+    name: "Single primer target site",
+    fig: <StrategyFig tier="--conv" yellows={[2]} />,
+    what: "One exon region (yellow) is unique to this transcript. Either primer of an "
+      + "ordinary pair covers it; the other sits wherever the amplicon needs.",
+  },
+  {
+    name: "Double primer target site",
+    fig: <StrategyFig tier="--conv" yellows={[1, 4]} />,
+    what: "No single exon is unique, but this combination of two exons is — no sibling "
+      + "carries both. Forward goes in one, reverse in the other, and only this "
+      + "transcript can form the product.",
+  },
+  {
+    name: "Single EEJ",
+    fig: <StrategyFig brackets={[{ from: 2, to: 3 }]} />,
+    what: "One exon–exon junction (red bracket) is unique. A primer spanning it — the "
+      + "junction designer's job — fires only on this transcript; its partner is an "
+      + "ordinary primer nearby.",
+  },
+  {
+    name: "Single EEJ + primer target site",
+    fig: <StrategyFig brackets={[{ from: 1, to: 2 }]} yellows={[4]} />,
+    what: "Neither the junction nor the exon region is unique alone, but no sibling has "
+      + "both. The EEJ primer spans the bracket and its partner must sit in the yellow "
+      + "region — the pair is the specificity.",
+  },
+  {
+    name: "Double EEJ",
+    fig: <StrategyFig brackets={[{ from: 0, to: 1, combo: true }, { from: 3, to: 4, combo: true }]} />,
+    what: "Only a combination of two junctions (magenta brackets) isolates this "
+      + "transcript. Both primers must be junction-spanning — one across each.",
+  },
+];
 
 /** The graph key's colour picker, live: pick a colour, the mini track follows. */
 const DEMO_TOKENS = [
@@ -160,7 +230,28 @@ export default function Guide({ onBack, onMethod, backLabel }: {
       </section>
 
       <section className="card mth-card">
-        <p className="card-label">3 · Take the primers</p>
+        <p className="card-label">3 · The five design strategies</p>
+        <p>
+          The verdict decides <em>which kind</em> of design isolates your transcript, and the
+          exon graph annotates it. These five marks are the whole vocabulary:
+        </p>
+        <div className="strat-list">
+          {STRATEGIES.map((s) => (
+            <div className="strat" key={s.name}>
+              {s.fig}
+              <p><b>{s.name}</b> — {s.what}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mth-note">
+          Yellow always means "a primer must cover this"; a bracket always means "a primer
+          must span this junction". Red marks a single required junction, magenta a
+          two-junction combination.
+        </p>
+      </section>
+
+      <section className="card mth-card">
+        <p className="card-label">4 · Take the primers</p>
         <p>
           For an <b>EEJ-independent</b> target, the <i>Primer pair options</i> card lists
           ready Tm-matched pairs. Adjust the amplicon window or Tm range if your assay needs
@@ -177,36 +268,39 @@ export default function Guide({ onBack, onMethod, backLabel }: {
           Tm-matched partner for a normal amplicon, and <i>Copy pair</i> gives both oligos.
         </p>
         <p>
-          This one is live — GAPDH's exon&nbsp;1–exon&nbsp;2 junction, the real designer.
+          This one is live — GAPDH's exon&nbsp;3–exon&nbsp;4 junction (NM_001357943.2),
+          the real designer.
           Drag across the letters and watch the verdict and the three Tm cards react;
           drag a window that sits all on one side and see <em>why</em> it fails:
         </p>
         <DragDemo />
         <p className="mth-note">
-          Tm values follow the reaction conditions in the settings panel (Na⁺/K⁺, Mg²⁺,
-          dNTPs, primer concentration). Set them to match your master mix before trusting
-          the numbers.
+          Both the <b>Primer Tm</b> range and the <b>Reaction conditions</b> (Na⁺/K⁺, Mg²⁺,
+          dNTPs, primer concentration) are yours to change, in every designer's settings
+          panel — every Tm on the page recalculates from what you set. Match them to your
+          own assay and master mix before trusting the numbers; Reset returns the defaults.
         </p>
       </section>
 
       <section className="card mth-card">
-        <p className="card-label">4 · Gene-wide tools</p>
+        <p className="card-label">5 · Gene-wide tools</p>
         <p>
           The <i>Gene classification</i> tab shows the whole gene: every isoform's exon
           structure, its tier, and its per-isoform verdict — click any row to design for
-          that transcript instead. The <i>All-variant pair</i> card is the opposite job:
+          that transcript instead. The <i>Whole transcript amplification</i> tab is the opposite job:
           one primer pair that amplifies as many of the gene's variants as possible at a
           single product size, for measuring total expression rather than one isoform.
         </p>
       </section>
 
       <section className="card mth-card">
-        <p className="card-label">5 · Before you order</p>
+        <p className="card-label">6 · Before you order</p>
         <p>
           Every amplicon here spans at least two exons, so a product off contaminating
           genomic DNA either fails or runs visibly longer on a gel. Specificity is
           established within the gene's NM isoform set — for genome-wide uniqueness, run
-          the pair through Primer-BLAST as usual. The formulas and constants behind every
+          the pair through NCBI Primer-BLAST or UCSC's BLAT (Genome Browser → Tools →
+          Blat) as usual. The formulas and constants behind every
           number are on the{" "}
           <button type="button" className="linkish" onClick={onMethod}>Method</button> page.
         </p>

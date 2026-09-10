@@ -9,7 +9,14 @@ import { fixed, molarStr, numStr, rounded, signed } from "../lib/format";
 import { ArrowRight } from "./icons";
 
 /** The oligo the new formula was validated against — see the worked example below. */
-const EXAMPLE = "AACTACATGGCTGAGAAC";
+// A real GAPDH oligo, chosen for cross-checkability: our duplex-form value for this
+// 27-mer sits within ~1.0 °C of IDT OligoAnalyzer's CT-form figure at matched conditions
+// — the closest the two conventions get across every 18-28-mer scanned in GAPDH (their
+// gap shrinks with ΔH, i.e. with length; an 18-mer cannot do better than ~1.5 °C). The
+// note below the worked example explains the convention difference and the second trap:
+// OligoAnalyzer's DEFAULT buffer has no Mg²⁺/dNTPs, and against that buffer every oligo
+// reads ~6 °C apart no matter what.
+const EXAMPLE = "GACCTCAACTACATGGTTTACATGTTC";
 /** An arm-length oligo for the Wallace worked example — also recomputed live. */
 const ARM_EXAMPLE = "CTCGCGA";
 
@@ -340,19 +347,23 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
 
         <h3 className="mth-h3">Comparing with IDT OligoAnalyzer</h3>
         <p className="mth-note">
-          IDT reports <b>56 °C</b> for this oligo in qPCR mode and <b>49 °C</b> monovalent-only,
-          at 0.2 µM. This engine gives <b className="mono">{fixed(ex.tm, 1)}</b> and{" "}
-          <b className="mono">{fixed(tmParts(EXAMPLE, { ...DEFAULT_CONDITIONS, mgMM: 0, dntpMM: 0 })!.tm, 1)}</b> °C
-          for the same typed number — about 2 °C cooler. That gap is the{" "}
-          <span className="mono">/4</span> and nothing else: IDT uses the pseudo-first-order
-          form R·ln(C<sub>T</sub>), which assumes the primer is in vast excess over its
-          template, while the equation above is the non-self-complementary duplex form. They
-          are the same equation with C<sub>T</sub> meaning different things, and they agree
-          once it is read as the total of <em>both</em> strands — at{" "}
-          <b className="mono">0.8 µM</b> here, this engine gives{" "}
+          To reproduce this in OligoAnalyzer, first match the buffer — its defaults carry no
+          Mg²⁺ or dNTPs, and against that buffer every oligo here reads ~6 °C warm. Set{" "}
+          <b className="mono">Na⁺ {numStr(DEFAULT_CONDITIONS.saltMM)} mM</b>,{" "}
+          <b className="mono">Mg²⁺ {numStr(DEFAULT_CONDITIONS.mgMM)} mM</b>,{" "}
+          <b className="mono">dNTPs {numStr(DEFAULT_CONDITIONS.dntpMM)} mM</b>, oligo{" "}
+          <b className="mono">{numStr(DEFAULT_CONDITIONS.primerUM)} µM</b>. Expect a reading
+          within about <b>1 °C</b> of the <b className="mono">{fixed(ex.tm, 1)} °C</b> shown
+          here. The residual is a convention, not a disagreement over physics: IDT uses the
+          pseudo-first-order form R·ln(C<sub>T</sub>), which assumes the primer is in vast
+          excess over its template, while the equation above is the non-self-complementary
+          duplex form with R·ln(C<sub>T</sub>/4). They are the same equation with{" "}
+          C<sub>T</sub> meaning different things, and they meet when C<sub>T</sub> is read as
+          the total of <em>both</em> strands — at <b className="mono">0.8 µM</b> here, this
+          engine gives{" "}
           <b className="mono">{fixed(tmParts(EXAMPLE, { ...DEFAULT_CONDITIONS, primerUM: 0.8 })!.tm, 1)}</b> °C.
-          So enter C<sub>T</sub> as your total strand concentration, not the per-strand figure
-          you would type into IDT.
+          The gap scales with 1/ΔH, so it is smallest for long, stable oligos like this one
+          and grows to ~2 °C for a short 18-mer.
         </p>
 
         <h3 className="mth-h3">Short arms: the Wallace rule</h3>

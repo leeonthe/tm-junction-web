@@ -771,6 +771,14 @@ tr.is-target:hover td{background:var(--brand-tint)}
    boxed so it reads as a thing to poke rather than an illustration. */
 .guide-colordemo{margin-top:6px;padding:14px 16px 10px;background:var(--surface-2);
   border:1px solid var(--border-2);border-radius:var(--r-sm)}
+/* The five strategy figures: mini track left, meaning right, one row each. */
+.strat-list{display:flex;flex-direction:column;gap:14px;margin:14px 0 4px}
+.strat{display:flex;align-items:center;gap:18px}
+.strat .strat-fig{flex:0 0 260px;width:260px;height:auto;background:var(--surface-2);
+  border:1px solid var(--border-2);border-radius:8px;padding:4px 2px}
+.strat p{margin:0;font-size:13px;line-height:1.55;color:var(--text)}
+@media (max-width:700px){.strat{flex-direction:column;align-items:stretch}
+  .strat .strat-fig{flex-basis:auto;width:100%}}
 /* the global h1 is the hero headline (15ch, balanced) — a page title needs full width */
 .mth-head h1{margin:10px 0 0;font-size:31px;line-height:1.22;font-weight:600;letter-spacing:-.035em;
   color:var(--ink);max-width:34ch;text-wrap:pretty}

@@ -376,3 +376,25 @@ describe("designer rules on a real transcript", () => {
     expect(noMg.whole.tm).toBeLessThan(withMg.whole.tm);
   });
 });
+
+
+/**
+ * The Method page's worked example is chosen for cross-checkability against IDT
+ * OligoAnalyzer at matched conditions. IDT computes the CT-form (no /4); at 0.2 uM typed
+ * that equals primer3's duplex-form value at 4x the concentration, which for this oligo is
+ * 63.6 C — measured once with primer3 calc_tm (santalucia + owczarzy, Na 50 / Mg 3 /
+ * dNTP 0.8 / dna 800 nM) and pinned here. The page promises "within about 1 C"; this
+ * keeps the promise honest against model drift on either side of it.
+ */
+describe("the Method example vs IDT's convention", () => {
+  const EXAMPLE = "GACCTCAACTACATGGTTTACATGTTC";
+  const IDT_CT_FORM = 63.57;
+  it("stays within about 1 C of OligoAnalyzer at matched conditions", () => {
+    const ours = tm(EXAMPLE, DEFAULT_CONDITIONS);
+    expect(Math.abs(ours - IDT_CT_FORM)).toBeLessThanOrEqual(1.05);
+  });
+  it("emulates the CT form by reading CT as both strands (4x)", () => {
+    const ctForm = tm(EXAMPLE, { ...DEFAULT_CONDITIONS, primerUM: 0.8 });
+    expect(Math.abs(ctForm - IDT_CT_FORM)).toBeLessThanOrEqual(0.7);
+  });
+});
