@@ -1,5 +1,7 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
+import { qcStructure, structureFor } from "../lib/api";
+import { qcCriteriaText, qcFailures, type StructureTm } from "../lib/qc";
 import {
   DesignerHead, JunctionWorkbench, TmSettingsRail, orderedOligo, useJunctionSettings,
   type JunctionGeom, type JunctionSettings,
@@ -341,6 +343,22 @@ const enterBlur = (e: KeyboardEvent<HTMLInputElement>) => {
 const signedTm = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)} °C`;
 
 /**
+ * One option's primer-QC verdict, in the whole-transcript card's colours: green QC-passed,
+ * red QC-relaxed with the missed criteria in the tooltip. `null` failures means the
+ * structure numbers have not arrived yet, shown as a muted "QC …" rather than a guess.
+ */
+function QcTag({ failures }: { failures: string[] | null }) {
+  if (failures === null) return <span className="pv-flag pending" title="Checking hairpin and self-dimer stability…"> · QC …</span>;
+  if (failures.length === 0)
+    return <span className="pv-flag ok" title={`QC-passed: ${qcCriteriaText()}. See Method § 4.`}> · QC-passed</span>;
+  return (
+    <span className="pv-flag" title={`QC-relaxed — misses: ${failures.join("; ")}. See Method § 4.`}>
+      {" "}· QC-relaxed
+    </span>
+  );
+}
+
+/**
  * The second-primer panel: amplicon window in, ranked Tm-matched partner options out,
  * live against the CURRENT EEJ selection (ev), with the full cDNA junction view showing
  * the pair in place. Same type-freely / clamp-on-commit contract as the Tm inputs.
@@ -478,6 +496,31 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
   const options = search?.options ?? [];
   const chosen: PartnerOption | null = options.find((o) => o.id === selId) ?? options[0] ?? null;
 
+  // Primer QC for the options. Tm, GC, clamp and homopolymer runs are judged here; the
+  // hairpin and self-dimer numbers are primer3's and come from the engine, cached by
+  // sequence for the session. The request is debounced because options change on every
+  // drag of the EEJ selection, and the effect only asks for oligos not already known.
+  // `structs` is the snapshot the render reads; it is refilled from the cache when an
+  // answer lands, which is what re-renders the labels.
+  const [structs, setStructs] = useState<Map<string, StructureTm>>(() => new Map());
+  const [qcOn, setQcOn] = useState(true);   // false once the engine says it has no /qc
+  const optionSeqs = options.map((o) => o.seq).join(",");
+  useEffect(() => {
+    if (!qcOn || !optionSeqs) return;
+    const seqs = optionSeqs.split(",");
+    const snapshot = () => setStructs(new Map(
+      seqs.flatMap((s) => { const v = structureFor(s); return v ? [[s, v] as const] : []; })));
+    if (seqs.every((s) => structureFor(s))) { snapshot(); return; }
+    const ctl = new AbortController();
+    const t = window.setTimeout(() => {
+      qcStructure(seqs, ctl.signal).then((r) => {
+        if (r === "unsupported") setQcOn(false);
+        else if (r === "ok") snapshot();
+      }).catch(() => { /* aborted by a newer selection, or offline — leave unknown */ });
+    }, 200);
+    return () => { window.clearTimeout(t); ctl.abort(); };
+  }, [optionSeqs, qcOn]);
+
   // The pair as ordered oligos. When the partner must sit upstream, the EEJ primer runs
   // reverse: the oligo to order is the reverse complement of the selected sense window.
   const eejIsForward = (search?.eejRole ?? "forward") === "forward";
@@ -611,6 +654,7 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
                     <span className="pp-dtm">ΔTm {signedTm(o.dTm)}</span>{" "}
                     · GC {o.gc.toFixed(0)}% · {o.len} nt · amplicon <b>{o.ampLen} bp</b>{" "}
                     · mRNA {o.s + 1}–{o.e}
+                    {qcOn && <QcTag failures={qcFailures(o, structs.get(o.seq))} />}
                   </span>
                 </button>
               );

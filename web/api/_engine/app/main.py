@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from . import ncbi
+from . import ncbi, primers
 from .analyze import AnalysisError, analyze, analyze_events, lookup_gene
 from .models import FEATURES, AnalyzeResponse, GeneLookupResponse
 
@@ -49,6 +49,39 @@ def health() -> dict:
     something it does not have, so /health answers both questions at once.
     """
     return {"status": "ok", "features": FEATURES}
+
+
+_QC_MAX_OLIGOS = 50
+_QC_MAX_LEN = 60
+
+
+@app.get("/qc")
+def qc(seq: list[str] = Query(default=[])) -> dict:
+    """Structure Tm for oligos the browser designed itself.
+
+    The junction designer's second-primer options are computed client-side, and the browser
+    can judge Tm, GC, the 3' clamp and homopolymer runs on its own — but hairpin and
+    self-dimer stability are primer3's, and live here. This returns just those two numbers
+    per oligo, plus the thresholds the engine's own QC gate (primers._evaluate) applies, so
+    the page can print the same QC-passed / QC-relaxed verdict the whole-transcript card
+    prints, judged by the same rule. Stateless and cheap; unknown characters give 0.0.
+    """
+    out = []
+    for s in seq[:_QC_MAX_OLIGOS]:
+        s = (s or "").strip().upper()[:_QC_MAX_LEN]
+        if not s or any(c not in "ACGT" for c in s):
+            out.append({"seq": s, "hairpin_tm": 0.0, "homodimer_tm": 0.0})
+            continue
+        out.append({"seq": s, "hairpin_tm": primers.hairpin_tm(s),
+                    "homodimer_tm": primers.homodimer_tm(s)})
+    return {
+        "results": out,
+        "thresholds": {
+            "tm_min": primers.TM_MIN, "tm_max": primers.TM_MAX,
+            "gc_min": primers.GC_MIN, "gc_max": primers.GC_MAX,
+            "struct_tm_max": primers.STRUCT_TM_MAX, "poly_max": 5,
+        },
+    }
 
 
 @app.get("/suggest")

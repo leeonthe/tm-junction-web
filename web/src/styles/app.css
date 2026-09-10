@@ -312,6 +312,7 @@ td .tacc{font-family:var(--mono);font-weight:600;color:var(--ink)}
 .pv-qc b{color:var(--ink)}
 .pv-flag{color:var(--warn,var(--eej));font-weight:600}
 .pv-flag.ok{color:var(--ok)}
+.pv-flag.pending{color:var(--muted);font-weight:500}
 /* Method § 4: the two QC labels, in the colours the whole-transcript card prints them */
 .qc-pass{color:var(--ok)}
 .qc-relaxed{color:var(--warn,var(--eej))}

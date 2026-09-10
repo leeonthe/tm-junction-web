@@ -1,5 +1,6 @@
 import type { AnalyzeResponse, ApiError, GeneLookupResponse } from "./types";
 import { apiBase } from "./apiBase";
+import { updateThresholds, type StructureTm } from "./qc";
 
 export class AnalyzeError extends Error {
   code: string;
@@ -49,6 +50,43 @@ export async function suggestGenes(q: string, signal?: AbortSignal): Promise<Gen
   } catch {
     return [];
   }
+}
+
+// Hairpin / self-dimer Tm by oligo. An oligo's structure is a property of its sequence
+// alone, so once fetched it is good for the session — across drags, transcripts and genes.
+const structureCache = new Map<string, StructureTm>();
+/** Set once the engine has answered /qc with 404: an older build, so the label is withheld. */
+let structureUnsupported = false;
+
+/** What is already known, without a request — for synchronous rendering. */
+export function structureFor(seq: string): StructureTm | undefined {
+  return structureCache.get(seq.toUpperCase());
+}
+
+export type StructureFetch = "ok" | "unsupported" | "error";
+
+/**
+ * Fetch primer3 structure Tm for the oligos not yet cached. Resolves "ok" when every
+ * requested oligo is now in the cache, "unsupported" when the engine has no /qc (the
+ * page then prints no QC label rather than a guess), "error" on a network failure.
+ * Aborting rejects, as fetch does, so a stale request never marks anything.
+ */
+export async function qcStructure(seqs: string[], signal?: AbortSignal): Promise<StructureFetch> {
+  if (structureUnsupported) return "unsupported";
+  const missing = [...new Set(seqs.map((s) => s.toUpperCase()))].filter((s) => !structureCache.has(s));
+  if (!missing.length) return "ok";
+  const qs = missing.map((s) => `seq=${encodeURIComponent(s)}`).join("&");
+  const res = await fetch(`${await apiBase()}/qc?${qs}`, { signal });
+  if (res.status === 404) { structureUnsupported = true; return "unsupported"; }
+  if (!res.ok) return "error";
+  const d = await res.json() as {
+    results?: { seq: string; hairpin_tm: number; homodimer_tm: number }[];
+    thresholds?: Record<string, number>;
+  };
+  updateThresholds(d.thresholds);
+  for (const r of d.results ?? [])
+    structureCache.set(r.seq, { hairpin_tm: r.hairpin_tm, homodimer_tm: r.homodimer_tm });
+  return "ok";
 }
 
 export interface Progress { pct: number; detail: string }

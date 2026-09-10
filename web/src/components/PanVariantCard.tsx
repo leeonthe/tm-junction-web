@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AnalyzeResponse, PanVariant } from "../lib/types";
 import { Copy } from "./icons";
 import Info from "./Info";
+import { qcCriteriaText } from "../lib/qc";
 
 /**
  * Whole-transcript amplification — one pair for the gene rather than one isoform.
@@ -24,20 +25,17 @@ import Info from "./Info";
  * QC-relaxed mean??" on a ticket, so the words sit on the chip itself rather than in the
  * guide. The criteria mirror the engine's per-primer gate (primers.py `_evaluate`).
  */
-const QC_RELAXED_HELP =
+const QC_RELAXED_HELP = () =>
   "QC-relaxed: at least one primer of this pair misses one of the tool's own primer checks " +
-  "(Tm 57–63 °C, GC 40–60%, a G or C at the 3′ end, hairpin and self-dimer Tm below 45 °C, " +
-  "no run of 5+ identical bases). It is offered as a best-effort option, not a fully vetted one.";
-const QC_PASSED_HELP =
-  "QC-passed: both primers of this pair meet every primer check — Tm 57–63 °C, GC 40–60%, " +
-  "a G or C at the 3′ end, hairpin and self-dimer Tm below 45 °C, no run of 5+ identical bases. " +
-  "See Method § 4.";
+  `(${qcCriteriaText()}). It is offered as a best-effort option, not a fully vetted one. See Method § 4.`;
+const QC_PASSED_HELP = () =>
+  `QC-passed: both primers of this pair meet every primer check — ${qcCriteriaText()}. See Method § 4.`;
 
-/** The pair's QC verdict chip: green when both primers pass, amber when one was relaxed. */
+/** The pair's QC verdict chip: green when both primers pass, red when one was relaxed. */
 function QcChip({ flags }: { flags: string[] }) {
   return flags.includes("LOW_QC")
-    ? <span className="pv-flag" title={QC_RELAXED_HELP}> · QC-relaxed</span>
-    : <span className="pv-flag ok" title={QC_PASSED_HELP}> · QC-passed</span>;
+    ? <span className="pv-flag" title={QC_RELAXED_HELP()}> · QC-relaxed</span>
+    : <span className="pv-flag ok" title={QC_PASSED_HELP()}> · QC-passed</span>;
 }
 
 export default function PanVariantCard({ result }: { result: AnalyzeResponse }) {

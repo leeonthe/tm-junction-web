@@ -16,6 +16,7 @@ FEATURES = [
     "fold_identical_accessions",   # 27: one transcript per molecule, not per accession
     "variant_labels",              # 27.1: NCBI's "transcript variant N" per transcript
     "pan_variant",                 # 25: one pair for every variant of the gene
+    "primer_qc",                   # 30: GET /qc — hairpin/self-dimer Tm for browser-designed oligos
 ]
 
 

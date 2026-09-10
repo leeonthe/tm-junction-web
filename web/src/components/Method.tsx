@@ -6,6 +6,7 @@ import {
   wallaceTm, type SaltCoefficients,
 } from "../lib/tm";
 import { fixed, molarStr, numStr, rounded, signed } from "../lib/format";
+import { QC } from "../lib/qc";
 import { ArrowRight } from "./icons";
 
 /** The oligo the new formula was validated against — see the worked example below. */
@@ -20,13 +21,6 @@ const EXAMPLE = "GACCTCAACTACATGGTTTACATGTTC";
 /** An arm-length oligo for the Wallace worked example — also recomputed live. */
 const ARM_EXAMPLE = "CTCGCGA";
 
-/**
- * The engine's per-primer acceptance thresholds, as written in engine/app/primers.py
- * (TM_MIN/TM_MAX, GC_MIN/GC_MAX, STRUCT_TM_MAX, and the 5+ homopolymer rejection in
- * _homopolymer). They are evaluated server-side, so the page carries a copy for § 4; keep
- * the two in step if either changes.
- */
-const QC = { tmMin: 57, tmMax: 63, gcMin: 40, gcMax: 60, structTmMax: 45, polyMax: 5 };
 
 /** Equation-16 coefficients in display order, with the mixed-band refit for the three that
  *  are not constants (Owczarzy 2008 eqs. 18–20). `l` denotes ln[Mon⁺]. */
@@ -460,10 +454,15 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           should be preferred where one is offered.
         </p>
         <p className="mth-note">
-          These criteria are applied with primer3's thermodynamic estimator for hairpin and
-          dimer stability, and are distinct from the Tm-guided junction rule in § 2, which
-          governs EEJ primers. The thresholds are those of the analysis engine
-          (<span className="mono">engine/app/primers.py</span>).
+          Hairpin and self-dimer stability are primer3's thermodynamic estimates, computed by
+          the analysis engine in every case. For the second-primer options in the junction
+          designer, which are designed in the browser, the remaining criteria are evaluated on
+          the values displayed with each option — the T<sub>m</sub> shown is the T<sub>m</sub>{" "}
+          judged — and the label reads <span className="mono">QC …</span> until the engine's
+          structure figures arrive. The thresholds are those of the engine
+          (<span className="mono">engine/app/primers.py</span>), which reports them alongside
+          the structure figures so the page cannot drift from it. These criteria are distinct
+          from the Tm-guided junction rule in § 2, which governs EEJ primers.
         </p>
       </section>
 
