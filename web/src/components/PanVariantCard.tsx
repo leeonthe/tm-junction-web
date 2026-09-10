@@ -28,6 +28,17 @@ const QC_RELAXED_HELP =
   "QC-relaxed: at least one primer of this pair misses one of the tool's own primer checks " +
   "(Tm 57–63 °C, GC 40–60%, a G or C at the 3′ end, hairpin and self-dimer Tm below 45 °C, " +
   "no run of 5+ identical bases). It is offered as a best-effort option, not a fully vetted one.";
+const QC_PASSED_HELP =
+  "QC-passed: both primers of this pair meet every primer check — Tm 57–63 °C, GC 40–60%, " +
+  "a G or C at the 3′ end, hairpin and self-dimer Tm below 45 °C, no run of 5+ identical bases. " +
+  "See Method § 4.";
+
+/** The pair's QC verdict chip: green when both primers pass, amber when one was relaxed. */
+function QcChip({ flags }: { flags: string[] }) {
+  return flags.includes("LOW_QC")
+    ? <span className="pv-flag" title={QC_RELAXED_HELP}> · QC-relaxed</span>
+    : <span className="pv-flag ok" title={QC_PASSED_HELP}> · QC-passed</span>;
+}
 
 export default function PanVariantCard({ result }: { result: AnalyzeResponse }) {
   const options: PanVariant[] =
@@ -98,7 +109,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
                   Tm <b>{o.forward!.tm.toFixed(1)}</b> / <b>{o.reverse!.tm.toFixed(1)}</b> °C
                   {" · "}amplicon <b>{o.amplicon_len} bp</b>
                   {" · "}covers <b>{o.covered.length}/{total}</b>
-                  {o.flags.includes("LOW_QC") && <span className="pv-flag" title={QC_RELAXED_HELP}> · QC-relaxed</span>}
+                  <QcChip flags={o.flags} />
                   {o.flags.includes("PAIR_DIMER") && <span className="pv-flag"> · pair dimer</span>}
                 </span>
               </button>
@@ -139,7 +150,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
       <p className="pv-qc mono">
         Tm <b>{p.forward.tm.toFixed(1)}</b> / <b>{p.reverse.tm.toFixed(1)}</b> °C ·
         GC {p.forward.gc}% / {p.reverse.gc}% · {p.forward.length} / {p.reverse.length} nt
-        {p.flags.includes("LOW_QC") && <span className="pv-flag" title={QC_RELAXED_HELP}> · QC-relaxed</span>}
+        <QcChip flags={p.flags} />
         {p.flags.includes("PAIR_DIMER") && <span className="pv-flag"> · pair dimer</span>}
       </p>
 

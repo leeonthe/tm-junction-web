@@ -311,6 +311,10 @@ td .tacc{font-family:var(--mono);font-weight:600;color:var(--ink)}
 .pv-qc{margin-top:8px;font-size:11.5px;color:var(--muted)}
 .pv-qc b{color:var(--ink)}
 .pv-flag{color:var(--warn,var(--eej));font-weight:600}
+.pv-flag.ok{color:var(--ok)}
+/* Method § 4: the two QC labels, in the colours the whole-transcript card prints them */
+.qc-pass{color:var(--ok)}
+.qc-relaxed{color:var(--warn,var(--eej))}
 .pv-cover{margin-top:14px;padding-top:12px;border-top:1px solid var(--divider)}
 .pv-list{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-bottom:6px}
 .pv-tag{font-size:10.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;
