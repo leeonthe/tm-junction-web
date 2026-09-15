@@ -32,8 +32,8 @@ import Info from "./Info";
  * transcripts it is SHOWN to amplify, at one size. Every option's coverage is measured
  * from the siblings' mRNA (lib/panvariant), and a transcript that gives another size is
  * named as missed rather than counted — it would be a second band, and an unquantifiable
- * assay. Below the pairs, the gene's exon graph paints the co-amplified exons in each
- * transcript the chosen pair covers.
+ * assay. Below the pairs, the gene's exon graph paints the co-amplified region — forward
+ * site to reverse site — in each transcript the chosen pair covers.
  */
 
 /** A searched pair with what it does to the gene. */
@@ -377,12 +377,12 @@ export default function PanVariantDesigner({ result, seqs, onMethod }: {
           <div className="card-head">
             <div>
               <h3 className="card-title">Exon structure — all {gene.symbol} isoforms</h3>
-              <p className="sub">GRCh38 · the exons the chosen pair co-amplifies, in every transcript it covers</p>
+              <p className="sub">GRCh38 · the region the chosen pair co-amplifies, in every transcript it covers</p>
             </div>
             <div className="legend">
-              <span className="lg"><span className="sw" style={{ background: "var(--pan-amp)" }} />co-amplified exon</span>
+              <span className="lg"><span className="sw" style={{ background: "var(--pan-amp)" }} />co-amplified region</span>
               <span className="lg"><span className="sw" style={{ background: "var(--pan-exon)" }} />outside the product</span>
-              <span className="lg"><span className="mono" style={{ fontWeight: 700, color: "var(--ink)" }}>F · R</span> primer sites</span>
+              <span className="lg"><span className="pan-pill">F</span><span className="pan-pill">R</span>primer sites</span>
             </div>
           </div>
           <PanTrackGraph transcripts={transcripts} targetAccession={target_accession}

@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import { foldedEntry } from "../lib/format";
-import { exonsInProduct, txToGenomic, type Product } from "../lib/panvariant";
+import { txToGenomic, type Product } from "../lib/panvariant";
 import { exonBoxPx } from "./ExonTrackGraph";
 
 /**
  * The whole-transcript designer's exon graph: every isoform of the gene, one row each,
- * exons to GRCh38 scale — and, for the chosen pair, the exons it co-amplifies painted in
- * each transcript it amplifies, with the two primer sites marked and the band each
- * transcript would give stated at the end of its row.
+ * exons to GRCh38 scale — and, for the chosen pair, the REGION it co-amplifies painted in
+ * each transcript it amplifies: the stretch from the forward site to the reverse site,
+ * not the whole of the exons it touches, with F and R lettered inside the bar at the two
+ * sites and the band each transcript would give stated at the end of its row.
  *
  * Deliberately NOT the tier-coloured graph the other tabs use. That graph answers "which
  * transcripts can be told apart, and by what" — the opposite question from this tab's,
@@ -76,18 +77,32 @@ export default function PanTrackGraph({
           const cy = top + i * rowH + rowH / 2;
           const isTarget = t.accession === targetAccession;
           const st = status.get(t.accession) ?? { product: null, covered: false };
-          const amplified = st.covered ? new Set(exonsInProduct(t.exons, st.product!)) : new Set<number>();
           const first = t.exons[0], last = t.exons[t.exons.length - 1];
           const same = t.same_sequence_accessions ?? [];
-          // The two primer sites, as genomic x — only on a covered row, where they mean
-          // "this band". A forward site is its 5′ start; a reverse site its 3′ end on
-          // the sense strand (the end of the product).
-          const marks: { x: number; role: "F" | "R" }[] = [];
+          // The product, as the slice of each exon it runs through — painted only on a
+          // covered row, where it means "this band". On the genome the product is the
+          // exon pieces between the two sites, so each piece is its own segment, kept
+          // inside its exon's painted box.
+          const segments: { x1: number; x2: number }[] = [];
+          let siteF: number | null = null, siteR: number | null = null;
           if (st.covered && st.product) {
-            const gf = txToGenomic(t.exons, st.product.start);
-            const gr = txToGenomic(t.exons, st.product.end - 1);
-            if (gf != null) marks.push({ x: x(gf), role: "F" });
-            if (gr != null) marks.push({ x: x(gr), role: "R" });
+            const { start, end } = st.product;
+            for (const e of t.exons) {
+              const lo = Math.max(e.tx_begin - 1, start), hi = Math.min(e.tx_end, end);
+              if (lo >= hi) continue;
+              const g1 = txToGenomic(t.exons, lo), g2 = txToGenomic(t.exons, hi - 1);
+              if (g1 == null || g2 == null) continue;
+              const [a, b] = g1 <= g2 ? [g1, g2] : [g2, g1];
+              const [exX, exRight] = exonBoxPx(e, x);
+              const x1 = Math.max(exX, x(a));
+              const x2 = Math.min(exRight, Math.max(x(b + 1), x1 + 2));
+              if (x2 > x1) segments.push({ x1, x2 });
+            }
+            // The two sites: the forward's 5′ start and the reverse's 3′ end on the sense
+            // strand — the two ends of the product, whichever side of the graph each is on.
+            const gf = txToGenomic(t.exons, start), gr = txToGenomic(t.exons, end - 1);
+            if (gf != null) siteF = x(gf);
+            if (gr != null) siteR = x(gr + 1);
           }
           const rowStatus = st.covered
             ? { text: `✓ ${st.product!.end - st.product!.start} bp`, fill: "var(--pan-amp)",
@@ -124,26 +139,43 @@ export default function PanTrackGraph({
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, ei) => {
                 const [exX, exRight] = exonBoxPx(e, x);
-                const on = amplified.has(e.order);
+                const inProduct = !!st.covered && !!st.product
+                  && e.tx_begin - 1 < st.product.end && e.tx_end > st.product.start;
                 return (
                   <rect key={ei} x={exX} y={cy - exH / 2} width={exRight - exX} height={exH} rx={2.5}
-                    fill={on ? "var(--pan-amp)" : "var(--pan-exon)"}
-                    onMouseMove={(ev) => setTip({ x: ev.clientX, y: ev.clientY, exon: e, t, inProduct: on })} />
+                    fill="var(--pan-exon)"
+                    onMouseMove={(ev) => setTip({ x: ev.clientX, y: ev.clientY, exon: e, t, inProduct })} />
                 );
               })}
-              {marks.map((m) => {
-                // A small flag above the exon at the site: a tick, and the letter.
-                const yb = cy - exH / 2 - 3;
-                return (
-                  <g key={m.role} pointerEvents="none">
-                    <line x1={m.x} y1={yb} x2={m.x} y2={yb - 8} stroke="var(--ink)" strokeWidth={1.5} />
-                    <text x={m.x + (m.role === "F" ? 3 : -3)} y={yb - 9} fontSize={9.5} fontWeight={700}
-                      fontFamily="var(--mono)" fill="var(--ink)" textAnchor={m.role === "F" ? "start" : "end"}>
-                      {m.role}
-                    </text>
-                  </g>
-                );
-              })}
+              {segments.map((sg, si) => (
+                <rect key={si} x={sg.x1} y={cy - exH / 2} width={sg.x2 - sg.x1} height={exH} rx={2.5}
+                  fill="var(--pan-amp)" pointerEvents="none" />
+              ))}
+              {siteF != null && siteR != null && (() => {
+                // The letters sit INSIDE the bar, each at its own end of the product, on a
+                // small dark pill: a site can fall at the very edge of an exon (a 3 px sliver
+                // of green) or in an exon a few pixels wide, and a bare letter is unreadable
+                // there — the pill reads over green and grey alike. The one nearer the left
+                // edge sits just inside it, the other just inside the right.
+                const PW = 12, PH = 11;
+                const [lx, lr, rx, rr] = siteF <= siteR ? [siteF, "F", siteR, "R"] : [siteR, "R", siteF, "F"];
+                // A short product on a long gene is a few pixels wide — TP53's 216 bp on a
+                // 19 kb axis is 18 — so two pills inside it would cover each other and the
+                // green. With no room between the sites, the pills flank the region instead:
+                // just outside each end, still in the bar's row, the product visible between.
+                const inside = rx - lx >= 2 * PW + 4;
+                const pill = (px: number, ch: string, left: boolean) => {
+                  const x0 = left === inside ? px : px - PW;
+                  return (
+                    <g key={ch} pointerEvents="none">
+                      <rect x={x0} y={cy - PH / 2} width={PW} height={PH} rx={3} fill="var(--ink)" />
+                      <text x={x0 + PW / 2} y={cy + 3.2} fontSize={8.5} fontWeight={700}
+                        fontFamily="var(--mono)" fill="var(--surface)" textAnchor="middle">{ch}</text>
+                    </g>
+                  );
+                };
+                return <>{pill(lx, lr, true)}{pill(rx, rr, false)}</>;
+              })()}
               {size != null && (
                 <text x={W - 12} y={cy + 4} fontSize={11.5} fontFamily="var(--mono)" fontWeight={600}
                   textAnchor="end" fill={rowStatus.fill}>
@@ -194,7 +226,7 @@ export default function PanTrackGraph({
           </div>
           <div className="et-div" />
           {tip.inProduct
-            ? <div className="et-line et-good">Co-amplified — inside the chosen pair's product</div>
+            ? <div className="et-line et-good">The chosen pair's product runs through this exon — the green stretch is the co-amplified region</div>
             : <div className="et-line et-muted">Outside the product</div>}
         </div>
       )}

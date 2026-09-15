@@ -299,8 +299,8 @@ export default function Guide({ onBack, onMethod, backLabel }: {
           checked from each one's mRNA: both primer sites present, once, and the product the
           same length — a transcript that gives another length is a second band and is listed
           as missed. <b>View on cDNA</b> shows the pair in place, and the exon graph below
-          paints the co-amplified exons in every transcript the pair covers, with the band
-          each one gives at the end of its row.
+          paints the co-amplified region — forward site to reverse site — in every transcript
+          the pair covers, with the band each one gives at the end of its row.
         </p>
       </section>
 
