@@ -11,6 +11,8 @@ import { revComp } from "../lib/partner";
 import { numStr } from "../lib/format";
 import { Copy } from "./icons";
 import Info from "./Info";
+import { qcCriteriaText, qcFailures, type QcRule } from "../lib/qc";
+import { QcTag, useStructureQc } from "./QcTag";
 
 /**
  * The parts of the Tm-guided designer that do not care WHERE the junction came from.
@@ -585,7 +587,14 @@ function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel, role }: {
   role: "forward" | "reverse" | null;
 }) {
   const reverse = role === "reverse";
-  function copy() { navigator.clipboard?.writeText(orderedOligo(ev, reverse)); }
+  const oligo = orderedOligo(ev, reverse);
+  function copy() { navigator.clipboard?.writeText(oligo); }
+  // Primer QC on the EEJ oligo itself (ticket 30.b): the ordered sequence, judged against
+  // the user's Tm range, the 3′ clamp, hairpin, self-dimer and homopolymer runs — but NOT
+  // GC content, which a junction primer cannot choose. Structure numbers come from /qc.
+  const { structs, qcOn } = useStructureQc([oligo]);
+  const rule = useMemo<QcRule>(() => ({ tmMin, tmMax, gc: false }), [tmMin, tmMax]);
+  const qc = qcFailures({ seq: oligo, tm: ev.whole.tm, gc: ev.whole.gc }, structs.get(oligo), rule);
   // Reverse-complementing swaps which arm leads: revComp(left+right) = revComp(right)+revComp(left),
   // so the acceptor arm becomes the oligo's 5′ end and the junction mark moves with it.
   const oligo5 = reverse ? revComp(ev.right.seq) : ev.left.seq;
@@ -630,6 +639,7 @@ function Readout({ ev, tmMin, tmMax, leftLabel, rightLabel, role }: {
             </Info>
           )}
           5′-{oligo5}<span className="jd-split" />{oligo3}-3′
+          {qcOn && <QcTag failures={qc} criteria={qcCriteriaText(rule)} />}
         </div>
         <button className="btn btn-ghost" onClick={copy}><Copy /> Copy primer</button>
       </div>

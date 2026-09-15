@@ -12,6 +12,8 @@ import { numStr } from "../lib/format";
 import CdnaView from "./CdnaView";
 import { Copy } from "./icons";
 import Info from "./Info";
+import { qcCriteriaText, qcFailures, qcOrder, type QcFailure, type QcRule } from "../lib/qc";
+import { QcTag, useStructureQc } from "./QcTag";
 
 /**
  * Interactive primer-PAIR designer for a target that needs no junction primer.
@@ -164,7 +166,7 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planKey]);
 
-  const options = useMemo(() => {
+  const found = useMemo(() => {
     if (!plan) return [];
     const args: PairArgs = {
       mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
@@ -174,6 +176,22 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
     };
     return findPairs(args);
   }, [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond, ampMin, ampMax, dTmMax]);
+
+  // Primer QC on every pair (ticket 30.b): judged against the user's Tm range, GC applied
+  // (conventional primers); hairpin / self-dimer from /qc. The pair passes when both do,
+  // and QC-passed pairs are listed first, the search's ranking within each group.
+  const { structs, qcOn } = useStructureQc(found.flatMap((o) => [o.forward.seq, o.reverse.seq]));
+  const rule = useMemo<QcRule>(() => ({ tmMin: s.tmMin, tmMax: s.tmMax, gc: true }), [s.tmMin, s.tmMax]);
+  const pairFailures = (o: PairOption): QcFailure[] | null => {
+    const f = qcFailures(o.forward, structs.get(o.forward.seq), rule);
+    const r = qcFailures(o.reverse, structs.get(o.reverse.seq), rule);
+    if (f === null || r === null) return null;
+    return [...f.map((x) => ({ ...x, who: "F" })), ...r.map((x) => ({ ...x, who: "R" }))];
+  };
+  const options = useMemo(
+    () => qcOn ? qcOrder(found, pairFailures) : found,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [found, structs, qcOn, rule]);
 
   if (!plan) return null;
 
@@ -249,7 +267,8 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
               <Info>{plan.detail}{" "}Spanning a junction means contaminating genomic DNA cannot
                 give the same band. Set the product size and how closely the two primers must
                 melt together in the panel beside this card; the list re-searches as you type.
-                Hairpin and dimer checks are not run here.</Info>
+                Every pair carries the primer QC verdict of Method § 4, judged against your Tm
+                range; QC-passed pairs are listed first.</Info>
             </p>
           }
         />
@@ -285,6 +304,7 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
                     {" "}· {o.forward.len} / {o.reverse.len} nt
                     {" "}· amplicon <b>{o.ampLen} bp</b>
                     {" "}· mRNA {o.forward.s + 1}–{o.forward.e} / {o.reverse.s + 1}–{o.reverse.e}
+                    {qcOn && <QcTag failures={pairFailures(o)} criteria={qcCriteriaText(rule)} />}
                   </span>
                 </button>
               );

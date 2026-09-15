@@ -1,6 +1,6 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
-import { qcFailures } from "../lib/qc";
+import { qcCriteriaText, qcFailures, qcOrder, type QcRule } from "../lib/qc";
 import { QcTag, useStructureQc } from "./QcTag";
 import {
   DesignerHead, JunctionWorkbench, TmSettingsRail, orderedOligo, useJunctionSettings,
@@ -324,7 +324,7 @@ function DesignerCard({ d, s, verdict, index, total, force, onEval }: {
 
         {partnerOn && (
           <PartnerPanel mrna={g.seq} verdict={verdict} ev={ev} cond={s.cond}
-            force={force} showCdna={showCdna} />
+            tmMin={s.tmMin} tmMax={s.tmMax} force={force} showCdna={showCdna} />
         )}
       </section>
 
@@ -345,11 +345,14 @@ const signedTm = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)
  * live against the CURRENT EEJ selection (ev), with the full cDNA junction view showing
  * the pair in place. Same type-freely / clamp-on-commit contract as the Tm inputs.
  */
-function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
+function PartnerPanel({ mrna, verdict, ev, cond, tmMin, tmMax, force, showCdna }: {
   mrna: string;
   verdict: TranscriptVerdict;
   ev: WindowEval | null;
   cond: TmConditions;
+  /** The user's Tm range — what the options' Tm is judged against (ticket 30.b). */
+  tmMin: number;
+  tmMax: number;
   force: PartnerForce | null;
   showCdna: boolean;
 }) {
@@ -475,12 +478,20 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
     setAmpMax(feasible.max); setMaxStr(String(feasible.max));
   }
 
-  const options = search?.options ?? [];
-  const chosen: PartnerOption | null = options.find((o) => o.id === selId) ?? options[0] ?? null;
-
   // Primer QC for the options — see useStructureQc. Options change on every drag of the
-  // EEJ selection, so the structure request is debounced there.
-  const { structs, qcOn } = useStructureQc(options.map((o) => o.seq));
+  // EEJ selection, so the structure request is debounced there. Judged against the user's
+  // Tm range; these are conventional primers, so GC applies.
+  const { structs, qcOn } = useStructureQc((search?.options ?? []).map((o) => o.seq));
+  const rule = useMemo<QcRule>(() => ({ tmMin, tmMax, gc: true }), [tmMin, tmMax]);
+  const failuresOf = (o: PartnerOption) => qcFailures(o, structs.get(o.seq), rule);
+  // QC-passed options first (ticket 30.b), the search's own Tm-match ranking within each
+  // group — so the default choice is the best-matched pair that also passes.
+  const options = useMemo(() => {
+    const base = search?.options ?? [];
+    return qcOn ? qcOrder(base, failuresOf) : base;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, structs, qcOn, rule]);
+  const chosen: PartnerOption | null = options.find((o) => o.id === selId) ?? options[0] ?? null;
 
   // The pair as ordered oligos. When the partner must sit upstream, the EEJ primer runs
   // reverse: the oligo to order is the reverse complement of the selected sense window.
@@ -615,7 +626,7 @@ function PartnerPanel({ mrna, verdict, ev, cond, force, showCdna }: {
                     <span className="pp-dtm">ΔTm {signedTm(o.dTm)}</span>{" "}
                     · GC {o.gc.toFixed(0)}% · {o.len} nt · amplicon <b>{o.ampLen} bp</b>{" "}
                     · mRNA {o.s + 1}–{o.e}
-                    {qcOn && <QcTag failures={qcFailures(o, structs.get(o.seq))} />}
+                    {qcOn && <QcTag failures={failuresOf(o)} criteria={qcCriteriaText(rule)} />}
                   </span>
                 </button>
               );

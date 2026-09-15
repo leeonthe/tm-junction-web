@@ -1,23 +1,32 @@
 import { useEffect, useState } from "react";
 import { qcStructure, structureFor } from "../lib/api";
-import { qcCriteriaText, type StructureTm } from "../lib/qc";
+import { qcCriteriaText, type QcFailure, type StructureTm } from "../lib/qc";
 
 /**
  * One option's primer-QC verdict, in the whole-transcript card's colours: green QC-passed,
- * red QC-relaxed with the missed criteria in the tooltip. `null` failures means the
- * structure numbers have not arrived yet, shown as a muted "QC …" rather than a guess.
+ * red QC-relaxed — with, for a relaxed one, a chip per missed criterion giving its NUMBER
+ * (as listed in Method § 4) and the offending value, e.g. "#2 GC 67%", "#4 hairpin
+ * 48.3 °C"; a pair's chips say which primer (F/R). The tooltip adds the bound each missed.
+ * `null` failures means the structure numbers have not arrived yet, shown as a muted
+ * "QC …" rather than a guess. `criteria` names the rule the verdict was judged by — the
+ * user's Tm range, and whether GC applied — so QC-passed says what it means.
  *
  * Shared by every list of browser-designed oligos — the EEJ designer's second-primer
- * options and the whole-transcript designer's pairs — so a QC-passed label means the same
- * thing wherever it is printed (Method § 4).
+ * options, the conventional and whole-transcript pair designers, and the EEJ primer itself
+ * — so a QC-passed label means the same thing wherever it is printed.
  */
-export function QcTag({ failures }: { failures: string[] | null }) {
+export function QcTag({ failures, criteria }: { failures: QcFailure[] | null; criteria?: string }) {
+  const rule = criteria ?? qcCriteriaText();
   if (failures === null) return <span className="pv-flag pending" title="Checking hairpin and self-dimer stability…"> · QC …</span>;
   if (failures.length === 0)
-    return <span className="pv-flag ok" title={`QC-passed: ${qcCriteriaText()}. See Method § 4.`}> · QC-passed</span>;
+    return <span className="pv-flag ok" title={`QC-passed — every criterion met: ${rule}. See Method § 4.`}> · QC-passed</span>;
+  const misses = failures.map((f) => `#${f.n}${f.who ? ` (${f.who})` : ""} ${f.full}`).join("; ");
   return (
-    <span className="pv-flag" title={`QC-relaxed — misses: ${failures.join("; ")}. See Method § 4.`}>
+    <span className="pv-flag" title={`QC-relaxed — misses ${misses}. Criteria: ${rule}. See Method § 4.`}>
       {" "}· QC-relaxed
+      {failures.map((f, i) => (
+        <span key={i} className="qc-miss">#{f.n}{f.who ? ` ${f.who}` : ""} {f.short}</span>
+      ))}
     </span>
   );
 }

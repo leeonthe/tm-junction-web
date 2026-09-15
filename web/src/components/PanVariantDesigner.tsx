@@ -10,7 +10,7 @@ import {
 import { ampRange, findPairs, openingSearch, type PairArgs, type PairOption } from "../lib/conventional";
 import { coverage, defaultPairChoice, offeredPairs, type Coverage } from "../lib/panvariant";
 import { numStr } from "../lib/format";
-import { qcFailures } from "../lib/qc";
+import { qcCriteriaText, qcFailures, qcRank, type QcFailure, type QcRule } from "../lib/qc";
 import CdnaView from "./CdnaView";
 import PanTrackGraph, { SiteGlyph, type RowStatus } from "./PanTrackGraph";
 import { QcTag, useStructureQc } from "./QcTag";
@@ -140,7 +140,7 @@ export default function PanVariantDesigner({ result, seqs }: {
   // The pairs, each with the transcripts it is shown to amplify. A pair the target itself
   // does not amplify cleanly (a duplicated site) is not a pair. Most transcripts first; the
   // search's own ranking orders the rest (sort is stable).
-  const options = useMemo<PanOption[]>(() => {
+  const found = useMemo<PanOption[]>(() => {
     if (!plan) return [];
     const args: PairArgs = {
       mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion, exonEnds,
@@ -154,16 +154,28 @@ export default function PanVariantDesigner({ result, seqs }: {
     return out.sort((a, b) => b.cov.covered.length - a.cov.covered.length);
   }, [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond, ampMin, ampMax, dTmMax, seqs, order, target_accession]);
 
-  const chosen: PanOption | null = options.find((o) => o.id === selId) ?? options[0] ?? null;
-
-  // Primer QC, judged by the engine's own gate (Method § 4): the pair passes when both do.
-  const { structs, qcOn } = useStructureQc(options.flatMap((o) => [o.forward.seq, o.reverse.seq]));
-  const pairFailures = (o: PanOption): string[] | null => {
-    const f = qcFailures(o.forward, structs.get(o.forward.seq));
-    const r = qcFailures(o.reverse, structs.get(o.reverse.seq));
+  // Primer QC (Method § 4), judged against the user's Tm range with GC applied — these are
+  // conventional primers; the pair passes when both do. Coverage still comes first: a pair
+  // that measures more of the gene outranks a cleaner one that measures less; QC-passed
+  // first only among equals (ticket 30.b).
+  const { structs, qcOn } = useStructureQc(found.flatMap((o) => [o.forward.seq, o.reverse.seq]));
+  const rule = useMemo<QcRule>(() => ({ tmMin: s.tmMin, tmMax: s.tmMax, gc: true }), [s.tmMin, s.tmMax]);
+  const pairFailures = (o: PanOption): QcFailure[] | null => {
+    const f = qcFailures(o.forward, structs.get(o.forward.seq), rule);
+    const r = qcFailures(o.reverse, structs.get(o.reverse.seq), rule);
     if (f === null || r === null) return null;
-    return [...f.map((x) => `forward: ${x}`), ...r.map((x) => `reverse: ${x}`)];
+    return [...f.map((x) => ({ ...x, who: "F" })), ...r.map((x) => ({ ...x, who: "R" }))];
   };
+  const options = useMemo(() => {
+    if (!qcOn) return found;
+    return found
+      .map((o, i) => ({ o, i, r: qcRank(pairFailures(o)) }))
+      .sort((a, b) => b.o.cov.covered.length - a.o.cov.covered.length || a.r - b.r || a.i - b.i)
+      .map((x) => x.o);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [found, structs, qcOn, rule]);
+
+  const chosen: PanOption | null = options.find((o) => o.id === selId) ?? options[0] ?? null;
 
   // Accessions folded into a covered transcript are covered too — same molecule.
   const byAcc = useMemo(() => new Map(transcripts.map((t) => [t.accession, t])), [transcripts]);
@@ -308,7 +320,7 @@ export default function PanVariantDesigner({ result, seqs }: {
                         {" "}· {o.forward.len} / {o.reverse.len} nt
                         {" "}· amplicon <b>{o.cov.size} bp</b>
                         {" "}· covers <b>{o.cov.covered.length}/{total}</b>
-                        {qcOn && <QcTag failures={pairFailures(o)} />}
+                        {qcOn && <QcTag failures={pairFailures(o)} criteria={qcCriteriaText(rule)} />}
                       </span>
                     </button>
                   );

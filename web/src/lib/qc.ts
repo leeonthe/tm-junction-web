@@ -58,28 +58,91 @@ export interface QcInput {
 }
 
 /**
- * Which criteria the oligo misses, in the order Method § 4 lists them — [] is a pass.
- * Returns null while the structure numbers are still unknown: the verdict cannot be given
- * on three criteria out of five and pretend to be the whole gate.
+ * The gate as applied to ONE kind of primer (ticket 30.b). The Tm bound is the range the
+ * user set in the designer's settings panel, not the engine's fixed 57–63 °C — the primers
+ * on screen were searched inside that range, so it is the range they are judged against.
+ * GC content is judged for conventional primers only: a junction primer's composition is
+ * fixed by the junction it spans, and its specificity comes from the arm rule (Method § 2),
+ * so a GC bound there would fail primers for a property they cannot choose.
  */
-export function qcFailures(o: QcInput, s: StructureTm | null | undefined): string[] | null {
+export interface QcRule {
+  tmMin: number;
+  tmMax: number;
+  /** Apply the GC criterion — true for conventional primers, false for an EEJ primer. */
+  gc: boolean;
+}
+/** The engine's own gate, for pairs the engine designed (it has no user Tm range). */
+export const engineRule = (): QcRule => ({ tmMin: QC.tmMin, tmMax: QC.tmMax, gc: true });
+
+/**
+ * One missed criterion. `n` is its number in the fixed list below (and in Method § 4), so
+ * a chip can say "#2 GC 67%" and the reader can look the criterion up; `short` is that
+ * chip text, `full` adds the bound it missed; `who` marks which primer of a pair.
+ *
+ *   1 melting temperature · 2 GC content · 3 3′ terminus · 4 hairpin · 5 self-dimer ·
+ *   6 homopolymer run
+ */
+export interface QcFailure { n: number; short: string; full: string; who?: string }
+
+/** The first run of `n`+ identical bases, e.g. "AAAAA" — what the chip shows. */
+function firstRun(seq: string, n: number): string {
+  const m = seq.toUpperCase().match(new RegExp(`(A{${n},}|C{${n},}|G{${n},}|T{${n},})`));
+  return m ? m[1] : "";
+}
+
+/**
+ * Which criteria the oligo misses, numbered — [] is a pass. Returns null while the
+ * structure numbers are still unknown: the verdict cannot be given on four criteria out of
+ * six and pretend to be the whole gate.
+ */
+export function qcFailures(
+  o: QcInput, s: StructureTm | null | undefined, rule: QcRule = engineRule(),
+): QcFailure[] | null {
   if (!s) return null;
-  const f: string[] = [];
-  if (o.tm < QC.tmMin || o.tm > QC.tmMax)
-    f.push(`Tm ${o.tm.toFixed(1)} °C (${QC.tmMin}–${QC.tmMax} °C)`);
-  if (o.gc < QC.gcMin || o.gc > QC.gcMax)
-    f.push(`GC ${o.gc.toFixed(0)}% (${QC.gcMin}–${QC.gcMax}%)`);
-  if (!hasClamp(o.seq)) f.push("no G/C at the 3′ end");
+  const f: QcFailure[] = [];
+  if (o.tm < rule.tmMin || o.tm > rule.tmMax)
+    f.push({ n: 1, short: `Tm ${o.tm.toFixed(1)} °C`,
+      full: `Tm ${o.tm.toFixed(1)} °C (${rule.tmMin}–${rule.tmMax} °C)` });
+  if (rule.gc && (o.gc < QC.gcMin || o.gc > QC.gcMax))
+    f.push({ n: 2, short: `GC ${o.gc.toFixed(0)}%`, full: `GC ${o.gc.toFixed(0)}% (${QC.gcMin}–${QC.gcMax}%)` });
+  if (!hasClamp(o.seq)) {
+    const last = o.seq.slice(-1).toUpperCase();
+    f.push({ n: 3, short: `3′ ${last}`, full: `no G/C at the 3′ end (ends in ${last})` });
+  }
   if (s.hairpin_tm >= QC.structTmMax)
-    f.push(`hairpin Tm ${s.hairpin_tm.toFixed(1)} °C (< ${QC.structTmMax} °C)`);
+    f.push({ n: 4, short: `hairpin ${s.hairpin_tm.toFixed(1)} °C`,
+      full: `hairpin Tm ${s.hairpin_tm.toFixed(1)} °C (< ${QC.structTmMax} °C)` });
   if (s.homodimer_tm >= QC.structTmMax)
-    f.push(`self-dimer Tm ${s.homodimer_tm.toFixed(1)} °C (< ${QC.structTmMax} °C)`);
-  if (hasHomopolymer(o.seq)) f.push(`a run of ${QC.polyMax}+ identical bases`);
+    f.push({ n: 5, short: `self-dimer ${s.homodimer_tm.toFixed(1)} °C`,
+      full: `self-dimer Tm ${s.homodimer_tm.toFixed(1)} °C (< ${QC.structTmMax} °C)` });
+  if (hasHomopolymer(o.seq)) {
+    const run = firstRun(o.seq, QC.polyMax);
+    f.push({ n: 6, short: `run ${run}`, full: `a run of ${QC.polyMax}+ identical bases (${run})` });
+  }
   return f;
 }
 
-/** The criteria, spelled out once for every tooltip that names them. */
-export function qcCriteriaText(): string {
-  return `Tm ${QC.tmMin}–${QC.tmMax} °C, GC ${QC.gcMin}–${QC.gcMax}%, a G or C at the 3′ end, ` +
-    `hairpin and self-dimer Tm below ${QC.structTmMax} °C, no run of ${QC.polyMax}+ identical bases`;
+/** The criteria, numbered, spelled out once for every tooltip that names them. */
+export function qcCriteriaText(rule: QcRule = engineRule()): string {
+  return `1 Tm ${rule.tmMin}–${rule.tmMax} °C, 2 GC ${QC.gcMin}–${QC.gcMax}%` +
+    `${rule.gc ? "" : " (not applied to a junction primer)"}, 3 a G or C at the 3′ end, ` +
+    `4 hairpin Tm below ${QC.structTmMax} °C, 5 self-dimer Tm below ${QC.structTmMax} °C, ` +
+    `6 no run of ${QC.polyMax}+ identical bases`;
+}
+
+/** 0 passed · 1 unknown (structure pending) · 2 relaxed — the order a list shows them in. */
+export function qcRank(failures: QcFailure[] | null): 0 | 1 | 2 {
+  return failures === null ? 1 : failures.length ? 2 : 0;
+}
+
+/**
+ * QC-passed options first, then the ones still waiting on the engine, then the relaxed —
+ * each group in its original order (ticket 30.b: "provide QC passed options first"). A
+ * stable sort, so ranking inside a group is untouched.
+ */
+export function qcOrder<T>(items: readonly T[], failuresOf: (item: T) => QcFailure[] | null): T[] {
+  return items
+    .map((item, i) => ({ item, i, r: qcRank(failuresOf(item)) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map((x) => x.item);
 }

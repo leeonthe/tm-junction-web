@@ -414,55 +414,68 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
       <section className="card mth-card">
         <p className="card-label">4 · Primer quality control</p>
         <p>
-          Every EEJ-independent primer — the conventional partner of an EEJ primer, both
-          primers of an exon-pair design, and both primers of a whole-transcript pair — is
-          evaluated against a fixed set of acceptance criteria before it is reported. A primer
-          passes only if it satisfies all of the following:
+          Every primer the tool offers is evaluated against the numbered criteria below and
+          labelled with the result — the conventional pairs of an EEJ-independent design (a
+          unique exonic region or a unique exon combination), the conventional partner of an EEJ
+          primer, both primers of a whole-transcript pair, and the EEJ primers themselves, single
+          or double. Options are listed QC-passed first. A primer passes only if it satisfies all
+          of the criteria that apply to it:
         </p>
         <div className="mth-rule">
           <div className="mth-rule-row">
-            <span className="k">Melting temperature</span>
-            <span className="v mono">{QC.tmMin}–{QC.tmMax} °C</span>
-          </div>
-          <div className="mth-rule-row">
-            <span className="k">GC content</span>
-            <span className="v mono">{QC.gcMin}–{QC.gcMax} %</span>
-          </div>
-          <div className="mth-rule-row">
-            <span className="k">3′ terminus</span>
-            <span className="v">Ends in G or C (a single-base GC clamp)</span>
-          </div>
-          <div className="mth-rule-row">
-            <span className="k">Secondary structure</span>
+            <span className="k">1 · Melting temperature</span>
             <span className="v">
-              Hairpin T<sub>m</sub> and self-dimer T<sub>m</sub> each below{" "}
-              <span className="mono">{QC.structTmMax} °C</span>
+              Within the T<sub>m</sub> range set in the designer's settings panel (default{" "}
+              <span className="mono">60–65 °C</span>). Pairs the engine designs on its own, which
+              have no user range, use <span className="mono">{QC.tmMin}–{QC.tmMax} °C</span>.
             </span>
           </div>
           <div className="mth-rule-row">
-            <span className="k">Homopolymer runs</span>
+            <span className="k">2 · GC content</span>
+            <span className="v">
+              <span className="mono">{QC.gcMin}–{QC.gcMax} %</span> — conventional (non-EEJ) primers
+              only. A junction primer's composition is fixed by the junction it spans and its
+              specificity comes from the arm rule in § 2, so this criterion is not applied to it.
+            </span>
+          </div>
+          <div className="mth-rule-row">
+            <span className="k">3 · 3′ terminus</span>
+            <span className="v">Ends in G or C (a single-base GC clamp)</span>
+          </div>
+          <div className="mth-rule-row">
+            <span className="k">4 · Hairpin</span>
+            <span className="v">Hairpin T<sub>m</sub> below <span className="mono">{QC.structTmMax} °C</span></span>
+          </div>
+          <div className="mth-rule-row">
+            <span className="k">5 · Self-dimer</span>
+            <span className="v">Self-dimer T<sub>m</sub> below <span className="mono">{QC.structTmMax} °C</span></span>
+          </div>
+          <div className="mth-rule-row">
+            <span className="k">6 · Homopolymer runs</span>
             <span className="v">No run of {QC.polyMax} or more identical bases</span>
           </div>
         </div>
         <p>
-          A pair in which both primers pass is labelled <b className="qc-pass">QC-passed</b>. When
-          no fully compliant pair exists for a target, the best-scoring candidate is still
-          reported rather than nothing, and is labelled <b className="qc-relaxed">QC-relaxed</b>:
-          at least one of its primers falls outside one of the criteria above. Such a pair
+          A primer that meets every applicable criterion — or a pair in which both primers
+          do — is labelled <b className="qc-pass">QC-passed</b>. Otherwise it is labelled{" "}
+          <b className="qc-relaxed">QC-relaxed</b>, followed by one chip per missed criterion
+          giving its number and the offending value — for example{" "}
+          <span className="mono">#2 GC 67%</span> or <span className="mono">#4 hairpin 48.3 °C</span>{" "}
+          (for a pair, prefixed F or R for the primer concerned); the full bound each missed is
+          in the chip's hover text. A relaxed primer is still offered rather than nothing, and
           remains transcript-specific — specificity is established separately, by the isoform
           comparison in § 1 — but it has not been fully vetted, and a QC-passed alternative
           should be preferred where one is offered.
         </p>
         <p className="mth-note">
-          Hairpin and self-dimer stability are primer3's thermodynamic estimates, computed by
-          the analysis engine in every case. For the second-primer options in the junction
-          designer, which are designed in the browser, the remaining criteria are evaluated on
-          the values displayed with each option — the T<sub>m</sub> shown is the T<sub>m</sub>{" "}
-          judged — and the label reads <span className="mono">QC …</span> until the engine's
-          structure figures arrive. The thresholds are those of the engine
-          (<span className="mono">engine/app/primers.py</span>), which reports them alongside
-          the structure figures so the page cannot drift from it. These criteria are distinct
-          from the Tm-guided junction rule in § 2, which governs EEJ primers.
+          Hairpin and self-dimer stability are primer3's thermodynamic estimates, computed by the
+          analysis engine and fetched for every oligo designed in the browser; until they arrive
+          the label reads <span className="mono">QC …</span>. The remaining criteria are evaluated
+          on the values displayed with each option — the T<sub>m</sub> shown is the T<sub>m</sub>{" "}
+          judged. The GC, structure and homopolymer thresholds are those of the engine
+          (<span className="mono">engine/app/primers.py</span>), which reports them alongside the
+          structure figures so the page cannot drift from it. These criteria are distinct from
+          the Tm-guided junction rule in § 2, which governs whether an EEJ primer is valid at all.
         </p>
       </section>
 
