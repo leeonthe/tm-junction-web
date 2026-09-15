@@ -951,10 +951,6 @@ tr.is-target:hover td{background:var(--brand-tint)}
 .jd-rail .rail-note{margin:-4px 0 0;font-family:var(--mono);font-size:10.5px;line-height:1.4;
   color:var(--faint);cursor:help}
 .jd-rail .rail-note b{color:var(--muted);font-weight:600}
-/* The primer-site marker as the graph draws it: a dark pill with the letter, inside the bar. */
-.pan-pill{display:inline-block;min-width:12px;height:11px;line-height:11px;margin-right:2px;
-  border-radius:3px;background:var(--ink);color:var(--surface);text-align:center;
-  font-family:var(--mono);font-size:8.5px;font-weight:700}
 /* A missed transcript's own band size, beside its accession. */
 .pv-size{color:var(--faint);margin-left:4px;font-size:11px}
 

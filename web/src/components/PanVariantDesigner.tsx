@@ -12,7 +12,7 @@ import { coverage, defaultExonPair, runCarriers, type Coverage } from "../lib/pa
 import { numStr } from "../lib/format";
 import { qcFailures } from "../lib/qc";
 import CdnaView from "./CdnaView";
-import PanTrackGraph, { type RowStatus } from "./PanTrackGraph";
+import PanTrackGraph, { SiteGlyph, type RowStatus } from "./PanTrackGraph";
 import { QcTag, useStructureQc } from "./QcTag";
 import { Copy } from "./icons";
 import Info from "./Info";
@@ -382,7 +382,7 @@ export default function PanVariantDesigner({ result, seqs, onMethod }: {
             <div className="legend">
               <span className="lg"><span className="sw" style={{ background: "var(--pan-amp)" }} />co-amplified region</span>
               <span className="lg"><span className="sw" style={{ background: "var(--pan-exon)" }} />outside the product</span>
-              <span className="lg"><span className="pan-pill">F</span><span className="pan-pill">R</span>primer sites</span>
+              <span className="lg"><SiteGlyph ch="F" /><SiteGlyph ch="R" />primer sites</span>
             </div>
           </div>
           <PanTrackGraph transcripts={transcripts} targetAccession={target_accession}

@@ -8,8 +8,8 @@ import { exonBoxPx } from "./ExonTrackGraph";
  * The whole-transcript designer's exon graph: every isoform of the gene, one row each,
  * exons to GRCh38 scale — and, for the chosen pair, the REGION it co-amplifies painted in
  * each transcript it amplifies: the stretch from the forward site to the reverse site,
- * not the whole of the exons it touches, with F and R lettered inside the bar at the two
- * sites and the band each transcript would give stated at the end of its row.
+ * not the whole of the exons it touches, with a tick through the bar at each primer site
+ * (F and R lettered beneath) and the band each transcript would give at the end of its row.
  *
  * Deliberately NOT the tier-coloured graph the other tabs use. That graph answers "which
  * transcripts can be told apart, and by what" — the opposite question from this tab's,
@@ -152,29 +152,23 @@ export default function PanTrackGraph({
                   fill="var(--pan-amp)" pointerEvents="none" />
               ))}
               {siteF != null && siteR != null && (() => {
-                // The letters sit INSIDE the bar, each at its own end of the product, on a
-                // small dark pill: a site can fall at the very edge of an exon (a 3 px sliver
-                // of green) or in an exon a few pixels wide, and a bare letter is unreadable
-                // there — the pill reads over green and grey alike. The one nearer the left
-                // edge sits just inside it, the other just inside the right.
-                const PW = 12, PH = 11;
+                // Each site is a thin tick THROUGH the bar — the exact position, hiding
+                // nothing of the exon or the green — with its letter just beneath the bar.
+                // A short product on a long gene is a few pixels wide (TP53's 216 bp on a
+                // 19 kb axis is 18), so when the two letters would collide they are nudged
+                // outward from their ticks instead of stacking on each other.
                 const [lx, lr, rx, rr] = siteF <= siteR ? [siteF, "F", siteR, "R"] : [siteR, "R", siteF, "F"];
-                // A short product on a long gene is a few pixels wide — TP53's 216 bp on a
-                // 19 kb axis is 18 — so two pills inside it would cover each other and the
-                // green. With no room between the sites, the pills flank the region instead:
-                // just outside each end, still in the bar's row, the product visible between.
-                const inside = rx - lx >= 2 * PW + 4;
-                const pill = (px: number, ch: string, left: boolean) => {
-                  const x0 = left === inside ? px : px - PW;
-                  return (
-                    <g key={ch} pointerEvents="none">
-                      <rect x={x0} y={cy - PH / 2} width={PW} height={PH} rx={3} fill="var(--ink)" />
-                      <text x={x0 + PW / 2} y={cy + 3.2} fontSize={8.5} fontWeight={700}
-                        fontFamily="var(--mono)" fill="var(--surface)" textAnchor="middle">{ch}</text>
-                    </g>
-                  );
-                };
-                return <>{pill(lx, lr, true)}{pill(rx, rr, false)}</>;
+                const apart = rx - lx >= 14;
+                const y1 = cy - exH / 2 - 2, y2 = cy + exH / 2 + 2;
+                const mark = (px: number, ch: string, left: boolean) => (
+                  <g key={ch} pointerEvents="none">
+                    <line x1={px} y1={y1} x2={px} y2={y2} stroke="var(--ink)" strokeWidth={1.5} strokeLinecap="round" />
+                    <text x={apart ? px : px + (left ? -2 : 2)} y={y2 + 9.5} fontSize={9} fontWeight={700}
+                      fontFamily="var(--mono)" fill="var(--ink)"
+                      textAnchor={apart ? "middle" : left ? "end" : "start"}>{ch}</text>
+                  </g>
+                );
+                return <>{mark(lx, lr, true)}{mark(rx, rr, false)}</>;
               })()}
               {size != null && (
                 <text x={W - 12} y={cy + 4} fontSize={11.5} fontFamily="var(--mono)" fontWeight={600}
@@ -231,5 +225,17 @@ export default function PanTrackGraph({
         </div>
       )}
     </div>
+  );
+}
+
+
+/** The site marker as the graph draws it — a tick with its letter — for the legend. */
+export function SiteGlyph({ ch }: { ch: "F" | "R" }) {
+  return (
+    <svg className="g-glyph" width="12" height="20" viewBox="0 0 12 20" role="img" aria-label={`${ch} site`}>
+      <rect x="0" y="2" width="12" height="7" rx="2" fill="var(--pan-exon)" />
+      <line x1="6" y1="0.5" x2="6" y2="10.5" stroke="var(--ink)" strokeWidth="1.5" strokeLinecap="round" />
+      <text x="6" y="19" fontSize="9" fontWeight="700" fontFamily="var(--mono)" fill="var(--ink)" textAnchor="middle">{ch}</text>
+    </svg>
   );
 }
