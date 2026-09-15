@@ -84,10 +84,9 @@ export function comboAmpliconLen(
   return len > 0 ? len : null;
 }
 
-export default function JunctionDesigner({ mrna, verdict, onMethod }: {
+export default function JunctionDesigner({ mrna, verdict }: {
   mrna: string;
   verdict: TranscriptVerdict;
-  onMethod?: () => void;
 }) {
   const s = useJunctionSettings();
 
@@ -188,7 +187,7 @@ export default function JunctionDesigner({ mrna, verdict, onMethod }: {
         <DesignerCard
           key={`${d.donor.order}-${d.acceptor.order}`}
           d={d} s={s} verdict={verdict} index={i} total={designs.length}
-          force={force} onMethod={combo ? undefined : onMethod}
+          force={force}
           onEval={combo ? (ev) => setEvs((p) => { const n = [...p]; n[i] = ev; return n; }) : undefined}
         />
       ))}
@@ -267,14 +266,13 @@ function ComboPrimerRow({ role, label, oligo, ev, dTm }: {
 }
 
 /** One junction = one designer box. */
-function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: {
+function DesignerCard({ d, s, verdict, index, total, force, onEval }: {
   d: Design;
   s: JunctionSettings;
   verdict: TranscriptVerdict;
   index: number;
   total: number;
   force: PartnerForce | null;
-  onMethod?: () => void;
   /** Report this box's live selection upward — a combo needs both to size the amplicon. */
   onEval?: (ev: WindowEval | null) => void;
 }) {
@@ -330,7 +328,7 @@ function DesignerCard({ d, s, verdict, index, total, force, onMethod, onEval }: 
         )}
       </section>
 
-      <TmSettingsRail s={s} onMethod={onMethod}
+      <TmSettingsRail s={s}
         note={combo ? "Shared with the other EEJ primer — both run in one tube." : undefined} />
     </div>
   );

@@ -15,8 +15,8 @@ import PanVariantCard from "./PanVariantCard";
  * old to serve them gets the engine's own precomputed pairs instead, and the stale-engine
  * notice above the tabs says why the designer is missing.
  */
-export default function PanVariantTab({ result, busy, onMethod }: {
-  result: AnalyzeResponse; busy: boolean; onMethod?: () => void;
+export default function PanVariantTab({ result, busy }: {
+  result: AnalyzeResponse; busy: boolean;
 }) {
   const { target_accession, target_mrna, transcripts, gene } = result;
   const others = useMemo(
@@ -72,7 +72,7 @@ export default function PanVariantTab({ result, busy, onMethod }: {
           </p>
         </section>
       ) : seqs && (
-        <PanVariantDesigner result={result} seqs={seqs} onMethod={onMethod} />
+        <PanVariantDesigner result={result} seqs={seqs} />
       )}
     </div>
   );

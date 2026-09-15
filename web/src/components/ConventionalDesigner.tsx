@@ -29,13 +29,12 @@ import Info from "./Info";
  * Neither test is re-derived here — the browser has no sibling sequences. Both come from the
  * engine (see lib/conventional).
  */
-export default function ConventionalDesigner({ mrna, verdict, k, solo = false, onMethod }: {
+export default function ConventionalDesigner({ mrna, verdict, k, solo = false }: {
   mrna: string;
   verdict: TranscriptVerdict;
   k: number;
   /** This gene has ONE NM transcript — nothing to discriminate against. */
   solo?: boolean;
-  onMethod?: () => void;
 }) {
   const s = useJunctionSettings();
 
@@ -213,6 +212,15 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
     setAmpMin(feasible.min); setMinStr(String(feasible.min));
     setAmpMax(feasible.max); setMaxStr(String(feasible.max));
   }
+  /** Back to what the panel opened with — window, Tm match, and (sole isoform) the exons. */
+  const dirty = ampMin !== initial.min || ampMax !== initial.max || dTmMax !== initial.dTmMax
+    || (solo && (fwdExon !== (defaultPair?.[0] ?? 1) || revExon !== (defaultPair?.[1] ?? 1)));
+  function resetOwn() {
+    setAmpMin(initial.min); setMinStr(String(initial.min));
+    setAmpMax(initial.max); setMaxStr(String(initial.max));
+    setDTmMax(initial.dTmMax); setDTmStr(numStr(initial.dTmMax));
+    if (solo) { setFwdExon(defaultPair?.[0] ?? 1); setRevExon(defaultPair?.[1] ?? 1); }
+  }
   function editDTm(raw: string) {
     setDTmStr(raw);
     const v = parseFloat(raw);
@@ -366,7 +374,7 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false, o
           </RailGroup>
         )}
 
-        <RailConditions s={s} onMethod={onMethod} />
+        <RailConditions s={s} dirty={dirty} onReset={resetOwn} />
       </SettingsRail>
     </div>
   );

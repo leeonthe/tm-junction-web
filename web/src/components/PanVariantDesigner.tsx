@@ -8,7 +8,7 @@ import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR, LONG_AMPLICON,
 } from "../lib/partner";
 import { ampRange, findPairs, openingSearch, type PairArgs, type PairOption } from "../lib/conventional";
-import { coverage, defaultExonPair, runCarriers, type Coverage } from "../lib/panvariant";
+import { coverage, defaultExonPair, runCarriers, sharedExons, type Coverage } from "../lib/panvariant";
 import { numStr } from "../lib/format";
 import { qcFailures } from "../lib/qc";
 import CdnaView from "./CdnaView";
@@ -39,11 +39,10 @@ import Info from "./Info";
 /** A searched pair with what it does to the gene. */
 interface PanOption extends PairOption { cov: Coverage }
 
-export default function PanVariantDesigner({ result, seqs, onMethod }: {
+export default function PanVariantDesigner({ result, seqs }: {
   result: AnalyzeResponse;
   /** mRNA by accession for every transcript in `result.transcripts`, the target included. */
   seqs: ReadonlyMap<string, string>;
-  onMethod?: () => void;
 }) {
   const { target_verdict: verdict, target_mrna: mrna, transcripts, gene, target_accession } = result;
   const k = Number(result.meta.k) || 20;
@@ -55,14 +54,21 @@ export default function PanVariantDesigner({ result, seqs, onMethod }: {
   /** 0-based exclusive mRNA end of each exon — what the intron-spanning rule measures. */
   const exonEnds = useMemo(() => exons.map((e) => e.tx_end), [exons]);
 
+  // Only exons every transcript carries identically are offered — where one pair can
+  // measure the whole gene; GAPDH NM_002046.7's exons 1–4 are not, 5–9 are. A gene with
+  // no two such exons falls back to the exons the most transcripts share (sharedExons).
+  const shared = useMemo(() => sharedExons(transcripts, verdict), [transcripts, verdict]);
+  const offered = useMemo(
+    () => exons.filter((e) => shared.orders.includes(e.order)), [exons, shared]);
+
   // Open on the engine's own best pair when it was numbered on this transcript; otherwise
   // on the exon pair the most transcripts carry. Keyed on a string so the default is stable
   // between renders — a fresh array each time would re-seed the pickers on every keystroke.
   const engineTop = result.pan_variant_options?.[0] ?? result.pan_variant ?? null;
   const engineKey = engineTop?.reference === target_accession ? engineTop.exons.join("-") : "";
   const defaultPair = useMemo(
-    () => defaultExonPair(transcripts, verdict, engineKey ? engineKey.split("-").map(Number) : null),
-    [transcripts, verdict, engineKey]);
+    () => defaultExonPair(transcripts, verdict, engineKey ? engineKey.split("-").map(Number) : null, shared.orders),
+    [transcripts, verdict, engineKey, shared]);
   const [fwdExon, setFwdExon] = useState(defaultPair?.[0] ?? 1);
   const [revExon, setRevExon] = useState(defaultPair?.[1] ?? 2);
   useEffect(() => {
@@ -197,6 +203,15 @@ export default function PanVariantDesigner({ result, seqs, onMethod }: {
     if (!feasible) return;
     setAmpMin(feasible.min); setMinStr(String(feasible.min));
     setAmpMax(feasible.max); setMaxStr(String(feasible.max));
+  }
+  /** Back to what the panel opened with — window, Tm match, and the two exons. */
+  const dirty = ampMin !== initial.min || ampMax !== initial.max || dTmMax !== initial.dTmMax
+    || fwdExon !== (defaultPair?.[0] ?? 1) || revExon !== (defaultPair?.[1] ?? 2);
+  function resetOwn() {
+    setAmpMin(initial.min); setMinStr(String(initial.min));
+    setAmpMax(initial.max); setMaxStr(String(initial.max));
+    setDTmMax(initial.dTmMax); setDTmStr(numStr(initial.dTmMax));
+    setFwdExon(defaultPair?.[0] ?? 1); setRevExon(defaultPair?.[1] ?? 2);
   }
   function editDTm(raw: string) {
     setDTmStr(raw);
@@ -431,13 +446,16 @@ export default function PanVariantDesigner({ result, seqs, onMethod }: {
         <RailGroup title="Target exons"
           info={<>Where the two primers sit, numbered on {target_accession}: the forward primer
             inside one exon, the reverse inside a later one, so every product crosses a
-            junction. A run of exons carried identically by more transcripts is where one pair
-            can measure more of the gene — the count below is for the two chosen — and within
-            such a run the choice is about product size.</>}>
+            junction. Only exons inside a run of consecutive exons that every transcript
+            carries identically are offered — a pair placed across an exon some variant
+            lacks or splices differently would give that variant a second size. (A gene with
+            no such run offers the run the most transcripts share instead.) Within the run
+            the choice is about product size; the count below says how many transcripts
+            carry the two chosen as one consecutive run.</>}>
           <RailField label="Forward in">
             <select value={fwdExon} onChange={(e) => setFwdExon(Number(e.target.value))}
               aria-label="Exon the forward primer sits in">
-              {exons.map((e) => (
+              {offered.map((e) => (
                 <option key={e.order} value={e.order}>{e.order} · {e.length} nt</option>
               ))}
             </select>
@@ -445,19 +463,24 @@ export default function PanVariantDesigner({ result, seqs, onMethod }: {
           <RailField label="Reverse in">
             <select value={revExon} onChange={(e) => setRevExon(Number(e.target.value))}
               aria-label="Exon the reverse primer sits in">
-              {exons.map((e) => (
+              {offered.map((e) => (
                 <option key={e.order} value={e.order}>{e.order} · {e.length} nt</option>
               ))}
             </select>
           </RailField>
         </RailGroup>
+        <p className="rail-note" title="Which exons are offered: those in a run of consecutive exons every transcript carries identically — or, when there is no such run, the run the most transcripts share.">
+          {shared.share === total
+            ? <><b>{offered.length} of {exons.length}</b> exons in runs all {total} {tx(total)} share</>
+            : <>no run shared by all {total}; <b>{offered.length}</b> exons in runs <b>{shared.share} of {total}</b> share</>}
+        </p>
         <p className="rail-note" title="Transcripts carrying these exons identically and consecutively — where a product is the same length by construction. Coverage is still verified from each transcript's sequence.">
           {ordered
-            ? <>exons {fwdExon}–{revExon}: identical in <b>{carriers.length} of {total}</b> {tx(total)}</>
+            ? <>exons {fwdExon}–{revExon}: one run in <b>{carriers.length} of {total}</b> {tx(total)}</>
             : <>reverse exon must follow the forward one</>}
         </p>
 
-        <RailConditions s={s} onMethod={onMethod} />
+        <RailConditions s={s} dirty={dirty} onReset={resetOwn} />
       </SettingsRail>
     </div>
   );

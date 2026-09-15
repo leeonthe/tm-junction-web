@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  amplifies, coverage, defaultExonPair, exonsInProduct, runCarriers, txToGenomic,
+  amplifies, coverage, defaultExonPair, exonsInProduct, runCarriers, sharedExons, txToGenomic,
 } from "./panvariant";
 import { revComp } from "./partner";
 import type { Exon, TranscriptVerdict } from "./types";
@@ -108,7 +108,35 @@ describe("runCarriers", () => {
   });
 });
 
+describe("sharedExons", () => {
+  it("offers only the exons in a run every transcript carries identically", () => {
+    // Exon 1, 2: A B D. Exon 3: A C (D's differs). Exons 4, 5: all four.
+    expect(sharedExons(ALL, A)).toEqual({ orders: [4, 5], share: 4 });
+  });
+  it("leaves out an exon all carry when neither neighbour is shared — GAPDH's exon 3", () => {
+    // Z lacks exon 2: exon 1 is in both but stranded, 3–5 is the run.
+    const Z = tx("Z", mk([E1, E3, E4, E5]));
+    expect(sharedExons([A, Z], A)).toEqual({ orders: [3, 4, 5], share: 2 });
+  });
+  it("drops to the most transcripts that share a run when none is common to all", () => {
+    // Without C, 1–2 and 4–5 are runs in everyone; add a transcript carrying only 4.
+    const only4 = tx("X", mk([E4]));
+    expect(sharedExons([A, B, D, only4], A)).toEqual({ orders: [1, 2, 4, 5], share: 3 });
+  });
+  it("lists every exon of a sole transcript", () => {
+    expect(sharedExons([A], A)).toEqual({ orders: [1, 2, 3, 4, 5], share: 1 });
+  });
+  it("offers everything, at share 0, when the reference has one exon", () => {
+    const S = tx("S", mk([E1]));
+    expect(sharedExons([S], S)).toEqual({ orders: [1], share: 0 });
+  });
+});
+
 describe("defaultExonPair", () => {
+  it("stays inside the offered exons, even against the engine's seed", () => {
+    expect(defaultExonPair(ALL, A, [1, 2], [4, 5])).toEqual([4, 5]);
+    expect(defaultExonPair(ALL, A, null, [4])).toBeNull();
+  });
   it("opens on the pair carried by the most transcripts, then the roomiest", () => {
     // 4–5 and 1–2/4–5 … only 4–5 reaches all four; among 4-carrier pairs it is the only one.
     expect(defaultExonPair(ALL, A)).toEqual([4, 5]);

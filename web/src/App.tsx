@@ -343,7 +343,7 @@ export default function App() {
             loading={loading} history={history} geneHistory={geneHistory}
             mode={mode} onMode={changeMode} arms={arms} onArms={setArms} />
           <main className="wrap">
-            {mode === "sequence" && <CustomJunctionResult arms={arms} onMethod={openMethod} />}
+            {mode === "sequence" && <CustomJunctionResult arms={arms} />}
             {mode !== "sequence" && <>
             {loading && <LoadingState pct={progress.pct} detail={progress.detail} />}
             {!loading && error && <div className="error-box"><b>{error.code}.</b> {error.message}</div>}
@@ -354,7 +354,7 @@ export default function App() {
             {!loading && result && (
               <Result result={result} tab={tab} setTab={setTab} busy={busy}
                 backToVariants={gene ? backToVariants : undefined}
-                onSelect={selectIsoform} onInspect={inspectIsoform} onMethod={openMethod}
+                onSelect={selectIsoform} onInspect={inspectIsoform}
                 />
             )}
             </>}
@@ -365,10 +365,10 @@ export default function App() {
   );
 }
 
-function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, backToVariants }: {
+function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants }: {
   result: AnalyzeResponse; tab: Tab; setTab: (t: Tab) => void;
   busy: boolean; onSelect: (acc: string) => void; onInspect: (acc: string) => void;
-  onMethod: () => void; backToVariants?: () => void;
+  backToVariants?: () => void;
 }) {
   const { gene, target_accession, target_verdict, primer_design, summary } = result;
   return (
@@ -399,7 +399,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
 
       {tab === "summary" && <Summary result={result} busy={busy} onSelect={onSelect} />}
 
-      {tab === "pan" && <PanVariantTab result={result} busy={busy} onMethod={onMethod} />}
+      {tab === "pan" && <PanVariantTab result={result} busy={busy} />}
 
       {tab === "amplify" && (
         <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
@@ -417,10 +417,9 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
               their own product size and Tm range, and picks from alternatives. */}
           {target_verdict.tier === "CONVENTIONAL" && (
             <ConventionalDesigner mrna={result.target_mrna} verdict={target_verdict}
-              k={Number(result.meta.k) || 20} solo={result.transcripts.length === 1}
-              onMethod={onMethod} />
+              k={Number(result.meta.k) || 20} solo={result.transcripts.length === 1} />
           )}
-          <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} onMethod={onMethod} />
+          <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} />
         </div>
       )}
 

@@ -116,18 +116,55 @@ export function runCarriers(
 }
 
 /**
+ * The exons of the reference the designer may offer as primer sites: those inside a RUN
+ * of two or more consecutive exons that every transcript carries identically. Inside
+ * such a run any pair gives one product size in every transcript, which is what a
+ * whole-gene pair needs. GAPDH NM_002046.7's exons 5–9 are one such run and are offered;
+ * exons 1–4 are not — exon 3 alone is in all five variants, but exon 4 is not, so a pair
+ * placed from exon 3 would cross a difference and give a second size.
+ *
+ * When no run is common to all — a gene whose variants share no two consecutive exons —
+ * the bar drops, one transcript at a time, to the largest number of transcripts that do
+ * share a run, so the designer always has a pair to offer; `share` reports the count that
+ * applied, so the panel can say "shared by 4 of 5" rather than imply "by all". Coverage
+ * is verified from sequence regardless of how the exons were chosen.
+ */
+export function sharedExons(
+  transcripts: readonly TranscriptVerdict[], reference: TranscriptVerdict,
+): { orders: number[]; share: number } {
+  const ex = [...reference.exons].sort((a, b) => a.order - b.order);
+  const carriers = (i: number, j: number) =>
+    runCarriers(transcripts, reference, ex[i].order, ex[j].order).length;
+  for (let share = transcripts.length; share >= 1; share--) {
+    const offered = new Set<number>();
+    for (let i = 0; i < ex.length - 1; i++) {
+      // Longest run from i that `share` transcripts carry — sub-runs of a carried run
+      // are carried too, so extending until it breaks finds the maximal one.
+      let j = i;
+      while (j + 1 < ex.length && carriers(i, j + 1) >= share) j++;
+      if (j > i) for (let k = i; k <= j; k++) offered.add(ex[k].order);
+    }
+    if (offered.size >= 2) return { orders: ex.filter((e) => offered.has(e.order)).map((e) => e.order), share };
+  }
+  return { orders: ex.map((e) => e.order), share: 0 };
+}
+
+/**
  * The exon pair the whole-transcript designer opens on: forward in one exon, reverse in a
  * later one, chosen by how many transcripts carry the run between them — the most
  * transcripts first, then the pair with the most room for primers (the larger of its two
  * exons' smaller side), then the closer pair, so the product is the usual size when it
  * can be. `engineExons` — the exons of the engine's own best pair when it was designed on
  * this same reference — wins outright: the page opens on what the engine already vetted.
+ * `candidates` restricts both choices to the exons the panel offers (see sharedExons).
  */
 export function defaultExonPair(
   transcripts: readonly TranscriptVerdict[], reference: TranscriptVerdict,
-  engineExons?: readonly number[] | null,
+  engineExons?: readonly number[] | null, candidates?: readonly number[] | null,
 ): [number, number] | null {
-  const ex = [...reference.exons].sort((a, b) => a.order - b.order);
+  const allowed = candidates ? new Set(candidates) : null;
+  const ex = [...reference.exons].sort((a, b) => a.order - b.order)
+    .filter((e) => !allowed || allowed.has(e.order));
   if (ex.length < 2) return null;
   if (engineExons?.length === 2 && engineExons[0] !== engineExons[1]
       && ex.some((e) => e.order === engineExons[0]) && ex.some((e) => e.order === engineExons[1])) {

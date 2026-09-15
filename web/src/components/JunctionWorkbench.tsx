@@ -132,6 +132,9 @@ export function useJunctionSettings() {
   const [tmMax, setTmMax] = useState(65);
   const [minStr, setMinStr] = useState("60");
   const [maxStr, setMaxStr] = useState("65");
+  // What Reset returns the Tm range to: 60–65, or whatever the opening ladder seeded for
+  // a target with nothing at the defaults — the range the panel opened with IS its default.
+  const [tmDefault, setTmDefault] = useState({ min: 60, max: 65 });
   const [cond, setCond] = useState<TmConditions>(DEFAULT_CONDITIONS);
   const [condStr, setCondStr] = useState<Record<CondKey, string>>(() => ({
     saltMM: String(DEFAULT_CONDITIONS.saltMM),
@@ -190,11 +193,19 @@ export function useJunctionSettings() {
   function seedTm(min: number, max: number) {
     setTmMin(min); setMinStr(String(min));
     setTmMax(max); setMaxStr(String(max));
+    setTmDefault({ min, max });
   }
+  /** Everything this hook owns, back to its default — the Tm range and the conditions. */
+  function resetAll() {
+    resetConditions();
+    setTmMin(tmDefault.min); setMinStr(String(tmDefault.min));
+    setTmMax(tmDefault.max); setMaxStr(String(tmDefault.max));
+  }
+  const isDefault = isDefaultConditions(cond) && tmMin === tmDefault.min && tmMax === tmDefault.max;
 
   return {
     tmMin, tmMax, minStr, maxStr, editMin, commitMin, editMax, commitMax, seedTm,
-    cond, condStr, editCond, commitCond, resetConditions, saltRef,
+    cond, condStr, editCond, commitCond, resetConditions, resetAll, isDefault, saltRef,
   };
 }
 export type JunctionSettings = ReturnType<typeof useJunctionSettings>;
@@ -307,11 +318,17 @@ export function RailTmRange({ s, showArmCap = true }: {
   );
 }
 
-/** The reaction conditions that feed the Tm formula, plus the reset and the Method link. */
-export function RailConditions({ s, onMethod }: {
-  s: JunctionSettings; onMethod?: () => void;
+/**
+ * The reaction conditions that feed the Tm formula, and the panel's Reset. Reset returns
+ * EVERY input in the panel to its default, not just these four: a designer with inputs of
+ * its own (an amplicon window, a pair of exons) reports whether they have moved in
+ * `dirty` and puts them back in `onReset`, so the button is live whenever anything in
+ * the panel differs from what it opened with.
+ */
+export function RailConditions({ s, dirty = false, onReset }: {
+  s: JunctionSettings; dirty?: boolean; onReset?: () => void;
 }) {
-  const isDefault = isDefaultConditions(s.cond);
+  const isDefault = s.isDefault && !dirty;
   return (
     <>
       <RailGroup title="Reaction conditions"
@@ -331,11 +348,8 @@ export function RailConditions({ s, onMethod }: {
         ))}
       </RailGroup>
       <div className="jd-rail-foot">
-        <button className="btn btn-ghost jd-rail-reset" onClick={s.resetConditions}
+        <button className="btn btn-ghost jd-rail-reset" onClick={() => { s.resetAll(); onReset?.(); }}
           disabled={isDefault}>Reset{isDefault ? "" : " to default"}</button>
-        {onMethod && (
-          <button type="button" className="linkish" onClick={onMethod}>Formula</button>
-        )}
       </div>
     </>
   );
@@ -345,13 +359,13 @@ export function RailConditions({ s, onMethod }: {
  * The junction designer's panel. `note` carries the one thing it cannot show on its own: for
  * a two-junction combo, that these settings are shared with the other designer.
  */
-export function TmSettingsRail({ s, onMethod, note }: {
-  s: JunctionSettings; onMethod?: () => void; note?: ReactNode;
+export function TmSettingsRail({ s, note }: {
+  s: JunctionSettings; note?: ReactNode;
 }) {
   return (
     <SettingsRail label="Tm settings" note={note}>
       <RailTmRange s={s} />
-      <RailConditions s={s} onMethod={onMethod} />
+      <RailConditions s={s} />
     </SettingsRail>
   );
 }

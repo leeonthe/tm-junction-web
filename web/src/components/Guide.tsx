@@ -293,8 +293,9 @@ export default function Guide({ onBack, onMethod, backLabel }: {
         </p>
         <p>
           That tab is a designer like the others. Pick the two exons the primers sit in
-          (<b>Target exons</b> in the settings panel — the note beneath says how many
-          transcripts carry them identically), set the <b>product size</b>, Tm range and Tm
+          (<b>Target exons</b> in the settings panel — only exons in a run every transcript carries
+          identically are offered, and the note beneath says how many carry the chosen two
+          as one run), set the <b>product size</b>, Tm range and Tm
           match, and the pairs re-search live. Every pair names the transcripts it amplifies,
           checked from each one's mRNA: both primer sites present, once, and the product the
           same length — a transcript that gives another length is a second band and is listed

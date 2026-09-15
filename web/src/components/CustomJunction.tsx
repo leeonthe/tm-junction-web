@@ -86,9 +86,8 @@ export function CustomArmInputs({ arms, onChange, loading }: {
  * designer uses — so the Tm rule, the warm zone and the arm caps are identical, and no
  * second implementation exists to drift.
  */
-export default function CustomJunctionResult({ arms, onMethod }: {
+export default function CustomJunctionResult({ arms }: {
   arms: Arms;
-  onMethod?: () => void;
 }) {
   const s = useJunctionSettings();
   const five = readArm(arms.five);
@@ -148,7 +147,7 @@ export default function CustomJunctionResult({ arms, onMethod }: {
         <JunctionWorkbench geom={geom} s={s} reseedKey={geom.seq} />
       </section>
 
-      <TmSettingsRail s={s} onMethod={onMethod} />
+      <TmSettingsRail s={s} />
     </div>
   );
 }
