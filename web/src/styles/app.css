@@ -948,8 +948,6 @@ tr.is-target:hover td{background:var(--brand-tint)}
 :root{--pan-exon:#C9CFD8;--pan-amp:#0F9D58}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--pan-exon:#3A4553;--pan-amp:#4ADE80}}
 :root[data-theme="dark"]{--pan-exon:#3A4553;--pan-amp:#4ADE80}
-/* The designer card and the exon graph stack in the row's first column, beside the panel. */
-.pan-col{display:flex;flex-direction:column;gap:28px;min-width:0}
 /* The share count under the exon pickers: it qualifies the two selects and reads as data,
    in the same voice as the reachable-range hint above it. */
 .jd-rail .rail-note{margin:-4px 0 0;font-family:var(--mono);font-size:10.5px;line-height:1.4;

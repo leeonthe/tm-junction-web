@@ -248,8 +248,12 @@ export default function PanVariantDesigner({ result, seqs }: {
   const tx = (n: number) => (n === 1 ? "transcript" : "transcripts");
 
   return (
-    <div className="jd-row">
-      <div className="pan-col">
+    // The designer and its settings panel share a row — the panel sticks beside the card it
+    // tunes, as on the other tabs — and the exon graph takes the full width beneath, like the
+    // Summary tab's exon structure card. Inside the row the graph would inherit the panel's
+    // column and read narrower than every other graph on the page.
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      <div className="jd-row">
         <section className="card elevated jd">
           <DesignerHead
             label="Whole transcript amplification"
@@ -410,29 +414,6 @@ export default function PanVariantDesigner({ result, seqs }: {
           )}
         </section>
 
-        <section className="card">
-          <div className="card-head">
-            <div>
-              <h3 className="card-title">Exon structure — all {gene.symbol} isoforms</h3>
-              <p className="sub">GRCh38 · the region the chosen pair co-amplifies, in every transcript it covers</p>
-            </div>
-            <div className="legend">
-              <span className="lg"><span className="sw" style={{ background: "var(--pan-amp)" }} />co-amplified region</span>
-              <span className="lg"><span className="sw" style={{ background: "var(--pan-exon)" }} />outside the product</span>
-              <span className="lg"><SiteGlyph ch="F" /><SiteGlyph ch="R" />primer sites</span>
-            </div>
-          </div>
-          <PanTrackGraph transcripts={transcripts} targetAccession={target_accession}
-            status={rowStatus} size={chosen?.cov.size ?? null}
-            chromosome={gene.chromosome} strand={gene.strand} />
-          <p className="g-note">
-            Each row ends with the band that transcript gives: ✓ the pair's one size; ≠ another
-            size, a second band, so not covered; or no product. Tiers are not shown here — this
-            pair is meant to amplify every transcript, not to tell them apart.
-          </p>
-        </section>
-      </div>
-
       <SettingsRail label="Search settings">
         <RailTmRange s={s} showArmCap={false} />
 
@@ -504,6 +485,29 @@ export default function PanVariantDesigner({ result, seqs }: {
 
         <RailConditions s={s} dirty={dirty} onReset={resetOwn} />
       </SettingsRail>
+      </div>
+
+      <section className="card">
+        <div className="card-head">
+          <div>
+            <h3 className="card-title">Exon structure — all {gene.symbol} isoforms</h3>
+            <p className="sub">GRCh38 · the region the chosen pair co-amplifies, in every transcript it covers</p>
+          </div>
+          <div className="legend">
+            <span className="lg"><span className="sw" style={{ background: "var(--pan-amp)" }} />co-amplified region</span>
+            <span className="lg"><span className="sw" style={{ background: "var(--pan-exon)" }} />outside the product</span>
+            <span className="lg"><SiteGlyph ch="F" /><SiteGlyph ch="R" />primer sites</span>
+          </div>
+        </div>
+        <PanTrackGraph transcripts={transcripts} targetAccession={target_accession}
+          status={rowStatus} size={chosen?.cov.size ?? null}
+          chromosome={gene.chromosome} strand={gene.strand} />
+        <p className="g-note">
+          Each row ends with the band that transcript gives: ✓ the pair's one size; ≠ another
+          size, a second band, so not covered; or no product. Tiers are not shown here — this
+          pair is meant to amplify every transcript, not to tell them apart.
+        </p>
+      </section>
     </div>
   );
 }
