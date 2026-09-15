@@ -500,7 +500,7 @@ export default function PanVariantDesigner({ result, seqs }: {
           </div>
         </div>
         <PanTrackGraph transcripts={transcripts} targetAccession={target_accession}
-          status={rowStatus} size={chosen?.cov.size ?? null}
+          status={rowStatus} size={chosen?.cov.size ?? null} seqs={seqs}
           chromosome={gene.chromosome} strand={gene.strand} />
         <p className="g-note">
           Each row ends with the band that transcript gives: ✓ the pair's one size; ≠ another

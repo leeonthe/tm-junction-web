@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import { foldedEntry } from "../lib/format";
 import { txToGenomic, type Product } from "../lib/panvariant";
-import { exonBoxPx } from "./ExonTrackGraph";
+import { ExonSequenceBox, exonBoxPx } from "./ExonTrackGraph";
 
 /**
  * The whole-transcript designer's exon graph: every isoform of the gene, one row each,
@@ -28,30 +28,82 @@ export interface RowStatus {
 }
 
 export default function PanTrackGraph({
-  transcripts, targetAccession, status, size, chromosome = "", strand = "",
+  transcripts, targetAccession, status, size, seqs, chromosome = "", strand = "",
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
   status: ReadonlyMap<string, RowStatus>;
   /** The chosen pair's product size on the reference, bp — what "covered" means. */
   size: number | null;
+  /** mRNA by accession — this tab holds EVERY transcript's, so a pinned card can show any row's exon. */
+  seqs?: ReadonlyMap<string, string>;
   chromosome?: string;
   strand?: string;
 }) {
   const [tip, setTip] = useState<Tip>(null);
+  // Same contract as the tier graph (ticket 26): hovering shows a card, CLICKING pins it —
+  // wider, selectable, with the exon's sequence and Copy / FASTA — until Escape, a click
+  // outside, or another exon. Hovering cannot show sequence usefully: the card vanishes on
+  // the way to it.
+  const [pinned, setPinned] = useState<Tip>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!pinned) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPinned(null); };
+    const onDown = (e: MouseEvent) => {
+      if (!panelRef.current?.contains(e.target as Node)) setPinned(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [pinned]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Fills its container; grows (and scrolls) only below MIN_W, as the tier graph does.
+  // Fills its container; grows (and scrolls, grab-to-pan) only below MIN_W, as the tier graph does.
   const MIN_W = 640;
   const [W, setW] = useState(1000);
+  const [scrollable, setScrollable] = useState(false);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const check = () => setW(Math.max(MIN_W, Math.round(el.clientWidth)));
+    const check = () => {
+      setW(Math.max(MIN_W, Math.round(el.clientWidth)));
+      setScrollable(el.clientWidth < MIN_W);
+    };
     check();
     const ro = new ResizeObserver(check);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  const drag = useRef({ active: false, startX: 0, startLeft: 0, moved: false });
+  const [dragging, setDragging] = useState(false);
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (panelRef.current?.contains(e.target as Node)) return;   // selecting text in the card
+    if (!scrollable || e.pointerType !== "mouse" || e.button !== 0) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    drag.current = { active: true, startX: e.clientX, startLeft: el.scrollLeft, moved: false };
+    el.setPointerCapture(e.pointerId);
+    setTip(null);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = drag.current, el = scrollRef.current;
+    if (!d.active || !el) return;
+    const dx = e.clientX - d.startX;
+    if (!d.moved && Math.abs(dx) > 3) { d.moved = true; setDragging(true); }
+    el.scrollLeft = d.startLeft - dx;
+  }
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const el = scrollRef.current;
+    if (el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    drag.current.active = false;
+    setDragging(false);
+    // The click that ends a pan fires after pointerup and must still be suppressed.
+    requestAnimationFrame(() => { drag.current.moved = false; });
+  }
 
   // A status column on the right — "✓ 172 bp", "≠ 292 bp", "no product" — so each row
   // states its band without a tooltip; hence the wider right pad than the tier graph's.
@@ -69,8 +121,12 @@ export default function PanTrackGraph({
   const ticks = [gmin, (gmin + gmax) / 2, gmax];
 
   return (
-    <div ref={scrollRef} className="scroll-x" style={{ position: "relative" }}
-      onMouseLeave={() => setTip(null)}>
+    <div ref={scrollRef} className="scroll-x"
+      style={{ position: "relative",
+               cursor: scrollable ? (dragging ? "grabbing" : "grab") : "default",
+               userSelect: dragging ? "none" : "auto" }}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+      onMouseLeave={() => { if (!drag.current.active) setTip(null); }}>
       <svg width={W} height={height} role="img"
         aria-label={`Exon structure of ${transcripts.length} isoforms, with the exons the chosen pair co-amplifies`}>
         {transcripts.map((t, i) => {
@@ -143,8 +199,14 @@ export default function PanTrackGraph({
                   && e.tx_begin - 1 < st.product.end && e.tx_end > st.product.start;
                 return (
                   <rect key={ei} x={exX} y={cy - exH / 2} width={exRight - exX} height={exH} rx={2.5}
-                    fill="var(--pan-exon)"
-                    onMouseMove={(ev) => setTip({ x: ev.clientX, y: ev.clientY, exon: e, t, inProduct })} />
+                    fill="var(--pan-exon)" style={{ cursor: "inherit" }}
+                    onMouseMove={(ev) => { if (drag.current.active) return; setTip({ x: ev.clientX, y: ev.clientY, exon: e, t, inProduct }); }}
+                    onClick={(ev) => {
+                      if (drag.current.moved) return;   // that was a pan, not a click
+                      ev.stopPropagation();
+                      setTip(null);
+                      setPinned({ x: ev.clientX, y: ev.clientY, exon: e, t, inProduct });
+                    }} />
                 );
               })}
               {segments.map((sg, si) => (
@@ -202,28 +264,10 @@ export default function PanTrackGraph({
           );
         })()}
       </svg>
-      {tip && (
-        <div className="exon-tip" style={{
-          position: "fixed", left: Math.min(tip.x + 14, window.innerWidth - 260),
-          top: Math.min(tip.y + 16, Math.max(8, window.innerHeight - 160)),
-          zIndex: 50, pointerEvents: "none", userSelect: "none",
-        }}>
-          <div className="et-head"><b>Exon {tip.exon.order}</b><span className="et-badge">{tip.t.accession}</span></div>
-          <div className="et-line mono et-coord">
-            <span className="et-chr">chr{chromosome || "?"}</span>
-            <span className="et-c1">{tip.exon.begin.toLocaleString()}</span>
-            <span className="et-dash">–</span>
-            <span className="et-c2">{tip.exon.end.toLocaleString()}</span>
-          </div>
-          <div className="et-line mono">
-            <b className="et-num">{tip.exon.length}</b>&nbsp;nt&nbsp;&nbsp;·&nbsp;&nbsp;mRNA&nbsp;{tip.exon.tx_begin}–{tip.exon.tx_end}
-          </div>
-          <div className="et-div" />
-          {tip.inProduct
-            ? <div className="et-line et-good">The chosen pair's product runs through this exon — the green stretch is the co-amplified region</div>
-            : <div className="et-line et-muted">Outside the product</div>}
-        </div>
-      )}
+      {pinned
+        ? <Card tip={pinned} chromosome={chromosome} seq={seqs?.get(pinned.t.accession)}
+            pinned panelRef={panelRef} onClose={() => setPinned(null)} />
+        : tip && !dragging && <Card tip={tip} chromosome={chromosome} />}
     </div>
   );
 }
@@ -237,5 +281,53 @@ export function SiteGlyph({ ch }: { ch: "F" | "R" }) {
       <line x1="6" y1="0.5" x2="6" y2="10.5" stroke="var(--ink)" strokeWidth="1.5" strokeLinecap="round" />
       <text x="6" y="19" fontSize="9" fontWeight="700" fontFamily="var(--mono)" fill="var(--ink)" textAnchor="middle">{ch}</text>
     </svg>
+  );
+}
+
+
+/**
+ * The exon card. A hover card stays out of the pointer's way and is not interactive; a
+ * pinned one is wider, reachable and selectable, closes with × / Escape / a click outside,
+ * and shows the exon's bases with Copy and FASTA — for ANY row, since this tab holds every
+ * transcript's mRNA (the tier graph can only do that for the analysed one).
+ */
+function Card({ tip, chromosome, seq, pinned = false, panelRef, onClose }: {
+  tip: NonNullable<Tip>; chromosome: string; seq?: string; pinned?: boolean;
+  panelRef?: React.Ref<HTMLDivElement>; onClose?: () => void;
+}) {
+  const w = pinned ? 460 : 260;
+  const style: React.CSSProperties = {
+    position: "fixed", left: Math.min(tip.x + 14, window.innerWidth - w),
+    top: Math.min(tip.y + 16, Math.max(8, window.innerHeight - (pinned ? 360 : 200))),
+    zIndex: 50, pointerEvents: pinned ? "auto" : "none",
+    userSelect: pinned ? "text" : "none",
+  };
+  const { exon: e, t, inProduct } = tip;
+  return (
+    <div className={`exon-tip${pinned ? " pinned" : ""}`} style={style} ref={panelRef}>
+      <div className="et-head">
+        <b>Exon {e.order}</b>
+        <span className="et-badge">{t.accession}</span>
+        {pinned && <button className="et-close" onClick={onClose} aria-label="Close">×</button>}
+      </div>
+      <div className="et-line mono et-coord">
+        <span className="et-chr">chr{chromosome || "?"}</span>
+        <span className="et-c1">{e.begin.toLocaleString()}</span>
+        <span className="et-dash">–</span>
+        <span className="et-c2">{e.end.toLocaleString()}</span>
+      </div>
+      <div className="et-line mono">
+        <b className="et-num">{e.length}</b>&nbsp;nt&nbsp;&nbsp;·&nbsp;&nbsp;mRNA&nbsp;{e.tx_begin}–{e.tx_end}
+      </div>
+      <div className="et-div" />
+      {inProduct
+        ? <div className="et-line et-good">The chosen pair's product runs through this exon — the green stretch is the co-amplified region</div>
+        : <div className="et-line et-muted">Outside the product</div>}
+      {pinned
+        ? seq
+          ? <ExonSequenceBox accession={t.accession} exon={e} seq={seq.slice(e.tx_begin - 1, e.tx_end)} />
+          : <div className="et-seq-none">Sequence not available for this transcript.</div>
+        : <div className="et-line et-hint">Click to pin · sequence</div>}
+    </div>
   );
 }

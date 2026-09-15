@@ -444,7 +444,6 @@ function Tooltip({ tip, chromosome, mrna = "", pinned = false, panelRef, onClose
 function ExonSequence({ exon, t, isTarget, mrna }: {
   exon: Exon; t: TranscriptVerdict; isTarget: boolean; mrna: string;
 }) {
-  const [copied, setCopied] = useState<"" | "seq" | "fasta">("");
   // Only the ANALYZED transcript's sequence is in the response — one mRNA, not one per
   // isoform. Say so plainly rather than showing a sibling's coordinates over the wrong bases.
   if (!isTarget || !mrna) {
@@ -455,8 +454,17 @@ function ExonSequence({ exon, t, isTarget, mrna }: {
       </div>
     );
   }
-  const seq = mrna.slice(exon.tx_begin - 1, exon.tx_end).toUpperCase();
-  const fasta = `>${t.accession} exon ${exon.order} | mRNA ${exon.tx_begin}-${exon.tx_end} | ${seq.length} nt\n${seq}`;
+  return <ExonSequenceBox accession={t.accession} exon={exon}
+    seq={mrna.slice(exon.tx_begin - 1, exon.tx_end)} />;
+}
+
+/** The sequence box itself, for any transcript whose mRNA the caller holds. */
+export function ExonSequenceBox({ accession, exon, seq: raw }: {
+  accession: string; exon: Exon; seq: string;
+}) {
+  const [copied, setCopied] = useState<"" | "seq" | "fasta">("");
+  const seq = raw.toUpperCase();
+  const fasta = `>${accession} exon ${exon.order} | mRNA ${exon.tx_begin}-${exon.tx_end} | ${seq.length} nt\n${seq}`;
   const copy = (text: string, which: "seq" | "fasta") => {
     navigator.clipboard?.writeText(text);
     setCopied(which);
