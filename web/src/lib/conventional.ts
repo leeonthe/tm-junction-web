@@ -367,7 +367,7 @@ export function openingWindow(
  *
  * The ladder exists because "no pair at the defaults" spans two very different truths. For
  * most targets it means the opening WINDOW was wrong (openingWindow fixes that). But a
- * handful of real targets have nothing at the default 60-65 °C at ALL: HK1
+ * handful of real targets have nothing at the default Tm range (60–63 °C) at ALL: HK1
  * NM_001322366.1's unique region is 55 GC-rich nt whose specific oligos melt near 66 °C;
  * FGFR2 NM_001144914.1's unique feature is 2 nt at the far 3' tail, reachable only near
  * 57 °C with a long product. The verdict promises those transcripts a design, and one

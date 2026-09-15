@@ -131,12 +131,13 @@ export interface JunctionGeom {
  */
 export function useJunctionSettings() {
   const [tmMin, setTmMin] = useState(60);
-  const [tmMax, setTmMax] = useState(65);
+  const [tmMax, setTmMax] = useState(63);
   const [minStr, setMinStr] = useState("60");
-  const [maxStr, setMaxStr] = useState("65");
-  // What Reset returns the Tm range to: 60–65, or whatever the opening ladder seeded for
-  // a target with nothing at the defaults — the range the panel opened with IS its default.
-  const [tmDefault, setTmDefault] = useState({ min: 60, max: 65 });
+  const [maxStr, setMaxStr] = useState("63");
+  // What Reset returns the Tm range to: 60–63 (the default since 2026-09-14; it was 60–65),
+  // or whatever the opening ladder seeded for a target with nothing at the defaults — the
+  // range the panel opened with IS its default.
+  const [tmDefault, setTmDefault] = useState({ min: 60, max: 63 });
   const [cond, setCond] = useState<TmConditions>(DEFAULT_CONDITIONS);
   const [condStr, setCondStr] = useState<Record<CondKey, string>>(() => ({
     saltMM: String(DEFAULT_CONDITIONS.saltMM),

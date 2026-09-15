@@ -109,7 +109,7 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
         <div className="mth-rule">
           <div className="mth-rule-row">
             <span className="k">Whole primer</span>
-            <span className="v mono">Tm within the range you set (default 60–65 °C)</span>
+            <span className="v mono">Tm within the range you set (default 60–63 °C)</span>
           </div>
           <div className="mth-rule-row">
             <span className="k">Each arm</span>
@@ -426,7 +426,7 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
             <span className="k">1 · Melting temperature</span>
             <span className="v">
               Within the T<sub>m</sub> range set in the designer's settings panel (default{" "}
-              <span className="mono">60–65 °C</span>). Pairs the engine designs on its own, which
+              <span className="mono">60–63 °C</span>). Pairs the engine designs on its own, which
               have no user range, use <span className="mono">{QC.tmMin}–{QC.tmMax} °C</span>.
             </span>
           </div>
