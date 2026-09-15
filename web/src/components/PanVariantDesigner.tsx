@@ -256,7 +256,7 @@ export default function PanVariantDesigner({ result, seqs }: {
       <div className="jd-row">
         <section className="card elevated jd">
           <DesignerHead
-            label="Whole transcript amplification"
+            label="Whole-transcript amplification"
             badges={<>
               <span className="jd-badge neutral">
                 {options.length} {options.length === 1 ? "pair" : "pairs"}

@@ -264,7 +264,7 @@ export default function App() {
 
   // Re-target in place, staying on the current tab (Summary/Amplify sibling picks).
   const selectIsoform = (accession: string) => run(accession, { keepTab: true, soft: true });
-  // From the Gene tab: re-target and hand off to the Amplifiability tab to show its primers.
+  // From the Gene tab: re-target and hand off to the Transcript-specific amplification tab to show its primers.
   const inspectIsoform = (accession: string) => { run(accession, { keepTab: true, soft: true }); setTab("amplify"); };
 
   // From a result back to its gene's variant picker.
@@ -392,8 +392,8 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
 
       <div className="tabs">
         <button className={`tab ${tab === "summary" ? "on" : ""}`} onClick={() => setTab("summary")}>Summary</button>
-        <button className={`tab ${tab === "pan" ? "on" : ""}`} onClick={() => setTab("pan")}>Whole transcript amplification</button>
-        <button className={`tab ${tab === "amplify" ? "on" : ""}`} onClick={() => setTab("amplify")}>Amplifiability</button>
+        <button className={`tab ${tab === "pan" ? "on" : ""}`} onClick={() => setTab("pan")}>Whole-transcript amplification</button>
+        <button className={`tab ${tab === "amplify" ? "on" : ""}`} onClick={() => setTab("amplify")}>Transcript-specific amplification</button>
         <button className={`tab ${tab === "gene" ? "on" : ""}`} onClick={() => setTab("gene")}>Gene classification</button>
       </div>
 

@@ -6,7 +6,7 @@ import VerdictTable from "./VerdictTable";
 /**
  * Gene classification tab (Func #2) — the whole-gene map ONLY: summary tiles, hard-case
  * explainer, the full multi-isoform exon graph, and the per-isoform table. No target-
- * specific primer detail lives here — clicking an isoform hands off to the Amplifiability
+ * specific primer detail lives here — clicking an isoform hands off to the Transcript-specific amplification
  * tab (`onSelect`), keeping this tab purely gene-wide.
  */
 export default function GeneClassification({

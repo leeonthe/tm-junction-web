@@ -52,7 +52,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
     return (
       <section className="card">
         <div className="card-head">
-          <h3 className="card-title">Whole transcript amplification</h3>
+          <h3 className="card-title">Whole-transcript amplification</h3>
         </div>
         <p className="sub pp-idle">
           No pair amplifies two or more of this gene's transcripts at a single product
@@ -80,7 +80,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
     <section className="card">
       <div className="card-head">
         <div>
-          <h3 className="card-title">Whole transcript amplification</h3>
+          <h3 className="card-title">Whole-transcript amplification</h3>
           <p className="sub">
             One pair for the gene rather than one isoform — every covered transcript gives
             the same single band.

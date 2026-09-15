@@ -5,7 +5,7 @@ import PanVariantDesigner from "./PanVariantDesigner";
 import PanVariantCard from "./PanVariantCard";
 
 /**
- * The Whole transcript amplification tab: fetch the siblings' mRNA, then hand the designer
+ * The Whole-transcript amplification tab: fetch the siblings' mRNA, then hand the designer
  * everything it needs to say which transcripts a pair amplifies.
  *
  * The analysis carries one sequence — the target's — because that is all the other tabs
@@ -52,7 +52,7 @@ export default function PanVariantTab({ result, busy }: {
       {!cur ? (
         <section className="card">
           <div className="card-head">
-            <h3 className="card-title">Whole transcript amplification</h3>
+            <h3 className="card-title">Whole-transcript amplification</h3>
           </div>
           <p className="sub pp-idle">
             Fetching the mRNA of {gene.symbol}'s {n} other {n === 1 ? "transcript" : "transcripts"}…
@@ -64,7 +64,7 @@ export default function PanVariantTab({ result, busy }: {
       ) : cur.status === "error" ? (
         <section className="card">
           <div className="card-head">
-            <h3 className="card-title">Whole transcript amplification</h3>
+            <h3 className="card-title">Whole-transcript amplification</h3>
           </div>
           <div className="error-box"><b>Sequences unavailable.</b> {cur.message}</div>
           <p className="sub pp-idle" style={{ marginTop: 12 }}>

@@ -4,7 +4,7 @@ import { ArrowRight } from "./icons";
 import { foldedEntry } from "../lib/format";
 
 /**
- * Amplifiability tab (Func #1) — focused on the ONE target transcript: its own exon
+ * Transcript-specific amplification tab (Func #1) — focused on the ONE target transcript: its own exon
  * track with the unique region / primer location highlighted, plus the sibling set it
  * is distinguished from. The whole-gene map lives in the Gene classification tab.
  */

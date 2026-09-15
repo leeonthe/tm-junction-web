@@ -287,7 +287,7 @@ export default function Guide({ onBack, onMethod, backLabel }: {
         <p>
           The <i>Gene classification</i> tab shows the whole gene: every isoform's exon
           structure, its tier, and its per-isoform verdict — click any row to design for
-          that transcript instead. The <i>Whole transcript amplification</i> tab is the opposite job:
+          that transcript instead. The <i>Whole-transcript amplification</i> tab is the opposite job:
           one primer pair that amplifies as many of the gene's variants as possible at a
           single product size, for measuring total expression rather than one isoform.
         </p>
