@@ -481,16 +481,12 @@ export default function PanVariantDesigner({ result, seqs }: {
             </select>
           </RailField>
         </RailGroup>
-        <p className="rail-note" title="Which exon pairs are offered: those every transcript shares — forward exon shared on its 3′ side, reverse exon on its 5′ side, identical exons between — or, when there is none, the pairs the most transcripts share.">
-          {offered.share === total
-            ? <><b>{offered.pairs.length}</b> exon {offered.pairs.length === 1 ? "pair" : "pairs"} shared by all {total} {tx(total)}</>
-            : <>no pair shared by all {total}; <b>{offered.pairs.length}</b> shared by <b>{offered.share} of {total}</b></>}
-        </p>
         <p className="rail-note" title="Transcripts carrying this pair with room for both primers — where a product is the same length by construction — and how much of each exon the primer may use. Coverage is still verified from each transcript's sequence.">
           {choice
             ? <>exons {fwdExon}–{revExon}: shared in <b>{carriers.length} of {total}</b>
                 {" "}· F site {choice.fwdRegion.hi - choice.fwdRegion.lo} nt
-                {" "}· R site {choice.revRegion.hi - choice.revRegion.lo} nt</>
+                {" "}· R site {choice.revRegion.hi - choice.revRegion.lo} nt
+                {offered.share < total && <> · no pair is shared by all {total}</>}</>
             : <>pick a reverse exon that pairs with exon {fwdExon}</>}
         </p>
 
