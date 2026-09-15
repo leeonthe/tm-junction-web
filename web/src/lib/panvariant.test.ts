@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  amplifies, coverage, defaultExonPair, exonsInProduct, runCarriers, sharedExons, txToGenomic,
+  amplifies, coverage, defaultPairChoice, exonsInProduct, offeredPairs, pairCarriers, txToGenomic,
 } from "./panvariant";
 import { revComp } from "./partner";
 import type { Exon, TranscriptVerdict } from "./types";
@@ -72,7 +72,7 @@ describe("coverage", () => {
   });
 });
 
-// ---- structure: exon runs, the default pair, the graph's coordinates -------------------
+// ---- structure: which exon pairs are shared, the default pair, the graph's coordinates --
 
 const exon = (order: number, begin: number, end: number, tx_begin: number): Exon => ({
   order, begin, end, length: end - begin + 1, tx_begin, tx_end: tx_begin + (end - begin),
@@ -83,73 +83,100 @@ const tx = (accession: string, exons: Exon[]): TranscriptVerdict => ({
   unique_regions: [], unique_junctions: [], recommended_junction: null,
   coord_non_unique: false, exons,
 });
-// Five exons on the plus strand; B skips exon 3 (a cassette), C carries only 3–5, D is
-// exons 1–2 spliced to a different exon 3 (an alternative acceptor).
-const E1 = [1000, 1099], E2 = [2000, 2199], E3 = [3000, 3049], E4 = [4000, 4299], E5 = [5000, 5099];
 const mk = (spans: number[][]) => {
   let t = 1;
   return spans.map(([b, e], i) => { const x = exon(i + 1, b, e, t); t += e - b + 1; return x; });
 };
+// Five exons on the plus strand, modelled on PHB2. A is the reference. P starts exon 1
+// 50 nt in (an alternative start), skips exon 3, and ends exon 5 200 nt short (a shorter
+// 3′ UTR). Q is A except exon 4, which it starts 100 nt in — shared on its 3′ side only.
+const E1 = [1000, 1099], E2 = [2000, 2199], E3 = [3000, 3049], E4 = [4000, 4299], E5 = [5000, 5399];
 const A = tx("A", mk([E1, E2, E3, E4, E5]));
-const B = tx("B", mk([E1, E2, E4, E5]));
-const C = tx("C", mk([E3, E4, E5]));
-const D = tx("D", mk([E1, E2, [3010, 3049], E4, E5]));
-const ALL = [A, B, C, D];
+const P = tx("P", mk([[1050, 1099], E2, E4, [5000, 5199]]));
+const Q = tx("Q", mk([E1, E2, E3, [4100, 4299], E5]));
+const ALL = [A, P, Q];
 
-describe("runCarriers", () => {
-  it("counts a transcript only when it carries the run consecutively and identically", () => {
-    expect(runCarriers(ALL, A, 1, 2)).toEqual(["A", "B", "D"]);   // C lacks exons 1–2
-    expect(runCarriers(ALL, A, 4, 5)).toEqual(["A", "B", "C", "D"]);
-    expect(runCarriers(ALL, A, 2, 4)).toEqual(["A"]);             // B skips 3, D's 3 differs
-    expect(runCarriers(ALL, A, 3, 4)).toEqual(["A", "C"]);
+describe("pairCarriers", () => {
+  it("credits a first exon with an alternative start — its 3′ side is what the product uses", () => {
+    expect(pairCarriers(ALL, A, 1, 2)).toEqual([
+      { accession: "A", fwdNt: 100, revNt: 200 },
+      { accession: "P", fwdNt: 50, revNt: 200 },
+      { accession: "Q", fwdNt: 100, revNt: 200 },
+    ]);
   });
-  it("is symmetric in the order the two exons are given", () => {
-    expect(runCarriers(ALL, A, 5, 4)).toEqual(runCarriers(ALL, A, 4, 5));
+  it("credits a last exon with a shorter 3′ UTR — its 5′ side is what the product uses", () => {
+    expect(pairCarriers(ALL, A, 4, 5).map((c) => [c.accession, c.fwdNt, c.revNt])).toEqual([
+      ["A", 300, 400], ["P", 300, 200], ["Q", 200, 400],
+    ]);
+  });
+  it("an exon shared on its 3′ side only can be a forward exon, never a reverse one", () => {
+    // Q's exon 4 starts 100 nt in: a reverse site in exon 4 would put the differing 5′
+    // side inside the product, so Q does not carry (2, 4) — but it carries (4, 5) above.
+    expect(pairCarriers(ALL, A, 2, 4).map((c) => c.accession)).toEqual(["A"]);
+  });
+  it("requires the exons between to be identical and spliced straight through", () => {
+    expect(pairCarriers(ALL, A, 2, 4).map((c) => c.accession)).not.toContain("P");   // P skips 3
+    expect(pairCarriers(ALL, A, 3, 4).map((c) => c.accession)).toEqual(["A"]);       // Q's 4 differs
+  });
+  it("is empty for a backwards or same-exon pair", () => {
+    expect(pairCarriers(ALL, A, 4, 2)).toEqual([]);
+    expect(pairCarriers(ALL, A, 2, 2)).toEqual([]);
+  });
+  it("reads the strand from the exons: on the minus strand the 3′ end is the lower coordinate", () => {
+    // Exon 1 at the HIGHER coordinate. N's exon 1 is 50 nt shorter at its 5′ start — which on
+    // the minus strand is the higher coordinate — so the 3′ side (begin) still coincides.
+    const M = tx("M", mk([[5000, 5099], [4000, 4299]]));
+    const N = tx("N", mk([[5000, 5049], [4000, 4299]]));
+    expect(pairCarriers([M, N], M, 1, 2)).toEqual([
+      { accession: "M", fwdNt: 100, revNt: 300 }, { accession: "N", fwdNt: 50, revNt: 300 },
+    ]);
   });
 });
 
-describe("sharedExons", () => {
-  it("offers only the exons in a run every transcript carries identically", () => {
-    // Exon 1, 2: A B D. Exon 3: A C (D's differs). Exons 4, 5: all four.
-    expect(sharedExons(ALL, A)).toEqual({ orders: [4, 5], share: 4 });
+describe("offeredPairs", () => {
+  it("offers the pairs every transcript shares, each primer confined to the shared stretch", () => {
+    const { pairs, share } = offeredPairs(ALL, A);
+    expect(share).toBe(3);
+    expect(pairs.map((p) => [p.fwd, p.rev])).toEqual([[1, 2], [4, 5]]);
+    // (1, 2): forward in the last 50 nt of exon 1 (P's share), reverse in all of exon 2.
+    expect(pairs[0].fwdRegion).toEqual({ lo: 50, hi: 100 });
+    expect(pairs[0].revRegion).toEqual({ lo: 100, hi: 300 });
+    // (4, 5): forward in the last 200 nt of exon 4 (Q's share), reverse in the first 200 of
+    // exon 5 (P's share). Exon 4 is mRNA 351–650, exon 5 is 651–1050.
+    expect(pairs[1].fwdRegion).toEqual({ lo: 450, hi: 650 });
+    expect(pairs[1].revRegion).toEqual({ lo: 650, hi: 850 });
   });
-  it("leaves out an exon all carry when neither neighbour is shared — GAPDH's exon 3", () => {
-    // Z lacks exon 2: exon 1 is in both but stranded, 3–5 is the run.
-    const Z = tx("Z", mk([E1, E3, E4, E5]));
-    expect(sharedExons([A, Z], A)).toEqual({ orders: [3, 4, 5], share: 2 });
+  it("does not count a shared stretch too short for a primer as a site", () => {
+    const P10 = tx("P", mk([[1090, 1099], E2, E4, [5000, 5199]]));   // 10 nt of exon 1
+    const { pairs, share } = offeredPairs([A, P10, Q], A);
+    expect(share).toBe(3);
+    expect(pairs.map((p) => [p.fwd, p.rev])).toEqual([[4, 5]]);
   });
-  it("drops to the most transcripts that share a run when none is common to all", () => {
-    // Without C, 1–2 and 4–5 are runs in everyone; add a transcript carrying only 4.
-    const only4 = tx("X", mk([E4]));
-    expect(sharedExons([A, B, D, only4], A)).toEqual({ orders: [1, 2, 4, 5], share: 3 });
+  it("drops to the most transcripts that share any pair when none is common to all", () => {
+    const lone = tx("L", mk([[7000, 7099], [8000, 8099]]));
+    const { pairs, share } = offeredPairs([A, P, Q, lone], A);
+    expect(share).toBe(3);
+    expect(pairs.map((p) => [p.fwd, p.rev])).toEqual([[1, 2], [4, 5]]);
   });
-  it("lists every exon of a sole transcript", () => {
-    expect(sharedExons([A], A)).toEqual({ orders: [1, 2, 3, 4, 5], share: 1 });
-  });
-  it("offers everything, at share 0, when the reference has one exon", () => {
-    const S = tx("S", mk([E1]));
-    expect(sharedExons([S], S)).toEqual({ orders: [1], share: 0 });
+  it("offers every pair of a sole transcript", () => {
+    const { pairs, share } = offeredPairs([A], A);
+    expect(share).toBe(1);
+    expect(pairs).toHaveLength(10);
   });
 });
 
-describe("defaultExonPair", () => {
-  it("stays inside the offered exons, even against the engine's seed", () => {
-    expect(defaultExonPair(ALL, A, [1, 2], [4, 5])).toEqual([4, 5]);
-    expect(defaultExonPair(ALL, A, null, [4])).toBeNull();
+describe("defaultPairChoice", () => {
+  const { pairs } = offeredPairs(ALL, A);
+  it("opens on the pair with the most carriers, then the most room", () => {
+    // Both offered pairs have three carriers; (4, 5) has 200 nt for each primer, (1, 2) 50.
+    expect(defaultPairChoice(pairs)?.fwd).toBe(4);
   });
-  it("opens on the pair carried by the most transcripts, then the roomiest", () => {
-    // 4–5 and 1–2/4–5 … only 4–5 reaches all four; among 4-carrier pairs it is the only one.
-    expect(defaultExonPair(ALL, A)).toEqual([4, 5]);
+  it("prefers the engine's own exons when they are offered, in either order", () => {
+    expect(defaultPairChoice(pairs, [2, 1])?.fwd).toBe(1);
+    expect(defaultPairChoice(pairs, [2, 4])?.fwd).toBe(4);   // not offered → the default
   });
-  it("prefers the engine's own exons when they were numbered on this reference", () => {
-    expect(defaultExonPair(ALL, A, [2, 1])).toEqual([1, 2]);
-  });
-  it("ignores engine exons that do not exist on this reference, or that coincide", () => {
-    expect(defaultExonPair(ALL, A, [4, 9])).toEqual([4, 5]);
-    expect(defaultExonPair(ALL, A, [4, 4])).toEqual([4, 5]);
-  });
-  it("is null for a single-exon transcript — nothing can cross a junction", () => {
-    expect(defaultExonPair([tx("S", mk([E1]))], tx("S", mk([E1])))).toBeNull();
+  it("is null with nothing offered", () => {
+    expect(defaultPairChoice([])).toBeNull();
   });
 });
 
@@ -166,7 +193,7 @@ describe("exonsInProduct / txToGenomic", () => {
   });
   it("runs the other way on the minus strand", () => {
     // Exon 1 at the HIGHER coordinate: mRNA position 0 is exon 1's genomic END.
-    const minus = tx("M", mk([E5, E4]));
+    const minus = tx("M", mk([[5000, 5099], E4]));
     expect(txToGenomic(minus.exons, 0)).toBe(5099);
     expect(txToGenomic(minus.exons, 100)).toBe(4299);
   });
