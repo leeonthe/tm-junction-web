@@ -13,7 +13,7 @@ import ConventionalDesigner from "./components/ConventionalDesigner";
 import JunctionDesigner from "./components/JunctionDesigner";
 import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
-import PanVariantCard from "./components/PanVariantCard";
+import PanVariantTab from "./components/PanVariantTab";
 import Summary from "./components/Summary";
 import Method from "./components/Method";
 import Guide from "./components/Guide";
@@ -399,7 +399,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, onMethod, back
 
       {tab === "summary" && <Summary result={result} busy={busy} onSelect={onSelect} />}
 
-      {tab === "pan" && <PanVariantCard result={result} />}
+      {tab === "pan" && <PanVariantTab result={result} busy={busy} onMethod={onMethod} />}
 
       {tab === "amplify" && (
         <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>

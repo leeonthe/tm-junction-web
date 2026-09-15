@@ -17,6 +17,7 @@ FEATURES = [
     "variant_labels",              # 27.1: NCBI's "transcript variant N" per transcript
     "pan_variant",                 # 25: one pair for every variant of the gene
     "primer_qc",                   # 30: GET /qc — hairpin/self-dimer Tm for browser-designed oligos
+    "transcript_sequences",        # 25.b: GET /sequences — sibling mRNAs for the browser's whole-transcript designer
 ]
 
 

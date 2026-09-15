@@ -84,6 +84,48 @@ def qc(seq: list[str] = Query(default=[])) -> dict:
     }
 
 
+_SEQ_MAX_ACCESSIONS = 500
+
+
+@app.get("/sequences")
+def sequences(acc: list[str] = Query(default=[])):
+    """mRNA sequences for a set of NM accessions — the whole-transcript designer's siblings.
+
+    The analysis response carries ONE sequence, the target's, because the browser only
+    designs against that one. The whole-transcript designer is the exception: it places a
+    pair on the target and then has to show which of the gene's other transcripts that
+    pair amplifies, at what size — a claim the engine makes from the sequences (see
+    panvariant._coverage), and the browser must make the same way or not at all. Sending
+    every sibling's mRNA with every analysis would cost a megabyte on a gene like BRCA1
+    for a tab most searches never open, so they are fetched here, on demand.
+
+    Cache-first through ncbi.get_sequences, so after an analysis this is a disk read; a
+    cold serverless instance pays one efetch for the lot. Accessions that are not NM
+    RefSeq ids are a 400, an NM id NCBI does not know is a 404 — the browser sent
+    accessions the engine itself reported, so either is a bug, not a user error.
+    """
+    accs: list[str] = []
+    for a in acc[:_SEQ_MAX_ACCESSIONS]:
+        a = (a or "").strip().upper()
+        if not a:
+            continue
+        if not ncbi.is_valid_nm(a):
+            return JSONResponse(status_code=400, content={
+                "error": "NOT_NM", "message": f"{a} is not an NM RefSeq accession."})
+        if a not in accs:
+            accs.append(a)
+    if not accs:
+        return {"sequences": {}}
+    try:
+        seqs = ncbi.get_sequences(accs)
+    except ncbi.NotFound as e:
+        return JSONResponse(status_code=404, content={"error": "NOT_FOUND", "message": str(e)})
+    except ncbi.RateLimited:
+        return JSONResponse(status_code=503, content=_RATE_LIMIT,
+                            headers={"Retry-After": "5"})
+    return {"sequences": {a: seqs[a] for a in accs if seqs.get(a)}}
+
+
 @app.get("/suggest")
 def suggest(q: str, limit: int = 8) -> dict:
     """Live NCBI typeahead for NM accessions matching prefix `q`."""

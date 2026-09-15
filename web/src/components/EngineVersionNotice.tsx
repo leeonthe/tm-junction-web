@@ -27,6 +27,12 @@ const REQUIRED: { feature: string; missing: string }[] = [
     feature: "pan_variant",
     missing: "the all-variant pair is not designed",
   },
+  {
+    feature: "transcript_sequences",
+    missing: "the whole-transcript designer cannot check which transcripts a pair amplifies "
+      + "(the engine does not serve their sequences), so that tab shows only the engine's "
+      + "own pairs",
+  },
 ];
 
 export default function EngineVersionNotice({ result }: { result: AnalyzeResponse }) {

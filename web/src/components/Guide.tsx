@@ -291,6 +291,17 @@ export default function Guide({ onBack, onMethod, backLabel }: {
           one primer pair that amplifies as many of the gene's variants as possible at a
           single product size, for measuring total expression rather than one isoform.
         </p>
+        <p>
+          That tab is a designer like the others. Pick the two exons the primers sit in
+          (<b>Target exons</b> in the settings panel — the note beneath says how many
+          transcripts carry them identically), set the <b>product size</b>, Tm range and Tm
+          match, and the pairs re-search live. Every pair names the transcripts it amplifies,
+          checked from each one's mRNA: both primer sites present, once, and the product the
+          same length — a transcript that gives another length is a second band and is listed
+          as missed. <b>View on cDNA</b> shows the pair in place, and the exon graph below
+          paints the co-amplified exons in every transcript the pair covers, with the band
+          each one gives at the end of its row.
+        </p>
       </section>
 
       <section className="card mth-card">

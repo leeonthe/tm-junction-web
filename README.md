@@ -43,9 +43,11 @@ Some details that matter in practice:
   that represents them.
 - Every amplicon must span at least two exons, so a product can't be confused with one
   amplified off contaminating genomic DNA.
-- Besides isoform-specific design, an **all-variant pair** is computed per gene: one primer
+- Besides isoform-specific design, an **all-variant pair** is designed per gene: one primer
   pair that amplifies as many variants as possible at a single product size, for total-
-  expression assays.
+  expression assays. The whole-transcript tab is a designer — choose the two exons, the
+  product size and the Tm window — and every pair's coverage is verified from each
+  transcript's mRNA (the engine serves the siblings' sequences on demand).
 - NCBI's variant designation ("transcript variant 5") is shown under each accession.
 
 The in-app **Method** page documents the classification rule, the Tm formula, and the

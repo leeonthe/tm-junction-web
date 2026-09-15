@@ -89,6 +89,64 @@ export async function qcStructure(seqs: string[], signal?: AbortSignal): Promise
   return "ok";
 }
 
+// mRNA sequences by accession, for the whole-transcript designer. A transcript's sequence
+// never changes within a session, so once fetched it is good for every gene it appears in.
+const sequenceCache = new Map<string, string>();
+/** Set once the engine has answered /sequences with 404: an older build without it. */
+let sequencesUnsupported = false;
+/** How many accessions go in one request — a query string, so kept well short of URL limits. */
+const SEQ_BATCH = 100;
+
+export type SequencesFetch =
+  | { status: "ok"; seqs: Map<string, string> }
+  | { status: "unsupported" }
+  | { status: "error"; message: string };
+
+/**
+ * Fetch the mRNA of every accession not yet cached, and return all of them. The engine
+ * credits a whole-transcript pair only with the transcripts it is shown to amplify, from
+ * their sequences; the browser's designer makes the same claim the same way, so it needs
+ * the same sequences. "unsupported" means the engine has no /sequences (the tab then shows
+ * the engine's own pairs instead); "error" is a network or server failure. Aborting
+ * rejects, as fetch does.
+ */
+export async function fetchSequences(accs: string[], signal?: AbortSignal): Promise<SequencesFetch> {
+  if (sequencesUnsupported) return { status: "unsupported" };
+  const wanted = [...new Set(accs.map((a) => a.toUpperCase()))];
+  const missing = wanted.filter((a) => !sequenceCache.has(a));
+  for (let i = 0; i < missing.length; i += SEQ_BATCH) {
+    const chunk = missing.slice(i, i + SEQ_BATCH);
+    const qs = chunk.map((a) => `acc=${encodeURIComponent(a)}`).join("&");
+    let res: Response;
+    try {
+      res = await fetch(`${await apiBase()}/sequences?${qs}`, { signal });
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      return { status: "error", message: "Can't reach the engine. Is the Python backend running?" };
+    }
+    if (res.status === 404) {
+      // Either no such route (an older engine) or an accession NCBI does not know. The
+      // engine names the accession in the second case; a bare 404 is the route.
+      const body = await res.json().catch(() => null) as ApiError | null;
+      if (body?.error === "NOT_FOUND") return { status: "error", message: body.message };
+      sequencesUnsupported = true;
+      return { status: "unsupported" };
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as ApiError | null;
+      return { status: "error", message: body?.message ?? `The engine answered ${res.status}.` };
+    }
+    const d = await res.json() as { sequences?: Record<string, string> };
+    for (const [a, s] of Object.entries(d.sequences ?? {})) sequenceCache.set(a.toUpperCase(), s);
+  }
+  const seqs = new Map<string, string>();
+  for (const a of wanted) {
+    const s = sequenceCache.get(a);
+    if (s) seqs.set(a, s);
+  }
+  return { status: "ok", seqs };
+}
+
 export interface Progress { pct: number; detail: string }
 
 /**

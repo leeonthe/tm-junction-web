@@ -935,3 +935,22 @@ tr.is-target:hover td{background:var(--brand-tint)}
 /* In the settings panel the dot sits against the page's right edge, where a centred popover
    runs off screen. Anchor it to the dot's right edge so it opens back over the card. */
 .jd-rail .info-pop{left:auto;right:0;transform:none}
+
+/* ── Whole-transcript designer (ticket 25.b) ──────────────────────────────────────────
+   The graph's two inks: a neutral exon, and the product. Neither is a tier colour, on
+   purpose — this tab's pair is meant to amplify every transcript, so a tier says nothing
+   here, and the yellow "target site" of the other graphs marks what DISTINGUISHES a
+   transcript, which is the opposite of what these exons are. */
+:root{--pan-exon:#C9CFD8;--pan-amp:#0F9D58}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--pan-exon:#3A4553;--pan-amp:#4ADE80}}
+:root[data-theme="dark"]{--pan-exon:#3A4553;--pan-amp:#4ADE80}
+/* The designer card and the exon graph stack in the row's first column, beside the panel. */
+.pan-col{display:flex;flex-direction:column;gap:28px;min-width:0}
+/* The share count under the exon pickers: it qualifies the two selects and reads as data,
+   in the same voice as the reachable-range hint above it. */
+.jd-rail .rail-note{margin:-4px 0 0;font-family:var(--mono);font-size:10.5px;line-height:1.4;
+  color:var(--faint);cursor:help}
+.jd-rail .rail-note b{color:var(--muted);font-weight:600}
+/* A missed transcript's own band size, beside its accession. */
+.pv-size{color:var(--faint);margin-left:4px;font-size:11px}
+
