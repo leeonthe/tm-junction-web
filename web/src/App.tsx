@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { analyzeStream, lookupGene, AnalyzeError, type Progress } from "./lib/api";
 import type { AnalyzeResponse, GeneLookupResponse } from "./lib/types";
 import { variantLabel } from "./lib/format";
+import { readRoute, routeUrl, writeRoute, type Route, type Tab } from "./lib/route";
 import Nav from "./components/Nav";
 import Hero from "./components/Hero";
 import GeneTranscriptPicker from "./components/GeneTranscriptPicker";
@@ -21,8 +22,15 @@ import { DEFAULT_MODE, type Mode } from "./components/Hero";
 import LoadingState from "./components/LoadingState";
 import { ArrowRight } from "./components/icons";
 
-type Tab = "summary" | "pan" | "amplify" | "gene";
-interface RunOpts { keepTab?: boolean; soft?: boolean; silent?: boolean; fromGene?: boolean }
+interface RunOpts {
+  keepTab?: boolean; soft?: boolean; silent?: boolean; fromGene?: boolean;
+  /** The address bar already says this (a load or a back press): make no history entry. */
+  restore?: boolean;
+  /** The gene context the URL says this transcript sits in (restores only); undefined clears it. */
+  gene?: string;
+}
+/** What the user asked for — the search, as distinct from what came back. Drives the URL. */
+interface Query { gene?: string; transcript?: string }
 
 const HISTORY_KEY = "tmj.history";
 const GENE_HISTORY_KEY = "tmj.gene_history";
@@ -36,25 +44,37 @@ function pushStored(key: string, value: string, prev: string[]): string[] {
   return next;
 }
 
+/** What the search box should open with for a route: the thing the URL asked for, if any. */
+const heroSeedFor = (r: Route): string | undefined =>
+  r.page === "home" ? (r.mode === "gene" ? r.gene : r.transcript) : undefined;
+
 export default function App() {
+  // The address bar is the initial state (see lib/route for the map). It is read once;
+  // later changes arrive through popstate and are applied by applyRoute below.
+  const [initial] = useState<Route>(readRoute);
   const [loading, setLoading] = useState(false);   // full-page load (new search)
   const [busy, setBusy] = useState(false);          // in-place re-target (pick isoform)
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [gene, setGene] = useState<GeneLookupResponse | null>(null);   // gene-name lookup (variant picker)
+  const [query, setQuery] = useState<Query>(() =>
+    initial.page === "home" ? { gene: initial.gene, transcript: initial.transcript } : {});
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
-  const [tab, setTab] = useState<Tab>("summary");
+  const [tab, setTab] = useState<Tab>(initial.page === "home" ? initial.tab : "summary");
   const [history, setHistory] = useState<string[]>(() => loadStored(HISTORY_KEY));
   const [geneHistory, setGeneHistory] = useState<string[]>(() => loadStored(GENE_HISTORY_KEY));
   const [progress, setProgress] = useState<Progress>({ pct: 0, detail: "Starting…" });
   const [resetKey, setResetKey] = useState(0);   // bump to remount Hero (clears its input)
+  const [heroSeed, setHeroSeed] = useState<string | undefined>(() => heroSeedFor(initial));
   // The Method page replaces the result flow; any analysis already loaded is kept in state,
   // so leaving it returns to exactly where the user was.
-  const [showMethod, setShowMethod] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
+  const [showMethod, setShowMethod] = useState(initial.page === "method");
+  const [showGuide, setShowGuide] = useState(initial.page === "guide");
   // What the hero is asking for. "sequence" is a self-contained mode: the arms replace the
   // search bar and the designer below replaces the analysis, with no NCBI lookup involved.
-  const [mode, setMode] = useState<Mode>(DEFAULT_MODE);
-  const [arms, setArms] = useState<Arms>(EMPTY_ARMS);
+  const [mode, setMode] = useState<Mode>(
+    initial.page === "sequence" ? "sequence" : initial.page === "home" ? initial.mode : DEFAULT_MODE);
+  const [arms, setArms] = useState<Arms>(
+    initial.page === "sequence" ? { five: initial.five, three: initial.three } : EMPTY_ARMS);
 
   /**
    * Which analysis the UI is currently showing. Switching transcripts starts a new
@@ -79,19 +99,119 @@ export default function App() {
     return { signal: ac.signal, isCurrent: () => seq === runSeq.current };
   }
 
-  async function geneSearch(symbol: string) {
+  // ---- URL sync ---------------------------------------------------------------------------
+  //
+  // The URL is derived from state after every render, so it can never disagree with the
+  // page. What a transition controls is only whether it makes a history entry: a search, a
+  // page, a reset PUSH (the back button returns to the previous view); everything in place
+  // — a tab, an isoform re-target, typing arms, the canonical name arriving — REPLACES the
+  // current entry, so back never has to step through twenty isoform clicks.
+  const navHow = useRef<"push" | "replace">("replace");
+  const push = () => { navHow.current = "push"; };
+
+  const route: Route = showGuide ? { page: "guide" }
+    : showMethod ? { page: "method" }
+    : mode === "sequence" ? { page: "sequence", five: arms.five, three: arms.three }
+    : { page: "home", mode, gene: query.gene, transcript: query.transcript, tab };
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  const url = routeUrl(route);
+  useEffect(() => {
+    const how = navHow.current;
+    navHow.current = "replace";
+    if (how === "push") { writeRoute(routeRef.current, "push"); return; }
+    // Replaces coalesce: a keystroke in the arms or a canonical name landing right after a
+    // push should not each hit history (Safari rate-limits it).
+    const t = setTimeout(() => writeRoute(routeRef.current, "replace"), 150);
+    return () => clearTimeout(t);
+  }, [url]);
+
+  // What applyRoute compares the URL against; a ref because popstate fires outside render.
+  const latest = useRef({ result, gene, query });
+  latest.current = { result, gene, query };
+
+  /**
+   * Make the page show a route — the first paint, and every back/forward press. Whatever is
+   * already loaded and still wanted is kept (back from Method to a result costs no request);
+   * only what the URL asks for and the page lacks is fetched. A press does not count as a
+   * new search for the "recent" list; the first load of a shared link does.
+   */
+  function applyRoute(r: Route, why: "load" | "pop") {
+    const silent = why === "pop";
+    setShowMethod(r.page === "method");
+    setShowGuide(r.page === "guide");
+    if (r.page === "method" || r.page === "guide") return;   // the result underneath stays
+    if (r.page === "sequence") {
+      setMode("sequence");
+      setArms({ five: r.five, three: r.three });
+      return;
+    }
+    setMode(r.mode);
+    setTab(r.tab);
+    setHeroSeed(heroSeedFor(r));
+    setResetKey((k) => k + 1);
+    const cur = latest.current;
+    if (r.transcript) {
+      const haveGene = !!r.gene && cur.gene?.gene.symbol === r.gene;
+      if (!r.gene) setGene(null);
+      if (cur.result?.target_accession === r.transcript) {
+        setError(null);
+        setQuery({ gene: r.gene, transcript: r.transcript });
+      } else {
+        run(r.transcript, { keepTab: true, restore: true, silent, soft: !!cur.result, fromGene: !!r.gene, gene: r.gene });
+      }
+      // The picker (and its "All variants" way back) for a link that came through it.
+      if (r.gene && !haveGene) {
+        const want = r.gene;
+        lookupGene(want).then((g) => { if (latest.current.query.gene === want) setGene(g); }).catch(() => {});
+      }
+    } else if (r.gene) {
+      if (cur.gene?.gene.symbol === r.gene) {
+        claimRun();
+        setResult(null); setError(null); setLoading(false); setBusy(false);
+        setQuery({ gene: r.gene });
+      } else {
+        geneSearch(r.gene, { restore: true, silent });
+      }
+    } else {
+      claimRun();
+      setResult(null); setGene(null); setError(null); setLoading(false); setBusy(false);
+      setQuery({});
+    }
+  }
+  const applyRef = useRef(applyRoute);
+  applyRef.current = applyRoute;
+
+  useEffect(() => {
+    // The page's content changes under a back press, so the browser's own scroll memory
+    // would land on a random offset of the new view.
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    const onPop = () => { applyRef.current(readRoute(), "pop"); window.scrollTo({ top: 0 }); };
+    window.addEventListener("popstate", onPop);
+    applyRef.current(initial, "load");
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only; `initial` never changes
+  }, []);
+
+  // ---- searches ---------------------------------------------------------------------------
+
+  async function geneSearch(symbol: string, opts: { silent?: boolean; restore?: boolean } = {}) {
     if (!symbol) return;
     const { isCurrent } = claimRun();   // a gene search also supersedes a running analysis
+    if (!opts.restore) push();
     setLoading(true);
     setError(null);
     setResult(null);
     setGene(null);
     setShowMethod(false);
+    setShowGuide(false);
+    setQuery({ gene: symbol.trim().toUpperCase() });
     try {
       const g = await lookupGene(symbol);
       if (!isCurrent()) return;
       setGene(g);
-      setGeneHistory((h) => pushStored(GENE_HISTORY_KEY, g.gene.symbol, h));   // canonical symbol
+      setQuery({ gene: g.gene.symbol });   // canonical symbol
+      if (!opts.silent) setGeneHistory((h) => pushStored(GENE_HISTORY_KEY, g.gene.symbol, h));
     } catch (e) {
       if (!isCurrent()) return;
       const err = e as AnalyzeError;
@@ -102,18 +222,28 @@ export default function App() {
   }
 
   async function run(accession: string, opts: RunOpts = {}) {
-    const { keepTab = false, soft = false, silent = false, fromGene = false } = opts;
+    const { keepTab = false, soft = false, silent = false, fromGene = false, restore = false } = opts;
     if (!accession) return;
     const { signal, isCurrent } = claimRun();
     // A fresh accession search leaves the gene picker; picking a variant from it keeps the picker.
     if (!soft && !fromGene) setGene(null);
     if (!soft) setProgress({ pct: 0, detail: "Starting…" });
+    if (!soft && !restore) push();
     soft ? setBusy(true) : setLoading(true);
     setError(null);
+    setShowMethod(false);
+    setShowGuide(false);
+    // The gene half of the address: a restore says outright (even "none"); a re-target or a
+    // pick from the picker keeps what is there; a fresh accession search drops it.
+    setQuery((q) => ({
+      gene: "gene" in opts ? opts.gene : (soft || fromGene) ? q.gene : undefined,
+      transcript: accession.trim().toUpperCase(),
+    }));
     try {
       const r = await analyzeStream(accession, (p) => { if (!soft && isCurrent()) setProgress(p); }, signal);
       if (!isCurrent()) return;
       setResult(r);
+      setQuery((q) => ({ ...q, transcript: r.target_accession }));   // canonical, versioned
       if (!keepTab) setTab("summary");   // a fresh search lands on the everything view
       // recent searches (persisted, ≤3) — not for the initial demo or isoform re-targets
       if (!silent && !soft) {
@@ -137,37 +267,58 @@ export default function App() {
   // From the Gene tab: re-target and hand off to the Amplifiability tab to show its primers.
   const inspectIsoform = (accession: string) => { run(accession, { keepTab: true, soft: true }); setTab("amplify"); };
 
+  // From a result back to its gene's variant picker.
+  function backToVariants() {
+    push();
+    setResult(null);
+    setError(null);
+    setQuery((q) => ({ gene: q.gene }));
+  }
+
+  // The search box: switching to or from the sequence designer is a page change.
+  function changeMode(m: Mode) {
+    if (m === "sequence" || mode === "sequence") push();
+    setMode(m);
+  }
+
   // Return to the empty landing state (logo / brand click).
   function reset() {
     claimRun();          // drop anything in flight so it cannot repopulate the page
+    push();
     setResult(null);
     setGene(null);
     setError(null);
     setLoading(false);
     setBusy(false);
     setTab("summary");
+    setQuery({});
     setShowMethod(false);
     setShowGuide(false);
     setMode(DEFAULT_MODE);
+    setHeroSeed(undefined);
     setResetKey((k) => k + 1);   // remount Hero so its input clears
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function openMethod() {
+    push();
     setShowMethod(true);
     setShowGuide(false);            // the two pages replace each other, not stack
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function closeMethod() {
+    push();
     setShowMethod(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function openGuide() {
+    push();
     setShowGuide(true);
     setShowMethod(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function closeGuide() {
+    push();
     setShowGuide(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -187,9 +338,10 @@ export default function App() {
         </main>
       ) : (
         <>
-          <Hero key={resetKey} onSearch={(acc) => run(acc)} onGeneSearch={geneSearch}
+          <Hero key={resetKey} initialValue={heroSeed}
+            onSearch={(acc) => run(acc)} onGeneSearch={geneSearch}
             loading={loading} history={history} geneHistory={geneHistory}
-            mode={mode} onMode={setMode} arms={arms} onArms={setArms} />
+            mode={mode} onMode={changeMode} arms={arms} onArms={setArms} />
           <main className="wrap">
             {mode === "sequence" && <CustomJunctionResult arms={arms} onMethod={openMethod} />}
             {mode !== "sequence" && <>
@@ -201,7 +353,7 @@ export default function App() {
             )}
             {!loading && result && (
               <Result result={result} tab={tab} setTab={setTab} busy={busy}
-                backToVariants={gene ? () => setResult(null) : undefined}
+                backToVariants={gene ? backToVariants : undefined}
                 onSelect={selectIsoform} onInspect={inspectIsoform} onMethod={openMethod}
                 />
             )}

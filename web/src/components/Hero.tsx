@@ -26,7 +26,7 @@ const EXAMPLES: Record<"gene" | "accession", string[]> = {
 };
 
 export default function Hero({
-  onSearch, onGeneSearch, loading, history, geneHistory, mode, onMode, arms, onArms,
+  onSearch, onGeneSearch, loading, history, geneHistory, mode, onMode, arms, onArms, initialValue,
 }: {
   onSearch: (acc: string) => void;
   onGeneSearch: (symbol: string) => void;
@@ -38,8 +38,10 @@ export default function Hero({
   onMode: (m: Mode) => void;
   arms: Arms;
   onArms: (a: Arms) => void;
+  /** What the box opens with — the search the URL named, so a shared link reads as typed. */
+  initialValue?: string;
 }) {
-  const [value, setValue] = useState(() => seedFor(mode));
+  const [value, setValue] = useState(() => initialValue ?? seedFor(mode));
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const [remote, setRemote] = useState<Suggestion[]>([]);
