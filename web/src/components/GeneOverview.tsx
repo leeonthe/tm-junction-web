@@ -1,6 +1,7 @@
 import type { AnalyzeResponse } from "../lib/types";
 import { Alert } from "./icons";
 import Info from "./Info";
+import { classBreakdown } from "../lib/format";
 
 /** Gene-level summary tiles + hard-case explainer. Shared by the Summary and Gene tabs. */
 export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
@@ -10,7 +11,8 @@ export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
   return (
     <>
       <div className="stat-row">
-        <div className="stat-tile"><div className="n">{summary.nm_count}</div><div className="l">NM isoforms</div></div>
+        <div className="stat-tile"><div className="n">{summary.nm_count}</div><div className="l">{summary.nr_count
+          ? `isoforms · ${classBreakdown(summary.nm_count, summary.nr_count)}` : "NM isoforms"}</div></div>
         <div className="stat-tile t-conv"><div className="n">{summary.conventional_count}</div><div className="l">EEJ-independent</div></div>
         <div className="stat-tile t-eej"><div className="n">{summary.needs_eej_count}</div><div className="l">EEJ-dependent</div></div>
         <div className="stat-tile t-hard"><div className="n">{summary.hard_case_count}</div><div className="l">Infeasible</div></div>

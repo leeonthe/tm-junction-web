@@ -9,7 +9,7 @@ import {
 } from "../lib/partner";
 import { ampRange, findPairs, openingSearch, type PairArgs, type PairOption } from "../lib/conventional";
 import { coverage, defaultPairChoice, offeredPairs, type Coverage } from "../lib/panvariant";
-import { numStr } from "../lib/format";
+import { isNoncoding, numStr } from "../lib/format";
 import { qcCriteriaText, qcFailures, qcRank, type QcFailure, type QcRule } from "../lib/qc";
 import CdnaView from "./CdnaView";
 import PanTrackGraph, { SiteGlyph, type RowStatus } from "./PanTrackGraph";
@@ -34,6 +34,13 @@ import Info from "./Info";
  * named as missed rather than counted — it would be a second band, and an unquantifiable
  * assay. Below the pairs, the gene's exon graph paints the co-amplified region — forward
  * site to reverse site — in each transcript the chosen pair covers.
+ *
+ * A gene with both NM and NR transcripts gets TWO graphs. The design itself always runs
+ * over both classes at once — an NR transcript is in the same cDNA, so a pair that fits it
+ * amplifies it — but the first graph stays what it was before NR support: the mRNAs, on
+ * their own axis. The combined NM + NR picture is a second container beneath it, banded
+ * by class (PanTrackGraph groupByClass), so nothing about the NR rows can disturb the
+ * mRNA graph's scale or order.
  */
 
 /** A searched pair with what it does to the gene. */
@@ -242,6 +249,18 @@ export default function PanVariantDesigner({ result, seqs }: {
     const c = Number.isFinite(v) ? Math.min(DTM_MAX_CEIL, Math.max(DTM_MAX_FLOOR, v)) : dTmMax;
     setDTmMax(c); setDTmStr(numStr(c));
   }
+
+  // Both classes present: the first graph keeps to the mRNAs, the second shows all.
+  const nmRows = useMemo(() => transcripts.filter((t) => !isNoncoding(t.accession)), [transcripts]);
+  const nrTotal = total - nmRows.length;
+  const mixed = nmRows.length > 0 && nrTotal > 0;
+  const legend = (
+    <div className="legend">
+      <span className="lg"><span className="sw" style={{ background: "var(--pan-amp)" }} />co-amplified region</span>
+      <span className="lg"><span className="sw" style={{ background: "var(--pan-exon)" }} />outside the product</span>
+      <span className="lg"><SiteGlyph ch="F" /><SiteGlyph ch="R" />primer sites</span>
+    </div>
+  );
 
   const nCovered = chosen?.cov.covered.length ?? 0;
   const all = !!chosen && chosen.cov.uncovered.length === 0;
@@ -490,24 +509,51 @@ export default function PanVariantDesigner({ result, seqs }: {
       <section className="card">
         <div className="card-head">
           <div>
-            <h3 className="card-title">Exon structure — all {gene.symbol} isoforms</h3>
+            <h3 className="card-title">
+              Exon structure — all {gene.symbol} {mixed ? "mRNA isoforms (NM)" : "isoforms"}
+            </h3>
             <p className="sub">GRCh38 · the region the chosen pair co-amplifies, in every transcript it covers</p>
           </div>
-          <div className="legend">
-            <span className="lg"><span className="sw" style={{ background: "var(--pan-amp)" }} />co-amplified region</span>
-            <span className="lg"><span className="sw" style={{ background: "var(--pan-exon)" }} />outside the product</span>
-            <span className="lg"><SiteGlyph ch="F" /><SiteGlyph ch="R" />primer sites</span>
-          </div>
+          {legend}
         </div>
-        <PanTrackGraph transcripts={transcripts} targetAccession={target_accession}
+        <PanTrackGraph transcripts={mixed ? nmRows : transcripts} targetAccession={target_accession}
           status={rowStatus} size={chosen?.cov.size ?? null} seqs={seqs}
           chromosome={gene.chromosome} strand={gene.strand} />
         <p className="g-note">
           Each row ends with the band that transcript gives: ✓ the pair's one size; ≠ another
           size, a second band, so not covered; or no product. Tiers are not shown here — this
           pair is meant to amplify every transcript, not to tell them apart.
+          {mixed && <> {gene.symbol}'s {nrTotal} non-coding (NR){" "}
+            {nrTotal === 1 ? "transcript is" : "transcripts are"} in the combined graph below
+            {isNoncoding(target_accession) && <>, and so is {target_accession}, the transcript the
+              pair is placed on</>}.</>}
         </p>
       </section>
+
+      {mixed && (
+        <section className="card">
+          <div className="card-head">
+            <div>
+              <h3 className="card-title">Exon structure — {gene.symbol} NM + NR combined</h3>
+              <p className="sub">
+                GRCh38 · {nmRows.length} mRNA + {nrTotal} non-coding{" "}
+                {nrTotal === 1 ? "transcript" : "transcripts"} on one axis, the same pair painted in each
+              </p>
+            </div>
+            {legend}
+          </div>
+          <PanTrackGraph transcripts={transcripts} targetAccession={target_accession} groupByClass
+            status={rowStatus} size={chosen?.cov.size ?? null} seqs={seqs}
+            chromosome={gene.chromosome} strand={gene.strand} />
+          <p className="g-note">
+            The pair is searched and its coverage counted over both classes at once: a
+            non-coding transcript is in the same cDNA as the mRNAs, so a pair whose two sites
+            it carries amplifies it too — at the pair's size (✓), at another (≠), or not at
+            all. The axis here spans every transcript, so it can be wider than the mRNA graph
+            above when an NR transcript starts or ends outside them.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

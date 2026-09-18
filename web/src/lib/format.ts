@@ -30,6 +30,20 @@ export function signed(v: number, digits = 2): string {
   return `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(digits)}`;
 }
 
+/** An NR_ accession: a curated non-coding RNA, analyzed alongside the gene's NM_ mRNAs. */
+export const isNoncoding = (accession: string): boolean =>
+  accession.trim().toUpperCase().startsWith("NR_");
+
+/**
+ * How a gene's isoform count breaks down by RefSeq class: "5 NM + 1 NR", "NR" for a gene
+ * with only non-coding transcripts, and "" for the all-mRNA gene — the common case, where a
+ * breakdown would only restate the count.
+ */
+export function classBreakdown(total: number, nr: number): string {
+  if (!nr) return "";
+  return nr >= total ? "NR" : `${total - nr} NM + ${nr} NR`;
+}
+
 /**
  * NCBI's isoform designation for a transcript, as shown under its accession.
  *

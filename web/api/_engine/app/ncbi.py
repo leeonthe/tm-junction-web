@@ -122,9 +122,16 @@ def resolve_accession(accession: str) -> tuple[str, str]:
 
     data = _http_get_json(f"{DATASETS}/gene/accession/{base}")
     reports = data.get("reports") or data.get("gene", {}).get("reports") or []
-    if not reports:
-        raise NotFound(f"No gene found for accession {accession}")
-    gene = reports[0].get("gene") or reports[0].get("product") or reports[0]
+    if reports:
+        gene = reports[0].get("gene") or reports[0].get("product") or reports[0]
+    else:
+        # Datasets indexes accessions through the genome annotation, so a record curated
+        # since the last annotation run (NR_201105.1, HTRA1-AS1) resolves to nothing there.
+        # The record itself still names its gene.
+        rec = record_structures([accession.strip().upper()]).get(accession.strip().upper()) or {}
+        if not rec.get("gene"):
+            raise NotFound(f"No gene found for accession {accession}")
+        gene = {"symbol": rec["gene"], "gene_id": rec.get("gene_id", "")}
     symbol = str(gene.get("symbol", ""))
     gene_id = str(gene.get("gene_id", ""))
     if not symbol:
@@ -263,7 +270,7 @@ def fill_variants(transcripts: list[dict]) -> None:
     """Give every transcript NCBI's variant designation, in place.
 
     Only for a gene with isoforms to tell apart: NCBI numbers no variant when there is a
-    single NM, and that absence is the mono-isoform case rather than a gap to fill.
+    single transcript, and that absence is the mono-isoform case rather than a gap to fill.
     """
     if len(transcripts) < 2:
         return
@@ -274,6 +281,107 @@ def fill_variants(transcripts: list[dict]) -> None:
     for t in transcripts:
         if not t.get("variant"):
             t["variant"] = variant_in(titles.get(t["accession"]))
+
+
+# ---------------------------------------------------------------- unplaced records
+
+_GB_EXON = re.compile(r"^ {5}exon\s+<?(\d+)\.\.>?(\d+)\s*$", re.MULTILINE)
+_GB_VERSION = re.compile(r"^VERSION\s+(\S+)", re.MULTILINE)
+_GB_ACCESSION = re.compile(r"^ACCESSION\s+(.+(?:\n {12}.+)*)", re.MULTILINE)
+_GB_GENE = re.compile(r'^ {21}/gene="([^"]+)"', re.MULTILINE)
+_GB_GENE_ID = re.compile(r'/db_xref="GeneID:(\d+)"')
+
+
+def _parse_genbank_structure(record: str) -> dict | None:
+    """One GenBank flat-file record -> {accession, gene, gene_id, exon_lengths, replaces}.
+
+    `replaces` is the record's secondary accessions — the records it superseded, which is
+    how a curated NR names the XR model it was promoted from."""
+    v = _GB_VERSION.search(record)
+    if not v:
+        return None
+    acc = v.group(1)
+    names = (_GB_ACCESSION.search(record).group(1).split()
+             if _GB_ACCESSION.search(record) else [])
+    gene, gene_id = _GB_GENE.search(record), _GB_GENE_ID.search(record)
+    return {
+        "accession": acc,
+        "gene": gene.group(1) if gene else "",
+        "gene_id": gene_id.group(1) if gene_id else "",
+        "exon_lengths": [int(e) - int(b) + 1 for b, e in _GB_EXON.findall(record)],
+        "replaces": [n for n in names if n != _base_accession(acc)],
+    }
+
+
+def record_structures(accessions: list[str]) -> dict[str, dict]:
+    """Gene, exon lengths and superseded accessions from each record's own GenBank entry.
+
+    Keyed by the accession as ASKED (an unversioned id answers with its current version).
+    Cache-first, one efetch for the misses. Best-effort by design: this only ever feeds
+    the fallbacks for records NCBI's annotation has not caught up with, and a transcript
+    they cannot help is left out exactly as it was before they existed — never a failed
+    request.
+    """
+    out: dict[str, dict] = {}
+    missing: list[str] = []
+    for a in accessions:
+        cached = _read_json(CACHE_DIR / "record" / f"{a}.json")
+        if cached:
+            out[a] = cached
+        else:
+            missing.append(a)
+    for i in range(0, len(missing), 50):
+        chunk = missing[i:i + 50]
+        try:
+            text = _http_get_text(
+                f"{EUTILS}/efetch.fcgi?db=nuccore&id={','.join(chunk)}&rettype=gb&retmode=text"
+                + (f"&api_key={API_KEY}" if API_KEY else ""))
+        except Exception:
+            continue
+        asked = {_base_accession(a): a for a in chunk}
+        for rec in text.split("\n//"):
+            info = _parse_genbank_structure(rec)
+            a = asked.get(_base_accession(info["accession"])) if info else None
+            if a:
+                out[a] = info
+                _write_json(CACHE_DIR / "record" / f"{a}.json", info)
+    return out
+
+
+def _place_unplaced_nr(transcripts: list[dict]) -> dict[str, str]:
+    """Give GRCh38 exons to curated NR transcripts the annotation has not placed yet.
+
+    A freshly curated NR record is listed in the gene's product report with no genomic
+    placement until NCBI's next annotation run — HTRA1-AS1's only curated transcript,
+    NR_201105.1, is one: the report places the XR models and leaves the NR bare. But such
+    a record names the model it was promoted from (its secondary accession, XR_946382),
+    and that model IS placed. The placement is borrowed only when it is demonstrably the
+    same structure: the superseded model is in this gene's report, placed on GRCh38, and
+    its exons match the record's own exon features one for one, length for length.
+    Anything less and the transcript stays out, as before.
+
+    Mutates the matching transcripts' `genomic_locations` in place and returns
+    {NR accession: model accession whose placement it took}.
+    """
+    bare = [t for t in transcripts
+            if is_noncoding(t.get("accession_version") or "") and not grch38_exons(t)]
+    if not bare:
+        return {}
+    placed = {_base_accession(t.get("accession_version") or ""): t
+              for t in transcripts if grch38_exons(t)}
+    info = record_structures([t["accession_version"].strip() for t in bare])
+    took: dict[str, str] = {}
+    for t in bare:
+        rec = info.get(t["accession_version"].strip())
+        if not rec or not rec["exon_lengths"]:
+            continue
+        for old in rec["replaces"]:
+            model = placed.get(old)
+            if model and [e - b + 1 for b, e in grch38_exons(model)] == rec["exon_lengths"]:
+                t["genomic_locations"] = model["genomic_locations"]
+                took[t["accession_version"].strip()] = model["accession_version"].strip()
+                break
+    return took
 
 
 # ---------------------------------------------------------------- parsing
@@ -331,10 +439,24 @@ def _grch38_chromosome(transcript: dict) -> str:
     return ""
 
 
-def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, str, list[dict]]:
+# The curated RefSeq RNA classes the tool analyzes: NM_ (mRNA) and NR_ (non-coding RNA).
+# Both are real molecules in the cDNA a primer pair meets — GAPDH's NR_152150 is amplified
+# by any pair that fits it, whether or not it encodes anything — so a gene's NR transcripts
+# are siblings of its NM ones, and a gene with only NR transcripts (HTRA1-AS1) is still a
+# gene to design for. Model transcripts (XM_/XR_) stay out: predictions, not curated records.
+REFSEQ_PREFIXES = ("NM_", "NR_")
+
+
+def is_noncoding(accession: str) -> bool:
+    """True for an NR_ (non-coding RNA) accession."""
+    return accession.strip().upper().startswith("NR_")
+
+
+def refseq_transcripts(product_report: dict) -> tuple[str, str, str, str, str, list[dict]]:
     """Return (gene_id, symbol, description, chromosome, strand, [ {accession, variant,
-    is_mane, exons, strand} ... ]) for NM only. Gene strand = the first transcript's — every NM of a
-    gene is transcribed from the same strand."""
+    is_mane, exons, strand} ... ]) for the gene's curated transcripts, NM and NR alike.
+    Gene strand = the first transcript's — every transcript of a gene is transcribed from
+    the same strand."""
     reports = product_report.get("reports") or []
     if not reports:
         raise NotFound("Empty product report")
@@ -345,9 +467,10 @@ def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, str, list[
     chromosome = ""
     strand = ""
     out: list[dict] = []
+    placed_via = _place_unplaced_nr(product.get("transcripts") or [])
     for t in product.get("transcripts") or []:
         acc = (t.get("accession_version") or "").strip()
-        if not acc.startswith("NM_"):
+        if not acc.startswith(REFSEQ_PREFIXES):
             continue
         exons = grch38_exons(t)
         if not exons:
@@ -360,13 +483,15 @@ def nm_transcripts(product_report: dict) -> tuple[str, str, str, str, str, list[
         out.append({
             "accession": acc,
             # NCBI's own designation for the isoform, e.g. "transcript variant 5". Absent on
-            # a gene with a single NM — there is no variant to number — which is what the
-            # clients render as "mono-isoform".
+            # a gene with a single transcript — there is no variant to number — which is
+            # what the clients render as "mono-isoform".
             "variant": (t.get("name") or "").strip() or None,
             "is_mane": t.get("select_category") == "MANE_SELECT",
             "exons": exons,
             "strand": tx_strand,
             "cds": _cds_range(t),   # (begin, end) in 1-based transcript coords, or None
+            # The model whose GRCh38 placement this record took — see _place_unplaced_nr.
+            "placed_via": placed_via.get(acc),
         })
     return gene_id, symbol, description, chromosome, strand, out
 
@@ -384,10 +509,11 @@ def _cds_range(transcript: dict) -> tuple[int, int] | None:
     return (min(b, e), max(b, e))
 
 
-ACCESSION_RE = re.compile(r"^NM_\d+(\.\d+)?$", re.IGNORECASE)
+ACCESSION_RE = re.compile(r"^N[MR]_\d+(\.\d+)?$", re.IGNORECASE)
 
 
-def is_valid_nm(accession: str) -> bool:
+def is_valid_refseq(accession: str) -> bool:
+    """A curated RefSeq RNA accession: NM_ (mRNA) or NR_ (non-coding RNA)."""
     return bool(ACCESSION_RE.match(accession.strip()))
 
 
@@ -420,7 +546,8 @@ _NM_KEYS: list[str] | None = None
 
 
 def _load_index() -> tuple[list[dict], list[str]]:
-    """Lazy-load the human NM accession index (accession -> gene). Sorted for bisect."""
+    """Lazy-load the human NM/NR accession index (accession -> gene). Sorted for bisect.
+    (The file keeps its `nm_index.json` name from when it held NM only.)"""
     global _NM_INDEX, _NM_KEYS
     if _NM_INDEX is None:
         rows = _read_json(INDEX_PATH) or []
@@ -431,15 +558,20 @@ def _load_index() -> tuple[list[dict], list[str]]:
 
 
 def suggest_accessions(q: str, limit: int = 8) -> list[dict]:
-    """Typeahead: human NM mRNAs whose accession starts with `q`.
+    """Typeahead: human NM/NR transcripts whose accession starts with `q`.
 
-    Primary source is a local index of ~70k real human NM accessions (built from NCBI
+    Primary source is a local index of real human NM and NR accessions (built from NCBI
     data). Reliable, instant, comprehensive. Falls back to a live NCBI lookup only if the
     index has no match (e.g. an accession newer than the index). Returns [{accession, gene}].
     See vault `02 Data/NCBI Data Source and API.md`.
+
+    The bare prefix is enough to open the list: typing "NR_" is how a user asks whether NR
+    accessions are searchable at all, and an empty dropdown answers "no". The index serves
+    that for free; only the live fallback waits for 5 characters, since a 3-character
+    Entrez wildcard matches everything and means nothing.
     """
     base = q.strip().upper().split(".")[0]
-    if not base.startswith("NM_") or len(base) < 5:
+    if not base.startswith(REFSEQ_PREFIXES):
         return []
 
     from bisect import bisect_left
@@ -451,28 +583,38 @@ def suggest_accessions(q: str, limit: int = 8) -> list[dict]:
         if len(out) >= limit:
             break
         i += 1
-    if out:
+    if out or len(base) < 5:
         return out
     return _suggest_live(base, limit)
 
 
-def suggest_genes(q: str, limit: int = 8) -> list[dict]:
-    """Typeahead: human protein-coding genes whose official symbol starts with `q`.
+_GENE_TYPES = " OR ".join(
+    f'"genetype {g}"[Properties]'
+    for g in ("protein coding", "ncrna", "snorna", "snrna", "scrna", "rrna"))
+# A new directory rather than `suggest_gene`: the prefixes cached there were answered under
+# the protein-coding-only filter, and would keep hiding every non-coding gene they predate.
+_GENE_SUGGEST_DIR = CACHE_DIR / "suggest_gene_rna"
 
-    Live NCBI E-utilities (db=gene), per-prefix cached. The protein-coding filter drops
-    pseudogenes / antisense RNAs that would have no NM transcript to analyze. Best-effort —
-    any error (incl. E-utilities rate limiting without an API key) yields []. Non-empty
-    results only are cached, so a transient failure doesn't poison the prefix. Returns
-    [{symbol, description}]."""
+
+def suggest_genes(q: str, limit: int = 8) -> list[dict]:
+    """Typeahead: human RNA-producing genes whose official symbol starts with `q`.
+
+    Live NCBI E-utilities (db=gene), per-prefix cached. Protein-coding genes and the
+    non-coding RNA gene types (lncRNA/antisense/miRNA as ncRNA, plus sno/sn/sc/rRNA) — the
+    genes that carry NM or NR transcripts to analyze. Pseudogenes stay out of the
+    typeahead: most have no transcript at all, and the few transcribed ones still resolve
+    when their symbol is searched in full. Best-effort — any error (incl. E-utilities rate
+    limiting without an API key) yields []. Non-empty results only are cached, so a
+    transient failure doesn't poison the prefix. Returns [{symbol, description}]."""
     base = q.strip().upper()
     if len(base) < 2:
         return []
-    cached = _read_json(CACHE_DIR / "suggest_gene" / f"{base}.json")
+    cached = _read_json(_GENE_SUGGEST_DIR / f"{base}.json")
     if cached is not None:
         return cached[:limit]
     try:
         term = (f"{base}*[Preferred Symbol] AND Homo sapiens[Organism] "
-                'AND alive[prop] AND "genetype protein coding"[Properties]')
+                f"AND alive[prop] AND ({_GENE_TYPES})")
         es = _eutils_json("esearch.fcgi",
                           {"db": "gene", "term": term, "retmax": limit,
                            "retmode": "json", "sort": "relevance"})
@@ -488,7 +630,7 @@ def suggest_genes(q: str, limit: int = 8) -> list[dict]:
                 if sym.upper().startswith(base):   # drop Entrez wildcard noise
                     out.append({"symbol": sym, "description": r.get("description", "")})
         if out:
-            _write_json(CACHE_DIR / "suggest_gene" / f"{base}.json", out[:limit])
+            _write_json(_GENE_SUGGEST_DIR / f"{base}.json", out[:limit])
         return out[:limit]
     except Exception:
         return []
@@ -501,7 +643,9 @@ def _suggest_live(base: str, limit: int) -> list[dict]:
     if cached is not None:
         return cached[:limit]
     try:
-        term = f"{base}*[ACCN] AND biomol_mrna[PROP] AND srcdb_refseq[PROP] AND txid9606[ORGN]"
+        # No biomol filter: the NM_/NR_ prefix already names the molecule class, and the
+        # post-filter below keeps only true prefix matches.
+        term = f"{base}*[ACCN] AND srcdb_refseq[PROP] AND txid9606[ORGN]"
         es = _eutils_json("esearch.fcgi",
                           {"db": "nuccore", "term": term, "retmax": 20, "retmode": "json"})
         ids = ((es.get("esearchresult") or {}).get("idlist")) or []

@@ -85,7 +85,7 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
       return {
         kind: "solo" as const, fwdRegion, revRegion,
         uniqueStarts: null, requireUniqueIn: null,
-        note: <>Only NM transcript of this gene — any pair inside it is specific.</>,
+        note: <>Only transcript of this gene — any pair inside it is specific.</>,
         detail: <>There is no sibling isoform to discriminate against, so you choose where the
           primers sit. They must be in <b>different exons</b>: the product has to cross a
           junction to be distinguishable from genomic DNA.</>,

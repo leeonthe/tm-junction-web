@@ -108,17 +108,19 @@ def test_tp53_variant_5_is_one_transcript_with_a_design():
     from app.analyze import analyze
     r = analyze("NM_001126115.2")
     assert r.target_verdict.same_sequence_accessions == ["NM_001276697.3"]
-    # 25 accessions, 13 sequences — and the table lists each sequence once.
-    assert r.summary.nm_count == 13
+    # 25 NM accessions, 13 mRNA sequences — and the table lists each sequence once. The
+    # 14th row is TP53's non-coding transcript, NR_176326.1: a sibling like any other.
+    assert r.summary.nm_count == 14
+    assert r.summary.nr_count == 1
     assert r.summary.merged_accession_count == 12
-    assert len(r.transcripts) == 13
-    assert len({v.accession for v in r.transcripts}) == 13
+    assert len(r.transcripts) == 14
+    assert len({v.accession for v in r.transcripts}) == 14
     # Its twin is no longer a sibling to be told apart, so the transcript is designable.
     assert r.target_verdict.tier == "NEEDS_EEJ"
     # Every folded accession is named somewhere, so nothing silently disappears.
     listed = {v.accession for v in r.transcripts}
     listed |= {a for v in r.transcripts for a in v.same_sequence_accessions}
-    assert len(listed) == 25
+    assert len(listed) == 26
 
 
 def test_every_transcript_carries_ncbis_variant_designation():
@@ -225,7 +227,7 @@ def test_the_ticketed_nrxn1_pair_is_genuinely_different_and_stays_apart():
     """Guards the premise check: beta2/beta3 differ at exon 6's acceptor (9 nt), so the
     fold must NOT combine them — each has junction k-mers the other lacks."""
     from app import ncbi
-    _, _, _, _, _, ts = ncbi.nm_transcripts(ncbi.get_product_report("NRXN1"))
+    _, _, _, _, _, ts = ncbi.refseq_transcripts(ncbi.get_product_report("NRXN1"))
     a = next(t_ for t_ in ts if t_["accession"] == "NM_001330091.2")
     b = next(t_ for t_ in ts if t_["accession"] == "NM_001330092.2")
     assert a["exons"] != b["exons"]

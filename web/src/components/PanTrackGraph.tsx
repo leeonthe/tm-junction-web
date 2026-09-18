@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
-import { foldedEntry } from "../lib/format";
+import { foldedEntry, isNoncoding } from "../lib/format";
 import { txToGenomic, type Product } from "../lib/panvariant";
-import { ExonSequenceBox, exonBoxPx } from "./ExonTrackGraph";
+import { ExonSequenceBox, NoncodingBadge, exonBoxPx } from "./ExonTrackGraph";
 
 /**
  * The whole-transcript designer's exon graph: every isoform of the gene, one row each,
@@ -15,6 +15,12 @@ import { ExonSequenceBox, exonBoxPx } from "./ExonTrackGraph";
  * transcripts can be told apart, and by what" — the opposite question from this tab's,
  * where the pair is meant to amplify everything and a transcript's tier is beside the
  * point. Exons here are neutral; the only colour is the product.
+ *
+ * `groupByClass` is the combined NM + NR layout: mRNAs first, the gene's non-coding
+ * transcripts in their own labelled band beneath, all on one genomic axis. It is a
+ * separate mode rather than the default so the graph of a gene's mRNAs keeps the scale
+ * and order it has always had — an NR transcript can start or end well outside them, and
+ * one axis stretched to fit it would squeeze every mRNA row.
  */
 
 type Tip = { x: number; y: number; exon: Exon; t: TranscriptVerdict; inProduct: boolean } | null;
@@ -28,9 +34,12 @@ export interface RowStatus {
 }
 
 export default function PanTrackGraph({
-  transcripts, targetAccession, status, size, seqs, chromosome = "", strand = "",
+  transcripts: given, targetAccession, status, size, seqs, chromosome = "", strand = "",
+  groupByClass = false,
 }: {
   transcripts: TranscriptVerdict[];
+  /** Band the rows by RefSeq class — NM, then NR — each under its own label. */
+  groupByClass?: boolean;
   targetAccession: string;
   status: ReadonlyMap<string, RowStatus>;
   /** The chosen pair's product size on the reference, bp — what "covered" means. */
@@ -108,6 +117,18 @@ export default function PanTrackGraph({
   // A status column on the right — "✓ 172 bp", "≠ 292 bp", "no product" — so each row
   // states its band without a tooltip; hence the wider right pad than the tier graph's.
   const padL = 178, padR = 96, rowH = 42, top = 14, exH = 15;
+  // Banded: a stable partition, so each class keeps the order the analysis gave it
+  // (target first, then MANE). Each band is headed by a label row of BAND_H.
+  const BAND_H = 22;
+  const transcripts = groupByClass
+    ? [...given.filter((t) => !isNoncoding(t.accession)), ...given.filter((t) => isNoncoding(t.accession))]
+    : given;
+  const firstNr = groupByClass ? transcripts.findIndex((t) => isNoncoding(t.accession)) : -1;
+  const bands = !groupByClass ? []
+    : [{ at: 0, nr: firstNr === 0 }, ...(firstNr > 0 ? [{ at: firstNr, nr: true }] : [])];
+  /** Top of row i, below every band label at or before it. */
+  const rowTop = (i: number) =>
+    top + i * rowH + BAND_H * bands.filter((b) => b.at <= i).length;
   let gmin = Infinity, gmax = -Infinity;
   for (const t of transcripts) for (const e of t.exons) {
     if (e.begin < gmin) gmin = e.begin;
@@ -116,7 +137,7 @@ export default function PanTrackGraph({
   const span = gmax - gmin || 1;
   const x = (p: number) => padL + ((p - gmin) / span) * (W - padL - padR);
   const showDir = strand === "+" || strand === "-";
-  const axisY = top + transcripts.length * rowH + 10 + (showDir ? 16 : 0);
+  const axisY = rowTop(transcripts.length - 1) + rowH + 10 + (showDir ? 16 : 0);
   const height = axisY + 26;
   const ticks = [gmin, (gmin + gmax) / 2, gmax];
 
@@ -129,8 +150,22 @@ export default function PanTrackGraph({
       onMouseLeave={() => { if (!drag.current.active) setTip(null); }}>
       <svg width={W} height={height} role="img"
         aria-label={`Exon structure of ${transcripts.length} isoforms, with the exons the chosen pair co-amplifies`}>
+        {bands.map((b) => {
+          const n = transcripts.filter((t) => isNoncoding(t.accession) === b.nr).length;
+          const y = rowTop(b.at) - BAND_H;
+          return (
+            <g key={b.at}>
+              <text x={20} y={y + 12} fontSize={10.5} fontWeight={700} letterSpacing={0.4}
+                fill="var(--muted)">
+                {b.nr ? "NR · NON-CODING RNA" : "NM · mRNA"}
+                <tspan fontWeight={500} fill="var(--faint)">{"  "}{n} {n === 1 ? "transcript" : "transcripts"}</tspan>
+              </text>
+              <line x1={20} y1={y + 18} x2={W - 12} y2={y + 18} stroke="var(--border)" strokeWidth={1} />
+            </g>
+          );
+        })}
         {transcripts.map((t, i) => {
-          const cy = top + i * rowH + rowH / 2;
+          const cy = rowTop(i) + rowH / 2;
           const isTarget = t.accession === targetAccession;
           const st = status.get(t.accession) ?? { product: null, covered: false };
           const first = t.exons[0], last = t.exons[t.exons.length - 1];
@@ -171,7 +206,7 @@ export default function PanTrackGraph({
           return (
             <g key={t.accession} opacity={st.covered || !size ? 1 : 0.55}>
               {isTarget && (
-                <rect x={8} y={top + i * rowH + 2} width={W - 16} height={rowH - 4} rx={10}
+                <rect x={8} y={rowTop(i) + 2} width={W - 16} height={rowH - 4} rx={10}
                   fill="var(--brand-tint)" stroke="color-mix(in srgb,var(--brand) 30%,transparent)" />
               )}
               <text x={20} y={same.length ? cy : cy + 4} fontFamily="var(--mono)" fontSize={12.5}
@@ -191,6 +226,9 @@ export default function PanTrackGraph({
                   <rect x={20 + t.accession.length * 7.1 + 6} y={(same.length ? cy - 4 : cy) - 9} width={38} height={15} rx={4} fill="var(--brand-tint)" />
                   <text x={20 + t.accession.length * 7.1 + 9} y={(same.length ? cy - 4 : cy) + 2} fontSize={9.5} fontWeight={700} fill="var(--brand-ink)">MANE</text>
                 </>
+              )}
+              {isNoncoding(t.accession) && (
+                <NoncodingBadge x={20 + t.accession.length * 7.1 + 6} cy={same.length ? cy - 4 : cy} />
               )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, ei) => {

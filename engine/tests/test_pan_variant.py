@@ -20,7 +20,7 @@ from app.primers import revcomp
 
 
 def _gene(symbol):
-    _, _, _, _, _, ts = ncbi.nm_transcripts(ncbi.get_product_report(symbol))
+    _, _, _, _, _, ts = ncbi.refseq_transcripts(ncbi.get_product_report(symbol))
     seqs = {t["accession"]: ncbi.get_sequence(t["accession"]) for t in ts}
     return {t["accession"]: t for t in ts}, seqs
 
@@ -68,7 +68,8 @@ def test_gapdh_gets_one_pair_for_every_variant():
     tmap, seqs = _gene("GAPDH")
     d = panvariant.design(tmap, seqs)
     assert d is not None
-    assert len(d.covered) == len(tmap) == 5
+    assert len(d.covered) == len(tmap) == 6                # 5 NM + NR_152150.2
+    assert "NR_152150.2" in d.covered                      # the non-coding variant too
     assert not d.uncovered
     # Every claim re-checked from the sequences, independently of how it was designed.
     sizes = {a: _amplifies(seqs[a], d.forward.seq, d.reverse.seq) for a in tmap}
@@ -77,10 +78,12 @@ def test_gapdh_gets_one_pair_for_every_variant():
 
 
 def test_tp53_all_25_accessions_from_one_pair():
-    """The gene the fold came from: 25 accessions, 13 transcripts, one pair for all."""
+    """The gene the fold came from: 25 NM accessions, 13 mRNAs, one pair for all — and
+    for TP53's non-coding transcript, NR_176326.1, which is in the same cDNA."""
     tmap, seqs = _gene("TP53")
     d = panvariant.design(tmap, seqs)
-    assert len(d.covered) == 25
+    assert len(d.covered) == 26
+    assert "NR_176326.1" in d.covered
     assert not d.uncovered
 
 
@@ -214,7 +217,7 @@ def test_several_ranked_options_not_one():
     tmap, seqs = _gene("GAPDH")
     opts = panvariant.design_options(tmap, seqs)
     assert len(opts) >= 3
-    assert all(len(o.covered) == 5 for o in opts)          # coverage never sacrificed
+    assert all(len(o.covered) == 6 for o in opts)          # coverage never sacrificed
     pairs = [(o.forward.seq, o.reverse.seq) for o in opts]
     assert len(set(pairs)) == len(pairs)                   # genuinely different pairs
     for o in opts:

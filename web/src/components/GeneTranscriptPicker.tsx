@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { GeneLookupResponse } from "../lib/types";
-import { foldedEntry, variantLabel } from "../lib/format";
+import { classBreakdown, foldedEntry, isNoncoding, variantLabel } from "../lib/format";
 
 /**
- * Gene-name result: a reference alignment of every NM transcript for the gene, so the
+ * Gene-name result: a reference alignment of every NM and NR transcript for the gene, so the
  * user can choose which variant to analyze. Deliberately tier-less — no Conventional /
  * Needs-EEJ / Hard-case coloring here; that comes only after a variant is analyzed.
  */
@@ -19,6 +19,9 @@ export default function GeneTranscriptPicker({
   // Rows are distinct molecules; several accessions can share one (identical exon structure).
   const accessionCount = transcripts.reduce(
     (n, t) => n + 1 + (t.same_structure_accessions?.length ?? 0), 0);
+
+  const nrCount = transcripts.filter((t) => isNoncoding(t.accession)).length;
+  const borrowed = transcripts.filter((t) => t.placed_via);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const MIN_W = 720;
@@ -55,7 +58,9 @@ export default function GeneTranscriptPicker({
       <div className="card-head">
         <div>
           <h3 className="card-title">
-            {gene.symbol} <span className="gp-sub">· {transcripts.length} NM transcripts
+            {gene.symbol} <span className="gp-sub">· {transcripts.length}{" "}
+              {nrCount ? "" : "NM "}{transcripts.length === 1 ? "transcript" : "transcripts"}
+              {!!nrCount && <> ({classBreakdown(transcripts.length, nrCount)})</>}
               {/* Accessions outnumber transcripts wherever RefSeq has minted more than one
                   record for a molecule — say so, or the count looks like it lost rows. */}
               {accessionCount > transcripts.length && <> · {accessionCount} accessions</>}
@@ -74,8 +79,10 @@ export default function GeneTranscriptPicker({
             const first = t.exons[0], last = t.exons[t.exons.length - 1];
             const on = hover === i;
             const same = t.same_structure_accessions ?? [];
-            // Where the accession text ends — the MANE badge, when present, sits first.
-            const afterAcc = 20 + t.accession.length * 7.1 + 9 + (t.is_mane ? 44 : 0);
+            // Where the accession text ends — a badge, when present, sits first. MANE is a
+            // protein-coding designation, so a row carries MANE or NR, never both.
+            const nr = isNoncoding(t.accession);
+            const afterAcc = 20 + t.accession.length * 7.1 + 9 + (t.is_mane ? 44 : nr ? 74 : 0);
             return (
               <g key={t.accession} className="gp-row" role="button" tabIndex={0}
                 aria-label={`Analyze ${t.accession}${same.length ? `, same sequence as ${same.join(", ")}` : ""}`}
@@ -100,6 +107,12 @@ export default function GeneTranscriptPicker({
                   <>
                     <rect x={20 + t.accession.length * 7.1 + 6} y={cy - 13} width={38} height={15} rx={4} fill="var(--brand-tint)" />
                     <text x={20 + t.accession.length * 7.1 + 9} y={cy - 2} fontSize={9.5} fontWeight={700} fill="var(--brand-ink)">MANE</text>
+                  </>
+                )}
+                {nr && (
+                  <>
+                    <rect x={20 + t.accession.length * 7.1 + 6} y={cy - 13} width={68} height={15} rx={4} fill="var(--hard-tint)" />
+                    <text x={20 + t.accession.length * 7.1 + 9} y={cy - 2} fontSize={9.5} fontWeight={700} fill="var(--hard)">NON-CODING</text>
                   </>
                 )}
                 {/* Same exon structure = same mRNA = one transcript. Marked, not spelled out:
@@ -143,6 +156,13 @@ export default function GeneTranscriptPicker({
         </svg>
       </div>
       <p className="g-note">Click a transcript to design its primers.</p>
+      {borrowed.map((t) => (
+        <p className="g-note" key={t.accession}>
+          NCBI's annotation has not placed <b className="mono">{t.accession}</b> on GRCh38 yet.
+          Its exon coordinates here are those of <b className="mono">{t.placed_via}</b>, the
+          model record it replaced — used because the two have the same exons, length for length.
+        </p>
+      ))}
     </section>
   );
 }

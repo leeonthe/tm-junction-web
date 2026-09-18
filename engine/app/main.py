@@ -89,7 +89,7 @@ _SEQ_MAX_ACCESSIONS = 500
 
 @app.get("/sequences")
 def sequences(acc: list[str] = Query(default=[])):
-    """mRNA sequences for a set of NM accessions — the whole-transcript designer's siblings.
+    """Transcript sequences for a set of NM/NR accessions — the whole-transcript designer's siblings.
 
     The analysis response carries ONE sequence, the target's, because the browser only
     designs against that one. The whole-transcript designer is the exception: it places a
@@ -100,8 +100,8 @@ def sequences(acc: list[str] = Query(default=[])):
     for a tab most searches never open, so they are fetched here, on demand.
 
     Cache-first through ncbi.get_sequences, so after an analysis this is a disk read; a
-    cold serverless instance pays one efetch for the lot. Accessions that are not NM
-    RefSeq ids are a 400, an NM id NCBI does not know is a 404 — the browser sent
+    cold serverless instance pays one efetch for the lot. Accessions that are not NM/NR
+    RefSeq ids are a 400, an id NCBI does not know is a 404 — the browser sent
     accessions the engine itself reported, so either is a bug, not a user error.
     """
     accs: list[str] = []
@@ -109,9 +109,9 @@ def sequences(acc: list[str] = Query(default=[])):
         a = (a or "").strip().upper()
         if not a:
             continue
-        if not ncbi.is_valid_nm(a):
+        if not ncbi.is_valid_refseq(a):
             return JSONResponse(status_code=400, content={
-                "error": "NOT_NM", "message": f"{a} is not an NM RefSeq accession."})
+                "error": "NOT_NM", "message": f"{a} is not an NM or NR RefSeq accession."})
         if a not in accs:
             accs.append(a)
     if not accs:
@@ -128,13 +128,13 @@ def sequences(acc: list[str] = Query(default=[])):
 
 @app.get("/suggest")
 def suggest(q: str, limit: int = 8) -> dict:
-    """Live NCBI typeahead for NM accessions matching prefix `q`."""
+    """Live NCBI typeahead for NM/NR accessions matching prefix `q`."""
     return {"suggestions": ncbi.suggest_accessions(q, limit)}
 
 
 @app.get("/suggest_genes")
 def suggest_genes(q: str, limit: int = 8) -> dict:
-    """Live NCBI typeahead for human protein-coding gene symbols matching prefix `q`."""
+    """Live NCBI typeahead for human gene symbols (protein-coding + ncRNA) matching prefix `q`."""
     return {"suggestions": ncbi.suggest_genes(q, limit)}
 
 
@@ -146,7 +146,7 @@ _RATE_LIMIT = {"error": "NCBI_RATE_LIMIT", "message": "NCBI is rate-limiting req
 
 @app.get("/gene/{symbol}", response_model=GeneLookupResponse)
 def gene_lookup(symbol: str):
-    """Human gene name -> its NM transcripts + exon alignment (no classification).
+    """Human gene name -> its NM/NR transcripts + exon alignment (no classification).
     A reference step so users can pick which variant to analyze."""
     try:
         return lookup_gene(symbol)

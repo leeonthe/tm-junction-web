@@ -29,8 +29,10 @@ def test_gapdh_full_matrix():
     assert v["NM_001289745.3"].tier == "NEEDS_EEJ"
     assert v["NM_001289746.2"].tier == "CONVENTIONAL"      # red by coords, blue by sequence
     assert v["NM_001357943.2"].tier == "NEEDS_EEJ"
-    # MANE has no unique region/junction, but a junction+exon combination isolates it -> EEJ
-    assert v["NM_002046.7"].tier == "NEEDS_EEJ"
+    assert v["NR_152150.2"].tier == "NEEDS_EEJ"           # the non-coding variant: exon 6–7
+    # MANE has no unique region or junction, and no combination isolates it either once
+    # the NR sibling is counted — see test_gapdh_mane_is_a_hard_case_beside_its_nr_sibling.
+    assert v["NM_002046.7"].tier == "NO_SINGLE_UNIQUE_JUNCTION"
 
 
 def test_gapdh_junction_locations():
@@ -67,25 +69,50 @@ def test_gapdh_t3_coord_vs_sequence_divergence():
     assert v.coord_non_unique is True          # structural flag disagrees, sequence wins
 
 
-def test_gapdh_mane_combo():
-    """MANE has no unique region and no unique single junction, but a junction+exon
-    combination isolates it: an EEJ across a junction + a conventional primer in an exon
-    no sibling pairs with it. It is therefore NEEDS_EEJ via the combo, not a hard case."""
+def _gapdh_mane_amp(include_nr: bool):
+    from app import ncbi
+    from app.amplify import analyze_amplifiability
+    _, _, _, _, _, ts = ncbi.refseq_transcripts(ncbi.get_product_report("GAPDH"))
+    sibs = [t for t in ts if t["accession"] != "NM_002046.7"
+            and (include_nr or not ncbi.is_noncoding(t["accession"]))]
+    mane = next(t for t in ts if t["accession"] == "NM_002046.7")
+    seqs = ncbi.get_sequences([t["accession"] for t in ts])
+    return analyze_amplifiability(
+        mane["exons"], seqs["NM_002046.7"], [seqs[t["accession"]] for t in sibs],
+        sibling_exons=[t["exons"] for t in sibs])
+
+
+def test_gapdh_mane_combo_among_the_mrnas():
+    """Against its NM siblings alone, MANE has no unique region and no unique single
+    junction, but a junction+exon combination isolates it: an EEJ across a junction + a
+    conventional primer in an exon no sibling pairs with it."""
+    amp = _gapdh_mane_amp(include_nr=False)
+    assert amp.tier == "NEEDS_EEJ"
+    assert amp.combo_je is not None
+
+
+def test_gapdh_mane_is_a_hard_case_beside_its_nr_sibling():
+    """GAPDH's non-coding transcript is in the same cDNA, so it is a sibling — and it
+    takes MANE's combination away. NR_152150.2 is MANE minus the end of exon 6 and all of
+    exons 7–8, so it carries every MANE junction from 1–2 to 5–6, including the 1–2
+    junction the combination relied on; each remaining MANE feature is shared with an NM
+    sibling that also has the rest. No pair of sites is MANE's alone."""
+    assert _gapdh_mane_amp(include_nr=True).tier == "NO_SINGLE_UNIQUE_JUNCTION"
     r = analyze("NM_002046.7")
     v = _by_acc(r)["NM_002046.7"]
-    assert v.tier == "NEEDS_EEJ"
-    assert v.recommended_junction is not None            # the EEJ location
-    assert v.amplify_exon_pair is not None                # the conventional exon (orange)
-    assert "COMBO_EEJ" in r.primer_design.flags
+    assert v.tier == "NO_SINGLE_UNIQUE_JUNCTION"
+    assert v.recommended_junction is None
+    assert r.primer_design.forward is None and r.primer_design.reverse is None
 
 
 def test_gapdh_summary():
     r = analyze("NM_002046.7")
-    assert r.summary.nm_count == 5
+    assert r.summary.nm_count == 6            # 5 NM + 1 NR — every curated transcript
+    assert r.summary.nr_count == 1
     assert r.summary.conventional_count == 2
-    assert r.summary.needs_eej_count == 3     # 745, 943, and MANE (via junction+exon combo)
-    assert r.summary.hard_case_count == 0
-    assert r.summary.coord_non_unique_count == 4
+    assert r.summary.needs_eej_count == 3     # 745, 943, and the NR (exon 6–7 junction)
+    assert r.summary.hard_case_count == 1     # MANE, once the NR sibling is counted
+    assert r.summary.coord_non_unique_count == 5
 
 
 def test_myc_stress():

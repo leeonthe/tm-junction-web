@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import { tierColorVar, tierLabel } from "../lib/tier";
-import { foldedEntry } from "../lib/format";
+import { foldedEntry, isNoncoding } from "../lib/format";
 
 type Tip =
   | { kind: "exon"; x: number; y: number; exon: Exon; t: TranscriptVerdict; isTarget: boolean; primerExon: number | null }
@@ -238,6 +238,9 @@ export default function ExonTrackGraph({
                   <text x={20 + t.accession.length * 7.1 + 9} y={(same.length ? cy - 4 : cy) + 2} fontSize={9.5} fontWeight={700} fill="var(--brand-ink)">MANE</text>
                 </>
               )}
+              {isNoncoding(t.accession) && (
+                <NoncodingBadge x={20 + t.accession.length * 7.1 + 6} cy={same.length ? cy - 4 : cy} />
+              )}
               <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
               {t.exons.map((e, ei) => {
                 // Yellow = what to target FOR THE ANALYZED TARGET (siblings stay tier-colored),
@@ -456,6 +459,20 @@ function ExonSequence({ exon, t, isTarget, mrna }: {
   }
   return <ExonSequenceBox accession={t.accession} exon={exon}
     seq={mrna.slice(exon.tx_begin - 1, exon.tx_end)} />;
+}
+
+/**
+ * The row badge for an NR_ transcript, where a MANE badge would sit — MANE is a
+ * protein-coding designation, so a row never carries both. Shared by every exon graph.
+ */
+export function NoncodingBadge({ x, cy }: { x: number; cy: number }) {
+  return (
+    <g>
+      <rect x={x} y={cy - 9} width={66} height={15} rx={4} fill="var(--hard-tint)" />
+      <text x={x + 3} y={cy + 2} fontSize={9.5} fontWeight={700} fill="var(--hard)">NON-CODING</text>
+      <title>NR_ — a curated non-coding RNA of this gene, compared alongside its mRNAs</title>
+    </g>
+  );
 }
 
 /** The sequence box itself, for any transcript whose mRNA the caller holds. */

@@ -63,6 +63,6 @@ def test_unstated_orientation_is_empty_not_a_guess():
 def test_every_nm_of_a_gene_shares_the_genes_strand():
     """The gene-level value is the first transcript's; that is only sound if they agree."""
     report = ncbi.get_product_report("TP53")
-    _, _, _, _, strand, transcripts = ncbi.nm_transcripts(report)
+    _, _, _, _, strand, transcripts = ncbi.refseq_transcripts(report)
     assert strand == "-"
     assert {t["strand"] for t in transcripts} == {"-"}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldedEntry, variantLabel } from "./format";
+import { classBreakdown, foldedEntry, isNoncoding, variantLabel } from "./format";
 
 /**
  * "mono-isoform" is a claim about the GENE — that it has exactly one NM transcript. It used
@@ -52,5 +52,22 @@ describe("foldedEntry", () => {
   it("shows just the accession when the folded variant is unknown", () => {
     expect(foldedEntry("NM_000001.1", null, "transcript variant 2")).toBe("NM_000001.1");
     expect(foldedEntry("NM_000001.1", "  ", "transcript variant 2")).toBe("NM_000001.1");
+  });
+});
+
+/**
+ * NR_ transcripts are analyzed alongside NM_ ones, so a count of "isoforms" can mix the two
+ * classes. The breakdown is shown only when it says something the count does not.
+ */
+describe("RefSeq class", () => {
+  it("reads the class off the accession prefix, however it was typed", () => {
+    expect(isNoncoding("NR_152150.2")).toBe(true);
+    expect(isNoncoding(" nr_201105.1")).toBe(true);
+    expect(isNoncoding("NM_002046.7")).toBe(false);
+  });
+  it("breaks a mixed gene down, names an NR-only gene, and stays silent on an all-NM one", () => {
+    expect(classBreakdown(6, 1)).toBe("5 NM + 1 NR");      // GAPDH
+    expect(classBreakdown(1, 1)).toBe("NR");               // HTRA1-AS1
+    expect(classBreakdown(5, 0)).toBe("");
   });
 });

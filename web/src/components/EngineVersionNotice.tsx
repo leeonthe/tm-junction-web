@@ -33,6 +33,12 @@ const REQUIRED: { feature: string; missing: string }[] = [
       + "(the engine does not serve their sequences), so that tab shows only the engine's "
       + "own pairs",
   },
+  {
+    feature: "noncoding_transcripts",
+    missing: "the gene's non-coding (NR) transcripts are left out — not listed, not "
+      + "searchable, and not counted as siblings, so a primer reported specific may also "
+      + "amplify an NR transcript",
+  },
 ];
 
 export default function EngineVersionNotice({ result }: { result: AnalyzeResponse }) {

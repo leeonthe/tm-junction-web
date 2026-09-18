@@ -23,7 +23,7 @@ class AnalysisError(Exception):
 
 
 def lookup_gene(symbol: str) -> GeneLookupResponse:
-    """Human gene symbol -> its NM transcripts and exon alignment (no classification).
+    """Human gene symbol -> its NM/NR transcripts and exon alignment (no classification).
 
     A lightweight reference step: no mRNA sequences are fetched and no amplifiability is
     computed — just the structural picture so the user can choose a variant to analyze.
@@ -33,11 +33,12 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
         raise AnalysisError("BAD_REQUEST", "Enter a gene name, e.g. GAPDH.")
     try:
         report = ncbi.get_product_report(name)
-        gene_id, sym, description, chromosome, strand, transcripts = ncbi.nm_transcripts(report)
+        gene_id, sym, description, chromosome, strand, transcripts = ncbi.refseq_transcripts(report)
     except ncbi.NotFound:
         raise AnalysisError("NOT_FOUND", f"No human gene found for “{name}”.")
     if not transcripts:
-        raise AnalysisError("NOT_FOUND", f"“{name}” has no NM (mRNA) RefSeq transcripts on GRCh38.")
+        raise AnalysisError("NOT_FOUND", f"“{name}” has no curated RefSeq transcripts "
+                                         "(NM mRNA or NR non-coding RNA) on GRCh38.")
 
     # Every isoform gets its designation, from the product report or from the record's own
     # title — the picker names variants as much as the verdict table does.
@@ -57,6 +58,7 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
             variant=t.get("variant"),
             same_structure_accessions=folded,
             same_structure_variants=[by_acc[n].get("variant") for n in folded],
+            placed_via=t.get("placed_via"),
             is_mane=t["is_mane"],
             exon_count=len(exons),
             length=sum(e - b + 1 for b, e in exons),
@@ -216,7 +218,8 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                     amp: AmplifyResult, coord_non_unique: bool,
                     same_sequence: list[str] | None = None,
                     variant: str | None = None,
-                    same_variants: list[str | None] | None = None) -> TranscriptVerdict:
+                    same_variants: list[str | None] | None = None,
+                    placed_via: str | None = None) -> TranscriptVerdict:
     junctions = [
         JunctionOut(donor_order=j.donor_order, acceptor_order=j.acceptor_order,
                     label=_junction_label(j.donor_order, j.acceptor_order))
@@ -268,6 +271,7 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         variant=variant,
         same_sequence_accessions=list(same_sequence or []),
         same_sequence_variants=list(same_variants or []),
+        placed_via=placed_via,
         is_mane=is_mane,
         tier=amp.tier,
         amplifiable=amp.amplifiable,
@@ -312,21 +316,26 @@ def analyze_events(accession: str, k: int = 20):
     """Generator yielding real progress events, then the result.
 
     Events: {"type":"progress","pct":int,"detail":str} … {"type":"result","result":AnalyzeResponse}.
-    The sequence fetches (one per NM isoform) are the bulk of the wall-clock on a cold cache,
+    The sequence fetches (one per isoform) are the bulk of the wall-clock on a cold cache,
     so progress is driven mostly by those. Raises AnalysisError for bad input / not-found.
     """
     accession = accession.strip().upper()   # RefSeq accessions are uppercase
-    if not ncbi.is_valid_nm(accession):
-        raise AnalysisError("NOT_NM", "Enter a curated NM RefSeq accession, e.g. NM_002046.7.")
+    if not ncbi.is_valid_refseq(accession):
+        # The code keeps its NOT_NM name — clients match on it — though NR is now valid too.
+        raise AnalysisError("NOT_NM", "Enter a curated RefSeq transcript accession — NM (mRNA) "
+                                      "or NR (non-coding RNA), e.g. NM_002046.7 or NR_152150.2.")
 
     yield {"type": "progress", "pct": 3, "detail": "Resolving gene…"}
     try:
         symbol, _gid = ncbi.resolve_accession(accession)
         report = ncbi.get_product_report(symbol)
-        gene_id, symbol, description, chromosome, strand, transcripts = ncbi.nm_transcripts(report)
+        gene_id, symbol, description, chromosome, strand, transcripts = ncbi.refseq_transcripts(report)
     except ncbi.NotFound as e:
         raise AnalysisError("NOT_FOUND", str(e))
 
+    # NM and NR together: a gene's non-coding transcripts are in the same cDNA as its
+    # mRNAs, so they are siblings to be told apart from (or co-amplified with) like any
+    # other — GAPDH's NR_152150 can take a primer pair as readily as NM_002046 can.
     accs = {t["accession"]: t for t in transcripts}
     target_acc = accession
     if target_acc not in accs:
@@ -335,21 +344,25 @@ def analyze_events(accession: str, k: int = 20):
         if match:
             target_acc = match
     if target_acc not in accs:
-        raise AnalysisError("NOT_FOUND", f"{accession} is not an NM transcript of {symbol}.")
+        raise AnalysisError("NOT_FOUND", f"{accession} is not a curated RefSeq transcript of "
+                                         f"{symbol} on GRCh38.")
 
     n = len(accs)
-    yield {"type": "progress", "pct": 10, "detail": f"{symbol}: {n} NM isoform{'s' if n != 1 else ''}"}
+    n_nr = sum(ncbi.is_noncoding(a) for a in accs)
+    kinds = f" ({n - n_nr} NM + {n_nr} NR)" if n_nr and n_nr < n else " (NR)" if n_nr else ""
+    yield {"type": "progress", "pct": 10,
+           "detail": f"{symbol}: {n} isoform{'s' if n != 1 else ''}{kinds}"}
 
     # Fetch sequences — the main cost. Cache-first, and every miss travels in ONE efetch
     # rather than a call per isoform: the per-transcript loop this replaces is what turned
     # a big uncached gene into a burst of NCBI requests and, on a shared egress IP, 429s.
-    yield {"type": "progress", "pct": 30, "detail": f"Fetching mRNA sequences ({n})…"}
+    yield {"type": "progress", "pct": 30, "detail": f"Fetching transcript sequences ({n})…"}
     seqs = ncbi.get_sequences(list(accs))
     yield {"type": "progress", "pct": 78, "detail": "Sequences fetched"}
 
     exons_by_acc = {a: t["exons"] for a, t in accs.items()}
 
-    # A gene with more than one NM has isoforms to tell apart, so each one has a variant
+    # A gene with more than one transcript has isoforms to tell apart, so each one has a variant
     # designation; where the product report omitted it, take it from the record's own title.
     ncbi.fill_variants(list(accs.values()))
 
@@ -376,7 +389,8 @@ def analyze_events(accession: str, k: int = 20):
         verdicts.append(_amp_to_verdict(a, t["is_mane"], t["exons"], seqs[a],
                                         t.get("cds"), amp, coord_nu,
                                         same_seq.get(a, []), t.get("variant"),
-                                        [accs[x].get("variant") for x in same_seq.get(a, [])]))
+                                        [accs[x].get("variant") for x in same_seq.get(a, [])],
+                                        t.get("placed_via")))
 
     yield {"type": "progress", "pct": 94, "detail": "Designing Tm-guided primers…"}
     tgt = accs[target_acc]
@@ -395,6 +409,7 @@ def analyze_events(accession: str, k: int = 20):
 
     summary = GeneSummary(
         nm_count=len(reps),
+        nr_count=sum(ncbi.is_noncoding(a) for a in reps),
         merged_accession_count=len(accs) - len(reps),
         conventional_count=sum(v.tier == "CONVENTIONAL" for v in verdicts),
         needs_eej_count=sum(v.tier == "NEEDS_EEJ" for v in verdicts),

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { analyzeStream, lookupGene, AnalyzeError, type Progress } from "./lib/api";
 import type { AnalyzeResponse, GeneLookupResponse } from "./lib/types";
-import { variantLabel } from "./lib/format";
+import { classBreakdown, variantLabel } from "./lib/format";
 import { readRoute, routeUrl, writeRoute, type Route, type Tab } from "./lib/route";
 import Nav from "./components/Nav";
 import Hero from "./components/Hero";
@@ -384,7 +384,8 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
           <span className="gchip"><b>{gene.symbol}</b></span>
           <span className="gchip">Gene <b>{gene.gene_id}</b></span>
           <span className="gchip"><b>{gene.assembly}</b></span>
-          <span className="gchip"><b>{summary.nm_count}</b> NM isoform{summary.nm_count === 1 ? "" : "s"}</span>
+          <span className="gchip"><b>{summary.nm_count}</b> isoform{summary.nm_count === 1 ? "" : "s"}
+            {!!summary.nr_count && <> · {classBreakdown(summary.nm_count, summary.nr_count)}</>}</span>
         </div>
       </div>
 
@@ -427,7 +428,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
 
       <footer><div className="foot-in">
         <span>Data: NCBI RefSeq · Datasets v2 ({gene.assembly})</span>
-        <span>Specificity verified within the gene's NM isoform set.</span>
+        <span>Specificity verified within the gene's RefSeq (NM + NR) isoform set.</span>
       </div></footer>
     </>
   );

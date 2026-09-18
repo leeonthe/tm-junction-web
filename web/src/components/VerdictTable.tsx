@@ -1,6 +1,6 @@
 import type { TranscriptVerdict } from "../lib/types";
 import { tierChipClass, tierColorVar, tierLabel } from "../lib/tier";
-import { foldedEntry, variantLabel } from "../lib/format";
+import { foldedEntry, isNoncoding, variantLabel } from "../lib/format";
 
 export default function VerdictTable({
   transcripts, targetAccession, onSelect,
@@ -35,6 +35,9 @@ export default function VerdictTable({
                     <span className="tacc">{t.accession}</span>
                   )}
                   {t.is_mane && <span className="badge-mane">MANE</span>}
+                  {isNoncoding(t.accession) && (
+                    <span className="badge-nr" title="NR_ — a curated non-coding RNA of this gene, compared alongside its mRNAs">non-coding</span>
+                  )}
                   {/* Which isoform this accession IS, in NCBI's own words — the accession
                       alone does not say, and "variant 5" is how the literature refers to it. */}
                   <span className="tacc-variant">{variantLabel(t.variant, transcripts.length)}</span>

@@ -39,12 +39,15 @@ export interface TranscriptVerdict {
   /** NCBI's isoform designation, e.g. "transcript variant 5". null when NCBI names no
    *  variant — the mono-isoform case. Render it with variantLabel(). */
   variant?: string | null;
-  /** Other NM accessions whose mRNA is byte-identical to this one. RefSeq mints several
+  /** Other accessions whose RNA is byte-identical to this one. RefSeq mints several
    *  accessions for one molecule, so they are folded into this row rather than listed as
    *  separate isoforms — no primer can distinguish sequences that do not differ. */
   same_sequence_accessions?: string[];
   /** Their variant designations, aligned — shown when a folded twin's name differs. */
   same_sequence_variants?: (string | null)[];
+  /** Set when NCBI has not placed this (NR) record on GRCh38 yet and its exon coordinates
+   *  are those of the model it replaced, verified exon for exon. Names that model. */
+  placed_via?: string | null;
   is_mane: boolean; tier: Tier;
   amplifiable: boolean; needs_eej: boolean;
   unique_regions: UniqueRegion[]; unique_junctions: Junction[];
@@ -56,8 +59,11 @@ export interface TranscriptVerdict {
 /** `strand` is "+" | "-", or "" when NCBI does not state one. */
 export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string; strand?: string }
 export interface GeneSummary {
-  /** Distinct mRNA sequences, not accessions — see TranscriptVerdict.same_sequence_accessions. */
+  /** Distinct transcript sequences, not accessions — NM and NR together (the name predates
+   *  NR support). See TranscriptVerdict.same_sequence_accessions. */
   nm_count: number;
+  /** Of nm_count, the non-coding (NR_) ones. Absent from an engine that analyzes NM only. */
+  nr_count?: number;
   /** Accessions folded into another's identical sequence. */
   merged_accession_count?: number;
   conventional_count: number; needs_eej_count: number;
@@ -99,6 +105,7 @@ export interface GeneTranscriptRef {
    *  accession. Structure rather than sequence: /gene fetches no sequences. */
   same_structure_accessions?: string[];
   same_structure_variants?: (string | null)[];
+  placed_via?: string | null;   // see TranscriptVerdict
   is_mane: boolean; exon_count: number; length: number;
   cds_begin: number | null; cds_end: number | null; exons: GeneExonRef[];
 }

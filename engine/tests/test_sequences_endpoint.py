@@ -21,7 +21,7 @@ def test_feature_is_advertised():
 
 
 def test_returns_the_same_sequences_the_engine_designs_with():
-    _, _, _, _, _, ts = ncbi.nm_transcripts(ncbi.get_product_report("GAPDH"))
+    _, _, _, _, _, ts = ncbi.refseq_transcripts(ncbi.get_product_report("GAPDH"))
     accs = [t["accession"] for t in ts]
     r = client.get("/sequences", params=[("acc", a) for a in accs])
     assert r.status_code == 200
@@ -39,10 +39,17 @@ def test_accessions_are_normalised_and_deduplicated():
     assert list(r.json()["sequences"]) == ["NM_002046.7"]
 
 
-def test_a_non_nm_accession_is_refused_outright():
-    r = client.get("/sequences", params=[("acc", "NM_002046.7"), ("acc", "NR_046018.2")])
+def test_a_non_refseq_accession_is_refused_outright():
+    """NM and NR are the curated classes the engine analyzes; a model (XM/XR) is neither."""
+    r = client.get("/sequences", params=[("acc", "NM_002046.7"), ("acc", "XR_946382.3")])
     assert r.status_code == 400
     assert r.json()["error"] == "NOT_NM"
+
+
+def test_a_noncoding_sibling_is_served_like_any_other():
+    r = client.get("/sequences", params=[("acc", "NR_152150.2")])
+    assert r.status_code == 200
+    assert set(r.json()["sequences"]) == {"NR_152150.2"}
 
 
 def test_empty_request_is_fine():

@@ -58,8 +58,9 @@ export default function Hero({
     setRemote([]); setActive(-1); setFocused(false);
   }
 
-  // Live NCBI typeahead — accession (NM index) or gene symbols (E-utilities). Debounced.
-  const minLen = geneMode ? 2 : 5;
+  // Live NCBI typeahead — accession (NM/NR index) or gene symbols (E-utilities). Debounced.
+  // An accession list opens on the bare class prefix ("NM_", "NR_") — see suggest_accessions.
+  const minLen = geneMode ? 2 : 3;
   useEffect(() => {
     if (seqMode || !focused || q.length < minLen) { setRemote([]); setSearching(false); return; }
     const ctrl = new AbortController();
@@ -110,7 +111,7 @@ export default function Hero({
             ? <>Paste the two sides of a junction to design an EEJ primer against your own sequence.</>
             : geneMode
             ? <>Search a human gene to browse its transcripts, then pick a variant to analyze.</>
-            : <>Enter a RefSeq accession to find unique primer regions.</>}
+            : <>Enter a RefSeq accession — NM (mRNA) or NR (non-coding RNA) — to find unique primer regions.</>}
         </p>
 
         <div className="mode-toggle" role="tablist" aria-label="Search by">

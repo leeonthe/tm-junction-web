@@ -56,7 +56,8 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
         <h1>How Exon Junction Primer decides, designs, and computes Tm</h1>
         <p className="mth-lede">
           Every verdict on this site is sequence-based: the target mRNA is compared against the
-          other RefSeq <b>NM</b> isoforms of the same gene, and a primer site counts as specific
+          other curated RefSeq isoforms of the same gene — <b>NM</b> mRNAs and <b>NR</b>{" "}
+          non-coding RNAs alike, since both are in the cDNA a primer meets — and a primer site counts as specific
           only if it is absent from all of them. Nothing here is a homology guess — it is exact
           substring evidence over the isoform set.
         </p>
@@ -85,7 +86,8 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           </li>
         </ul>
         <p className="mth-note">
-          Specificity is established within the gene's NM isoform set, not genome-wide.
+          Specificity is established within the gene's RefSeq (NM + NR) isoform set, not
+          genome-wide.
         </p>
         <p className="mth-note">
           The isoform set is counted by <b>sequence</b>, not by accession: RefSeq issues

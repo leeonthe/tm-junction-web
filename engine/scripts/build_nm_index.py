@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Build the human NM accession typeahead index (`data/nm_index.json`).
+"""Build the human NM/NR accession typeahead index (`data/nm_index.json`).
 
 Reads NCBI Datasets v2 `product_report` JSON payloads from a cache directory and
-extracts every curated `NM_` transcript accession with its gene symbol. The result
+extracts every curated `NM_` (mRNA) and `NR_` (non-coding RNA) transcript accession with
+its gene symbol — the two classes the engine analyzes (app/ncbi.py REFSEQ_PREFIXES). The
+file keeps its `nm_index.json` name from when it held NM only. The result
 powers the `/suggest` endpoint (see app/ncbi.py `suggest_accessions`).
 
 Usage:
@@ -40,7 +42,7 @@ def main() -> None:
         symbol = product.get("symbol", "")
         for t in product.get("transcripts") or []:
             acc = (t.get("accession_version") or "").strip()
-            if acc.startswith("NM_"):
+            if acc.startswith(("NM_", "NR_")):
                 index[acc] = symbol
         genes += 1
 
@@ -48,7 +50,9 @@ def main() -> None:
                   key=lambda r: r["accession"])
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     json.dump(rows, open(args.out, "w"))
-    print(f"genes read: {genes} | NM accessions: {len(rows)} | wrote {args.out}")
+    nr = sum(r["accession"].startswith("NR_") for r in rows)
+    print(f"genes read: {genes} | NM accessions: {len(rows) - nr} | NR accessions: {nr} "
+          f"| wrote {args.out}")
 
 
 if __name__ == "__main__":

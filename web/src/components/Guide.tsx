@@ -192,15 +192,19 @@ export default function Guide({ onBack, onMethod, backLabel }: {
       <section className="card mth-card">
         <p className="card-label">1 · Enter your target</p>
         <p>
-          Search by <b>gene symbol</b> (e.g. GAPDH) to see every NM transcript of the gene
-          drawn against the genome, then click the variant you want. If you already know the
+          Search by <b>gene symbol</b> (e.g. GAPDH) to see every curated transcript of the
+          gene — NM mRNAs and NR non-coding RNAs alike — drawn against the genome, then click the variant you want. If you already know the
           transcript, switch to <b>NCBI ID</b> and paste the RefSeq accession
-          (e.g. NM_002046.7) — it goes straight to analysis. <b>Custom sequence</b> skips
+          (NM or NR, e.g. NM_002046.7) — it goes straight to analysis. <b>Custom sequence</b> skips
           NCBI entirely: paste the two sides of a junction and design against your own
           sequence.
         </p>
         <p className="mth-note">
-          Only curated NM transcripts are used, on GRCh38. If a gene lists fewer transcripts
+          Only curated RefSeq transcripts are used — NM (mRNA) and NR (non-coding RNA), not
+          the XM/XR models — on GRCh38. A non-coding gene with only NR transcripts, such as
+          HTRA1-AS1, is searched the same way; and where a gene has both classes, its NR
+          transcripts are compared alongside the NM ones, since a primer meets both in the
+          same cDNA. If a gene lists fewer transcripts
           than you expect, look under the accessions: RefSeq IDs that share an identical
           sequence and exon structure are one transcript here, and the duplicates are named
           under the row that represents them.
@@ -310,7 +314,7 @@ export default function Guide({ onBack, onMethod, backLabel }: {
         <p>
           Every amplicon here spans at least two exons, so a product off contaminating
           genomic DNA either fails or runs visibly longer on a gel. Specificity is
-          established within the gene's NM isoform set — for genome-wide uniqueness, run
+          established within the gene's RefSeq (NM + NR) isoform set — for genome-wide uniqueness, run
           the pair through NCBI Primer-BLAST or UCSC's BLAT (Genome Browser → Tools →
           Blat) as usual. The formulas and constants behind every
           number are on the{" "}

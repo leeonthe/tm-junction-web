@@ -18,6 +18,7 @@ FEATURES = [
     "pan_variant",                 # 25: one pair for every variant of the gene
     "primer_qc",                   # 30: GET /qc — hairpin/self-dimer Tm for browser-designed oligos
     "transcript_sequences",        # 25.b: GET /sequences — sibling mRNAs for the browser's whole-transcript designer
+    "noncoding_transcripts",       # NR_ (non-coding RNA) transcripts analyzed alongside NM_
 ]
 
 
@@ -96,7 +97,7 @@ class TranscriptVerdict(BaseModel):
     # NCBI's isoform designation, e.g. "transcript variant 5". None when NCBI names no
     # variant, which is the mono-isoform case: nothing to distinguish it from.
     variant: str | None = None
-    # Other NM accessions whose mRNA is byte-identical to this one — RefSeq mints several
+    # Other accessions whose RNA is byte-identical to this one — RefSeq mints several
     # accessions for one molecule (TP53 has 25 for 13 sequences). They are the SAME
     # transcript, so they are folded into this verdict and named here rather than compared
     # against it: no primer can distinguish sequences that do not differ.
@@ -105,6 +106,11 @@ class TranscriptVerdict(BaseModel):
     # can name the SAME molecule two different variants (ticket 32's premise), so a folded
     # row must be able to show both names, not just the representative's.
     same_sequence_variants: list[str | None] = []
+    # Set when NCBI's annotation has not placed this (NR) record on GRCh38 yet and its exon
+    # coordinates are those of the model it replaced — verified exon for exon; see
+    # ncbi._place_unplaced_nr. Names that model, so the page can say where the coordinates
+    # came from.
+    placed_via: str | None = None
     is_mane: bool
     tier: str                       # CONVENTIONAL | NEEDS_EEJ | NO_SINGLE_UNIQUE_JUNCTION
     amplifiable: bool
@@ -142,7 +148,10 @@ class PanVariantOut(BaseModel):
 
 
 class GeneSummary(BaseModel):
-    nm_count: int                   # distinct mRNA sequences, not accessions
+    # Distinct transcript sequences, not accessions — NM and NR together. The name predates
+    # NR support and stays because clients read it; nr_count says how many of them are NR.
+    nm_count: int
+    nr_count: int = 0               # of nm_count, the non-coding (NR_) ones
     merged_accession_count: int = 0  # accessions folded into another's identical sequence
     conventional_count: int
     needs_eej_count: int
@@ -189,6 +198,7 @@ class GeneTranscriptOut(BaseModel):
     # accession. Structure, not sequence: /gene deliberately fetches no sequences.
     same_structure_accessions: list[str] = []
     same_structure_variants: list[str | None] = []   # aligned; see TranscriptVerdict
+    placed_via: str | None = None                    # see TranscriptVerdict
     is_mane: bool
     exon_count: int
     length: int            # total mRNA length in nt (sum of exon lengths)
@@ -198,7 +208,7 @@ class GeneTranscriptOut(BaseModel):
 
 
 class GeneLookupResponse(BaseModel):
-    """Gene-name → transcript reference: the NM variants and their exon alignment, WITHOUT
+    """Gene-name → transcript reference: the NM/NR variants and their exon alignment, WITHOUT
     amplifiability classification. A pick-your-transcript step ahead of /analyze."""
     gene: GeneInfo
     transcripts: list[GeneTranscriptOut]
