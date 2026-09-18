@@ -20,7 +20,7 @@ from app.primers import revcomp
 
 
 def _gene(symbol):
-    _, _, _, _, _, ts = ncbi.refseq_transcripts(ncbi.get_product_report(symbol))
+    ts = ncbi.refseq_transcripts(ncbi.get_product_report(symbol)).transcripts
     seqs = {t["accession"]: ncbi.get_sequence(t["accession"]) for t in ts}
     return {t["accession"]: t for t in ts}, seqs
 

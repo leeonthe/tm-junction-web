@@ -6,7 +6,7 @@ import { ExonSequenceBox, NoncodingBadge, exonBoxPx } from "./ExonTrackGraph";
 
 /**
  * The whole-transcript designer's exon graph: every isoform of the gene, one row each,
- * exons to GRCh38 scale — and, for the chosen pair, the REGION it co-amplifies painted in
+ * exons to genomic scale — and, for the chosen pair, the REGION it co-amplifies painted in
  * each transcript it amplifies: the stretch from the forward site to the reverse site,
  * not the whole of the exons it touches, with a tick through the bar at each primer site
  * (F and R lettered beneath) and the band each transcript would give at the end of its row.

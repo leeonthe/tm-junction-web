@@ -164,8 +164,8 @@ def test_the_variant_is_read_off_the_record_when_the_gene_report_omits_it():
 
     real = ncbi.get_product_report
 
-    def without_names(symbol):
-        d = copy.deepcopy(real(symbol))
+    def without_names(symbol, *species):
+        d = copy.deepcopy(real(symbol, *species))
         for r in d.get("reports") or []:
             for tr in (r.get("product") or {}).get("transcripts") or []:
                 tr.pop("name", None)
@@ -227,7 +227,7 @@ def test_the_ticketed_nrxn1_pair_is_genuinely_different_and_stays_apart():
     """Guards the premise check: beta2/beta3 differ at exon 6's acceptor (9 nt), so the
     fold must NOT combine them — each has junction k-mers the other lacks."""
     from app import ncbi
-    _, _, _, _, _, ts = ncbi.refseq_transcripts(ncbi.get_product_report("NRXN1"))
+    ts = ncbi.refseq_transcripts(ncbi.get_product_report("NRXN1")).transcripts
     a = next(t_ for t_ in ts if t_["accession"] == "NM_001330091.2")
     b = next(t_ for t_ in ts if t_["accession"] == "NM_001330092.2")
     assert a["exons"] != b["exons"]

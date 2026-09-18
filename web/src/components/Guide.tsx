@@ -192,16 +192,29 @@ export default function Guide({ onBack, onMethod, backLabel }: {
       <section className="card mth-card">
         <p className="card-label">1 · Enter your target</p>
         <p>
-          Search by <b>gene symbol</b> (e.g. GAPDH) to see every curated transcript of the
-          gene — NM mRNAs and NR non-coding RNAs alike — drawn against the genome, then click the variant you want. If you already know the
-          transcript, switch to <b>NCBI ID</b> and paste the RefSeq accession
-          (NM or NR, e.g. NM_002046.7) — it goes straight to analysis. <b>Custom sequence</b> skips
+          Pick the <b>species</b> in the search bar — human, mouse, rat, fruit fly,
+          baker's yeast or zebrafish — and search by <b>gene symbol</b> (e.g. GAPDH, or
+          Gapdh in mouse) to see every curated transcript of the gene — NM mRNAs and NR
+          non-coding RNAs alike — drawn against the genome, then click the variant you want.
+          If you already know the transcript, switch to <b>NCBI ID</b> and paste the RefSeq
+          accession (NM or NR, e.g. NM_002046.7) — it goes straight to analysis, and needs no
+          species: an accession belongs to exactly one organism, so the tool reads it off
+          the record. <b>Custom sequence</b> skips
           NCBI entirely: paste the two sides of a junction and design against your own
           sequence.
         </p>
         <p className="mth-note">
+          Capitalization is NCBI's to decide, not yours to remember: symbols are matched
+          whatever the case and shown in their official spelling — GAPDH in human, Gapdh in
+          mouse and rat, gapdh in zebrafish, TDH3 in yeast — and an alias (p53, Oct4) resolves
+          to the gene's official symbol.
+        </p>
+        <p className="mth-note">
           Only curated RefSeq transcripts are used — NM (mRNA) and NR (non-coding RNA), not
-          the XM/XR models — on GRCh38. A non-coding gene with only NR transcripts, such as
+          the XM/XR models — on the species' reference assembly (GRCh38, GRCm39, GRCr8, …),
+          named on every result. A record NCBI has revised since its last annotation run can
+          be listed without genomic coordinates; the tool says so rather than showing a gene
+          with no transcripts. A non-coding gene with only NR transcripts, such as
           HTRA1-AS1, is searched the same way; and where a gene has both classes, its NR
           transcripts are compared alongside the NM ones, since a primer meets both in the
           same cDNA. If a gene lists fewer transcripts

@@ -57,7 +57,7 @@ export function bracketSpanPx(
 }
 
 /**
- * Exon-track graph — one row per NM isoform, exons to GRCh38 scale, colored by
+ * Exon-track graph — one row per isoform, exons to genomic scale, colored by
  * sequence tier, target highlighted, MANE badged, a bracket joining the two exons of
  * the recommended EEJ (the primer spans the connection — a range, not one spot).
  * Hovering an exon / marker shows a primer-design-relevant card.

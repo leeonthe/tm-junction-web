@@ -60,6 +60,8 @@ export default function PanVariantDesigner({ result, seqs }: {
     () => [...verdict.exons].sort((a, b) => a.order - b.order), [verdict.exons]);
   /** 0-based exclusive mRNA end of each exon — what the intron-spanning rule measures. */
   const exonEnds = useMemo(() => exons.map((e) => e.tx_end), [exons]);
+  /** An intronless transcript (the rule in yeast): there is no exon pair to place primers in. */
+  const singleExon = exons.length < 2;
 
   // Which exon PAIRS are offered, and where in each exon a primer may sit: the forward
   // exon's shared 3′ side, the reverse exon's shared 5′ side, with everything between
@@ -289,8 +291,10 @@ export default function PanVariantDesigner({ result, seqs }: {
             intro={
               <p className="sub jd-intro">
                 One pair for the gene rather than one isoform — every covered transcript gives
-                the same single band. Forward in <b>exon {fwdExon}</b>, reverse in{" "}
-                <b>exon {revExon}</b> of {target_accession}.
+                the same single band.{" "}
+                {singleExon
+                  ? <>{target_accession} has a single exon, so there is no exon pair to place it in.</>
+                  : <>Forward in <b>exon {fwdExon}</b>, reverse in <b>exon {revExon}</b> of {target_accession}.</>}
                 <Info>Pick the two exons in the panel beside this card: exons shared identically by
                   more transcripts are where one pair can measure more of the gene, and among a
                   shared run the choice is about product size. Each pair is credited only with the
@@ -305,7 +309,12 @@ export default function PanVariantDesigner({ result, seqs }: {
 
           {options.length === 0 ? (
             <p className="sub pp-idle">
-              {!choice
+              {singleExon
+                ? <>{target_accession} is a <b>single exon</b>. The forward primer sits in one exon
+                    and the reverse in a later one, so that every product crosses a junction and
+                    genomic DNA cannot give the same band — and this transcript has no junction
+                    to cross, so no pair is offered.</>
+                : !choice
                 ? offered.pairs.length
                   ? <>Exons {fwdExon} and {revExon} are not offered as a pair — pick a reverse exon
                       from the list, which follows the forward choice.</>
@@ -499,7 +508,9 @@ export default function PanVariantDesigner({ result, seqs }: {
                 {" "}· F site {choice.fwdRegion.hi - choice.fwdRegion.lo} nt
                 {" "}· R site {choice.revRegion.hi - choice.revRegion.lo} nt
                 {offered.share < total && <> · no pair is shared by all {total}</>}</>
-            : <>pick a reverse exon that pairs with exon {fwdExon}</>}
+            : singleExon
+              ? <>single exon — no exon pair to choose</>
+              : <>pick a reverse exon that pairs with exon {fwdExon}</>}
         </p>
 
         <RailConditions s={s} dirty={dirty} onReset={resetOwn} />
@@ -512,7 +523,7 @@ export default function PanVariantDesigner({ result, seqs }: {
             <h3 className="card-title">
               Exon structure — all {gene.symbol} {mixed ? "mRNA isoforms (NM)" : "isoforms"}
             </h3>
-            <p className="sub">GRCh38 · the region the chosen pair co-amplifies, in every transcript it covers</p>
+            <p className="sub">{gene.assembly} · the region the chosen pair co-amplifies, in every transcript it covers</p>
           </div>
           {legend}
         </div>
@@ -536,7 +547,7 @@ export default function PanVariantDesigner({ result, seqs }: {
             <div>
               <h3 className="card-title">Exon structure — {gene.symbol} NM + NR combined</h3>
               <p className="sub">
-                GRCh38 · {nmRows.length} mRNA + {nrTotal} non-coding{" "}
+                {gene.assembly} · {nmRows.length} mRNA + {nrTotal} non-coding{" "}
                 {nrTotal === 1 ? "transcript" : "transcripts"} on one axis, the same pair painted in each
               </p>
             </div>

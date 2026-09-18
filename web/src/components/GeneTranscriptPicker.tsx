@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GeneLookupResponse } from "../lib/types";
 import { classBreakdown, foldedEntry, isNoncoding, variantLabel } from "../lib/format";
+import { speciesOf } from "../lib/species";
 
 /**
  * Gene-name result: a reference alignment of every NM and NR transcript for the gene, so the
@@ -66,7 +67,11 @@ export default function GeneTranscriptPicker({
               {accessionCount > transcripts.length && <> · {accessionCount} accessions</>}
             </span>
           </h3>
-          <p className="sub">{gene.description} · GRCh38 chr{gene.chromosome || "?"} · Gene {gene.gene_id}</p>
+          {/* Whose gene, first: human GAPDH and mouse Gapdh differ by capitals alone. */}
+          <p className="sub">
+            {speciesOf(gene.species).slug !== "human" && <><b>{speciesOf(gene.species).common}</b> (<i>{gene.organism ?? speciesOf(gene.species).scientific}</i>) · </>}
+            {gene.description} · {gene.assembly} chr{gene.chromosome || "?"} · Gene {gene.gene_id}
+          </p>
         </div>
         <span className="gp-hint">Reference only — pick a variant to analyze</span>
       </div>
@@ -158,7 +163,7 @@ export default function GeneTranscriptPicker({
       <p className="g-note">Click a transcript to design its primers.</p>
       {borrowed.map((t) => (
         <p className="g-note" key={t.accession}>
-          NCBI's annotation has not placed <b className="mono">{t.accession}</b> on GRCh38 yet.
+          NCBI's annotation has not placed <b className="mono">{t.accession}</b> on {gene.assembly} yet.
           Its exon coordinates here are those of <b className="mono">{t.placed_via}</b>, the
           model record it replaced — used because the two have the same exons, length for length.
         </p>

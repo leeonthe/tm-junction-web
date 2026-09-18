@@ -134,6 +134,16 @@ h1{margin:0;font-weight:600;font-size:clamp(34px,5.4vw,56px);line-height:1.04;le
 .search input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);
   font-family:var(--mono);font-size:15px;padding:0 8px 0 14px}
 .search input::placeholder{color:var(--faint)}
+/* The species sits inside the search bar, ahead of the symbol it scopes. A native select,
+   so it is keyboard- and screen-reader-complete for free; the chevron is drawn because
+   appearance:none removes the platform's. */
+.sp-select{flex:none;appearance:none;-webkit-appearance:none;border:0;outline:0;cursor:pointer;
+  font:inherit;font-size:13.5px;font-weight:600;color:var(--brand-ink);background-color:var(--brand-tint);
+  padding:0 30px 0 14px;border-radius:var(--r-pill);max-width:46%;text-overflow:ellipsis;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236B7685' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
+.sp-select:focus-visible{box-shadow:0 0 0 2px var(--brand)}
+.suggest .sg-sp,.chip-sp{font-weight:500;opacity:.75;font-family:var(--sans,inherit)}
 .examples{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);flex-wrap:wrap;justify-content:center}
 .chip-ex{font-family:var(--mono);font-size:12.5px;padding:4px 10px;border-radius:var(--r-pill);
   border:1px solid var(--border-2);color:var(--text);background:var(--surface);cursor:pointer}

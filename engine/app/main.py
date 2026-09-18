@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import ncbi, primers
+from . import species as species_mod
 from .analyze import AnalysisError, analyze, analyze_events, lookup_gene
 from .models import FEATURES, AnalyzeResponse, GeneLookupResponse
 
@@ -126,16 +127,34 @@ def sequences(acc: list[str] = Query(default=[])):
     return {"sequences": {a: seqs[a] for a in accs if seqs.get(a)}}
 
 
+@app.get("/species")
+def species_list() -> dict:
+    """The species the engine analyzes, in display order — slug, names, taxonomy id."""
+    return {"species": [
+        {"slug": s.slug, "tax_id": s.tax_id, "scientific": s.scientific,
+         "common": s.common, "example": s.example} for s in species_mod.SPECIES]}
+
+
+def _bad_species(e: Exception) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"error": "BAD_SPECIES", "message": str(e)})
+
+
 @app.get("/suggest")
 def suggest(q: str, limit: int = 8) -> dict:
-    """Live NCBI typeahead for NM/NR accessions matching prefix `q`."""
+    """Typeahead for NM/NR accessions matching prefix `q`, across every supported species
+    (an accession names its own organism; each row says which)."""
     return {"suggestions": ncbi.suggest_accessions(q, limit)}
 
 
 @app.get("/suggest_genes")
-def suggest_genes(q: str, limit: int = 8) -> dict:
-    """Live NCBI typeahead for human gene symbols (protein-coding + ncRNA) matching prefix `q`."""
-    return {"suggestions": ncbi.suggest_genes(q, limit)}
+def suggest_genes(q: str, limit: int = 8, species: str | None = None):
+    """Live NCBI typeahead for a species' gene symbols (protein-coding + ncRNA) matching
+    prefix `q`. Human when `species` is omitted."""
+    try:
+        sp = species_mod.get(species)
+    except species_mod.UnknownSpecies as e:
+        return _bad_species(e)
+    return {"suggestions": ncbi.suggest_genes(q, sp, limit), "species": sp.slug}
 
 
 # A 429 from NCBI that survived the client's own retries: the request was fine, the
@@ -144,14 +163,15 @@ def suggest_genes(q: str, limit: int = 8) -> dict:
 _RATE_LIMIT = {"error": "NCBI_RATE_LIMIT", "message": "NCBI is rate-limiting requests from this server right now — nothing is wrong with your query. Try again in a few seconds."}
 
 
-@app.get("/gene/{symbol}", response_model=GeneLookupResponse)
-def gene_lookup(symbol: str):
-    """Human gene name -> its NM/NR transcripts + exon alignment (no classification).
-    A reference step so users can pick which variant to analyze."""
+@app.get("/gene/{symbol:path}", response_model=GeneLookupResponse)
+def gene_lookup(symbol: str, species: str | None = None):
+    """Gene name (+ `species`, human when omitted) -> its NM/NR transcripts + exon
+    alignment (no classification). A reference step so users can pick which variant to
+    analyze. `:path` because a symbol is NCBI's to spell, and fly's carry punctuation."""
     try:
-        return lookup_gene(symbol)
+        return lookup_gene(symbol, species)
     except AnalysisError as e:
-        status = 404 if e.code == "NOT_FOUND" else 400
+        status = 404 if e.code in ("NOT_FOUND", "NOT_PLACED") else 400
         return JSONResponse(status_code=status, content={"error": e.code, "message": e.message})
     except ncbi.RateLimited:
         return JSONResponse(status_code=503, content=_RATE_LIMIT,

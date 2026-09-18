@@ -21,7 +21,7 @@ def test_feature_is_advertised():
 
 
 def test_returns_the_same_sequences_the_engine_designs_with():
-    _, _, _, _, _, ts = ncbi.refseq_transcripts(ncbi.get_product_report("GAPDH"))
+    ts = ncbi.refseq_transcripts(ncbi.get_product_report("GAPDH")).transcripts
     accs = [t["accession"] for t in ts]
     r = client.get("/sequences", params=[("acc", a) for a in accs])
     assert r.status_code == 200

@@ -30,7 +30,7 @@ export default function TargetTrackCard({
       <div className="card-head">
         <div>
           <h3 className="card-title">Your transcript</h3>
-          <p className="sub">{target_accession} · GRCh38 · click an exon for its sequence</p>
+          <p className="sub">{target_accession} · {gene.assembly} · click an exon for its sequence</p>
           {/* RefSeq gave this molecule more than one accession. Saying so here, where the
               user reads about THEIR transcript, is what makes the fold visible rather than
               a row that quietly went missing from the gene. */}

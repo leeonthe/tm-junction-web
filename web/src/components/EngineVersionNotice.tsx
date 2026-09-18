@@ -39,6 +39,11 @@ const REQUIRED: { feature: string; missing: string }[] = [
       + "searchable, and not counted as siblings, so a primer reported specific may also "
       + "amplify an NR transcript",
   },
+  {
+    feature: "multi_species",
+    missing: "only human genes are understood — a gene searched in another species is "
+      + "looked up as the human gene of that name",
+  },
 ];
 
 export default function EngineVersionNotice({ result }: { result: AnalyzeResponse }) {

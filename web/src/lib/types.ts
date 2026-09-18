@@ -45,7 +45,7 @@ export interface TranscriptVerdict {
   same_sequence_accessions?: string[];
   /** Their variant designations, aligned — shown when a folded twin's name differs. */
   same_sequence_variants?: (string | null)[];
-  /** Set when NCBI has not placed this (NR) record on GRCh38 yet and its exon coordinates
+  /** Set when NCBI has not placed this (NR) record on the reference yet and its exon coordinates
    *  are those of the model it replaced, verified exon for exon. Names that model. */
   placed_via?: string | null;
   is_mane: boolean; tier: Tier;
@@ -56,8 +56,17 @@ export interface TranscriptVerdict {
   amplify_exon_pair?: number[] | null;   // 7c-Blue: [forward_exon, reverse_exon] (1-based)
   combo_junctions?: number[][] | null;   // two-junction combo EEJ locations [[d1,a1],[d2,a2]]
 }
-/** `strand` is "+" | "-", or "" when NCBI does not state one. */
-export interface GeneInfo { gene_id: string; symbol: string; description: string; assembly: string; chromosome: string; strand?: string }
+/**
+ * `strand` is "+" | "-", or "" when NCBI does not state one. `assembly` is the reference
+ * assembly every coordinate is on (GRCh38, GRCm39, GRCr8, R64, …) and `chromosome` its
+ * label there ("12", fly "2R", yeast "VII"). The species fields are absent from an engine
+ * older than species support, where they all mean human — read them with speciesOf().
+ */
+export interface GeneInfo {
+  gene_id: string; symbol: string; description: string; assembly: string; chromosome: string;
+  strand?: string;
+  species?: string; organism?: string; common_name?: string; tax_id?: string;
+}
 export interface GeneSummary {
   /** Distinct transcript sequences, not accessions — NM and NR together (the name predates
    *  NR support). See TranscriptVerdict.same_sequence_accessions. */

@@ -3,6 +3,10 @@ import { analyzeStream, lookupGene, AnalyzeError, type Progress } from "./lib/ap
 import type { AnalyzeResponse, GeneLookupResponse } from "./lib/types";
 import { classBreakdown, variantLabel } from "./lib/format";
 import { readRoute, routeUrl, writeRoute, type Route, type Tab } from "./lib/route";
+import {
+  DEFAULT_SPECIES, decodeGeneRef, encodeGeneRef, isSpecies, sameSymbol, speciesOf, typedSymbol,
+  type GeneRef, type SpeciesSlug,
+} from "./lib/species";
 import Nav from "./components/Nav";
 import Hero from "./components/Hero";
 import GeneTranscriptPicker from "./components/GeneTranscriptPicker";
@@ -29,6 +33,7 @@ interface RunOpts {
   /** The gene context the URL says this transcript sits in (restores only); undefined clears it. */
   gene?: string;
 }
+interface GeneSearchOpts { silent?: boolean; restore?: boolean }
 /** What the user asked for — the search, as distinct from what came back. Drives the URL. */
 interface Query { gene?: string; transcript?: string }
 
@@ -61,7 +66,14 @@ export default function App() {
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [tab, setTab] = useState<Tab>(initial.page === "home" ? initial.tab : "summary");
   const [history, setHistory] = useState<string[]>(() => loadStored(HISTORY_KEY));
+  // Stored as strings (a bare symbol is a human gene — what the list held before species
+  // support), held as symbol + species. See lib/species.
   const [geneHistory, setGeneHistory] = useState<string[]>(() => loadStored(GENE_HISTORY_KEY));
+  const geneRefs: GeneRef[] = geneHistory.map(decodeGeneRef);
+  // Whose genes the gene box searches. A result sets it too: an accession names its own
+  // species, so after analyzing a mouse transcript the box is a mouse box.
+  const [species, setSpecies] = useState<SpeciesSlug>(
+    initial.page === "home" ? initial.species ?? DEFAULT_SPECIES : DEFAULT_SPECIES);
   const [progress, setProgress] = useState<Progress>({ pct: 0, detail: "Starting…" });
   const [resetKey, setResetKey] = useState(0);   // bump to remount Hero (clears its input)
   const [heroSeed, setHeroSeed] = useState<string | undefined>(() => heroSeedFor(initial));
@@ -112,7 +124,8 @@ export default function App() {
   const route: Route = showGuide ? { page: "guide" }
     : showMethod ? { page: "method" }
     : mode === "sequence" ? { page: "sequence", five: arms.five, three: arms.three }
-    : { page: "home", mode, gene: query.gene, transcript: query.transcript, tab };
+    : { page: "home", mode, gene: query.gene, transcript: query.transcript, tab,
+        ...(species !== "human" ? { species } : {}) };
   const routeRef = useRef(route);
   routeRef.current = route;
   const url = routeUrl(route);
@@ -130,6 +143,11 @@ export default function App() {
   const latest = useRef({ result, gene, query });
   latest.current = { result, gene, query };
 
+  /** Is the loaded picker the one a route asks for? Same symbol as NCBI compares them, and
+   *  the same species — human GAPDH is not mouse Gapdh. */
+  const pickerIs = (g: GeneLookupResponse | null, symbol: string, sp: SpeciesSlug) =>
+    !!g && sameSymbol(g.gene.symbol, symbol) && speciesOf(g.gene.species).slug === sp;
+
   /**
    * Make the page show a route — the first paint, and every back/forward press. Whatever is
    * already loaded and still wanted is kept (back from Method to a result costs no request);
@@ -146,13 +164,15 @@ export default function App() {
       setArms({ five: r.five, three: r.three });
       return;
     }
+    const sp = r.species ?? DEFAULT_SPECIES;
     setMode(r.mode);
     setTab(r.tab);
+    setSpecies(sp);
     setHeroSeed(heroSeedFor(r));
     setResetKey((k) => k + 1);
     const cur = latest.current;
     if (r.transcript) {
-      const haveGene = !!r.gene && cur.gene?.gene.symbol === r.gene;
+      const haveGene = !!r.gene && pickerIs(cur.gene, r.gene, sp);
       if (!r.gene) setGene(null);
       if (cur.result?.target_accession === r.transcript) {
         setError(null);
@@ -163,15 +183,15 @@ export default function App() {
       // The picker (and its "All variants" way back) for a link that came through it.
       if (r.gene && !haveGene) {
         const want = r.gene;
-        lookupGene(want).then((g) => { if (latest.current.query.gene === want) setGene(g); }).catch(() => {});
+        lookupGene(want, sp).then((g) => { if (sameSymbol(latest.current.query.gene, want)) setGene(g); }).catch(() => {});
       }
     } else if (r.gene) {
-      if (cur.gene?.gene.symbol === r.gene) {
+      if (pickerIs(cur.gene, r.gene, sp)) {
         claimRun();
         setResult(null); setError(null); setLoading(false); setBusy(false);
         setQuery({ gene: r.gene });
       } else {
-        geneSearch(r.gene, { restore: true, silent });
+        geneSearch(r.gene, sp, { restore: true, silent });
       }
     } else {
       claimRun();
@@ -195,7 +215,7 @@ export default function App() {
 
   // ---- searches ---------------------------------------------------------------------------
 
-  async function geneSearch(symbol: string, opts: { silent?: boolean; restore?: boolean } = {}) {
+  async function geneSearch(symbol: string, sp: SpeciesSlug, opts: GeneSearchOpts = {}) {
     if (!symbol) return;
     const { isCurrent } = claimRun();   // a gene search also supersedes a running analysis
     if (!opts.restore) push();
@@ -205,13 +225,17 @@ export default function App() {
     setGene(null);
     setShowMethod(false);
     setShowGuide(false);
-    setQuery({ gene: symbol.trim().toUpperCase() });
+    setSpecies(sp);
+    setQuery({ gene: typedSymbol(symbol, sp) });
     try {
-      const g = await lookupGene(symbol);
+      const g = await lookupGene(symbol, sp);
       if (!isCurrent()) return;
       setGene(g);
-      setQuery({ gene: g.gene.symbol });   // canonical symbol
-      if (!opts.silent) setGeneHistory((h) => pushStored(GENE_HISTORY_KEY, g.gene.symbol, h));
+      setQuery({ gene: g.gene.symbol });   // canonical symbol, in NCBI's own capitalization
+      if (!opts.silent) {
+        const ref = encodeGeneRef({ symbol: g.gene.symbol, species: sp });
+        setGeneHistory((h) => pushStored(GENE_HISTORY_KEY, ref, h));
+      }
     } catch (e) {
       if (!isCurrent()) return;
       const err = e as AnalyzeError;
@@ -244,6 +268,8 @@ export default function App() {
       if (!isCurrent()) return;
       setResult(r);
       setQuery((q) => ({ ...q, transcript: r.target_accession }));   // canonical, versioned
+      // The accession named its own species; the search box follows it.
+      if (isSpecies(r.gene.species)) setSpecies(r.gene.species);
       if (!keepTab) setTab("summary");   // a fresh search lands on the everything view
       // recent searches (persisted, ≤3) — not for the initial demo or isoform re-targets
       if (!silent && !soft) {
@@ -339,8 +365,9 @@ export default function App() {
       ) : (
         <>
           <Hero key={resetKey} initialValue={heroSeed}
-            onSearch={(acc) => run(acc)} onGeneSearch={geneSearch}
-            loading={loading} history={history} geneHistory={geneHistory}
+            onSearch={(acc) => run(acc)} onGeneSearch={(sym, sp) => geneSearch(sym, sp)}
+            loading={loading} history={history} geneHistory={geneRefs}
+            species={species} onSpecies={setSpecies}
             mode={mode} onMode={changeMode} arms={arms} onArms={setArms} />
           <main className="wrap">
             {mode === "sequence" && <CustomJunctionResult arms={arms} />}
@@ -382,6 +409,13 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
         <div className="gene-chips">
           <span className="gchip">{variantLabel(target_verdict.variant, summary.nm_count)}</span>
           <span className="gchip"><b>{gene.symbol}</b></span>
+          {/* Whose gene — said outright for every species but the default, since an accession
+              search never asked: NM_008084 is a mouse transcript because NCBI says so. */}
+          {speciesOf(gene.species).slug !== "human" && (
+            <span className="gchip" title={gene.organism ?? speciesOf(gene.species).scientific}>
+              <b>{speciesOf(gene.species).common}</b> · <i>{gene.organism ?? speciesOf(gene.species).scientific}</i>
+            </span>
+          )}
           <span className="gchip">Gene <b>{gene.gene_id}</b></span>
           <span className="gchip"><b>{gene.assembly}</b></span>
           <span className="gchip"><b>{summary.nm_count}</b> isoform{summary.nm_count === 1 ? "" : "s"}

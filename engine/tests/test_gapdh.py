@@ -72,7 +72,7 @@ def test_gapdh_t3_coord_vs_sequence_divergence():
 def _gapdh_mane_amp(include_nr: bool):
     from app import ncbi
     from app.amplify import analyze_amplifiability
-    _, _, _, _, _, ts = ncbi.refseq_transcripts(ncbi.get_product_report("GAPDH"))
+    ts = ncbi.refseq_transcripts(ncbi.get_product_report("GAPDH")).transcripts
     sibs = [t for t in ts if t["accession"] != "NM_002046.7"
             and (include_nr or not ncbi.is_noncoding(t["accession"]))]
     mane = next(t for t in ts if t["accession"] == "NM_002046.7")

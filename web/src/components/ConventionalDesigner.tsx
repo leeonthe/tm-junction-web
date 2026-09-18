@@ -38,6 +38,8 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
   /** This gene has ONE NM transcript — nothing to discriminate against. */
   solo?: boolean;
 }) {
+  /** An intronless transcript: no junction exists for a product to cross. */
+  const singleExon = verdict.exons.length < 2;
   const s = useJunctionSettings();
 
   /** 0-based exclusive mRNA end of each exon — what the intron-spanning rule measures. */
@@ -85,7 +87,9 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
       return {
         kind: "solo" as const, fwdRegion, revRegion,
         uniqueStarts: null, requireUniqueIn: null,
-        note: <>Only transcript of this gene — any pair inside it is specific.</>,
+        note: singleExon
+          ? <>Only transcript of this gene, and it has a single exon.</>
+          : <>Only transcript of this gene — any pair inside it is specific.</>,
         detail: <>There is no sibling isoform to discriminate against, so you choose where the
           primers sit. They must be in <b>different exons</b>: the product has to cross a
           junction to be distinguishable from genomic DNA.</>,
@@ -263,7 +267,9 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
           }
           intro={
             <p className="sub jd-intro">
-              {plan.note}{" "}Every product spans an exon–exon junction.
+              {plan.note}{" "}{singleExon
+                ? <>No product can span an exon–exon junction, so none is designed.</>
+                : <>Every product spans an exon–exon junction.</>}
               <Info>{plan.detail}{" "}Spanning a junction means contaminating genomic DNA cannot
                 give the same band. Set the product size and how closely the two primers must
                 melt together in the panel beside this card; the list re-searches as you type.
@@ -273,7 +279,17 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
           }
         />
 
-      {options.length === 0 ? (
+      {options.length === 0 && singleExon ? (
+        // An intronless transcript — the rule in yeast, the exception in human (JUN). There
+        // is no second exon to pick, so say what is true instead of asking for one.
+        <p className="sub pp-idle">
+          This transcript is a <b>single exon</b>: it has no exon–exon junction, and a product
+          that crosses one is how every pair here is kept from also amplifying contaminating
+          genomic DNA. With no junction to cross, no pair is offered. (For an intronless
+          target the usual route is a pair within the exon, on DNase-treated RNA, with a
+          no-reverse-transcriptase control.)
+        </p>
+      ) : options.length === 0 ? (
         <p className="sub pp-idle">
           No pair fits a {ampMin}–{ampMax} bp product with both primers melting in{" "}
           {s.tmMin}–{s.tmMax} °C and within <b>±{numStr(dTmMax)} °C</b> of each other

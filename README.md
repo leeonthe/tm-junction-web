@@ -16,8 +16,11 @@ Live at **https://tm-junction-web.vercel.app**
 
 ## What it does
 
-Search by gene symbol, RefSeq accession, or paste your own junction sequence. Every NM
-isoform of the gene is fetched from NCBI (sequence + exon structure, GRCh38) and each
+Search by species + gene symbol, RefSeq accession, or paste your own junction sequence.
+Six species are covered — human, mouse, rat, fruit fly, baker's yeast and zebrafish; an
+accession needs no species, since it names its own. Every curated (NM and NR) isoform of
+the gene is fetched from NCBI (sequence + exon structure on the species' reference
+assembly — GRCh38, GRCm39, GRCr8, …) and each
 transcript is classified by a sequence rule: slide a 20-nt window along the target mRNA —
 a window found in no sibling is a target-specific primer site.
 

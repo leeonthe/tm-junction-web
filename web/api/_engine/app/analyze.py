@@ -7,6 +7,7 @@ and primers (Tm design) into the AnalyzeResponse contract.
 from __future__ import annotations
 
 from . import ncbi, overlap, panvariant, primers
+from . import species as species_mod
 from .amplify import AmplifyResult, analyze_amplifiability, cumulative_exon_ends
 from .models import (
     FEATURES, AnalyzeResponse, Exon, GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
@@ -22,8 +23,42 @@ class AnalysisError(Exception):
         super().__init__(message)
 
 
-def lookup_gene(symbol: str) -> GeneLookupResponse:
-    """Human gene symbol -> its NM/NR transcripts and exon alignment (no classification).
+def _gene_info(g: ncbi.GeneTranscripts) -> GeneInfo:
+    sp = g.species
+    return GeneInfo(gene_id=g.gene_id, symbol=g.symbol, description=g.description,
+                    assembly=g.assembly, chromosome=g.chromosome, strand=g.strand,
+                    species=sp.slug, organism=sp.scientific, common_name=sp.common,
+                    tax_id=sp.tax_id)
+
+
+def _no_transcripts(g: ncbi.GeneTranscripts) -> AnalysisError:
+    """Why a gene NCBI knows has nothing to analyze — the two reasons are different facts.
+
+    Either NCBI has curated no transcript for it (only XM/XR models, or none), or it has
+    and has not placed them on the reference assembly yet: a record revised since the last
+    annotation run is listed bare until the next one. Rat Gapdh is the second kind, and
+    "no transcripts" would be false of it — there is one, NM_017008.5, without coordinates.
+    """
+    who = f"{g.species.common} {g.symbol}"
+    if g.unplaced:
+        n = len(g.unplaced)
+        listed = ", ".join(g.unplaced[:4]) + (f" and {n - 4} more" if n > 4 else "")
+        return AnalysisError(
+            "NOT_PLACED",
+            f"NCBI lists {n} curated transcript{'s' if n != 1 else ''} for {who} ({listed}) but "
+            f"has not placed {'them' if n != 1 else 'it'} on the {g.species.scientific} reference "
+            "assembly — usually a record revised since NCBI's last annotation run. Without "
+            "genomic coordinates there is no exon structure to design against; NCBI adds "
+            "them at its next annotation release for this species.")
+    return AnalysisError(
+        "NOT_FOUND",
+        f"{who} has no curated RefSeq transcripts (NM mRNA or NR non-coding RNA) — NCBI "
+        "has only predicted models (XM/XR) for it, or none.")
+
+
+def lookup_gene(symbol: str, species: str | None = None) -> GeneLookupResponse:
+    """Gene symbol (+ species, human by default) -> its NM/NR transcripts and exon
+    alignment (no classification).
 
     A lightweight reference step: no mRNA sequences are fetched and no amplifiability is
     computed — just the structural picture so the user can choose a variant to analyze.
@@ -32,13 +67,17 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
     if not name:
         raise AnalysisError("BAD_REQUEST", "Enter a gene name, e.g. GAPDH.")
     try:
-        report = ncbi.get_product_report(name)
-        gene_id, sym, description, chromosome, strand, transcripts = ncbi.refseq_transcripts(report)
+        sp = species_mod.get(species)
+    except species_mod.UnknownSpecies as e:
+        raise AnalysisError("BAD_SPECIES", str(e))
+    try:
+        gene = ncbi.refseq_transcripts(ncbi.get_product_report(name, sp), sp)
     except ncbi.NotFound:
-        raise AnalysisError("NOT_FOUND", f"No human gene found for “{name}”.")
+        raise AnalysisError("NOT_FOUND", f"No {sp.common.lower()} ({sp.scientific}) gene found "
+                                         f"for “{name}”.")
+    transcripts = gene.transcripts
     if not transcripts:
-        raise AnalysisError("NOT_FOUND", f"“{name}” has no curated RefSeq transcripts "
-                                         "(NM mRNA or NR non-coding RNA) on GRCh38.")
+        raise _no_transcripts(gene)
 
     # Every isoform gets its designation, from the product report or from the record's own
     # title — the picker names variants as much as the verdict table does.
@@ -68,9 +107,7 @@ def lookup_gene(symbol: str) -> GeneLookupResponse:
         ))
     # MANE first, then longest transcript to shortest — a stable, useful reading order.
     out.sort(key=lambda x: (not x.is_mane, -x.length))
-    gene = GeneInfo(gene_id=gene_id, symbol=sym, description=description,
-                    chromosome=chromosome, strand=strand)
-    return GeneLookupResponse(gene=gene, transcripts=out)
+    return GeneLookupResponse(gene=_gene_info(gene), transcripts=out)
 
 
 def _pick_representative(members: list[str], accs: dict, target_acc: str | None) -> str:
@@ -302,6 +339,46 @@ def _primer_out(p) -> PrimerOut | None:
                      homodimer_tm=p.homodimer_tm, qc_pass=p.qc_pass, tx_start=p.tx_start)
 
 
+def _match_version(accession: str, accs) -> str | None:
+    """The gene's accession an input names: exactly, or by its base when the version given
+    is absent or not the current one."""
+    if accession in accs:
+        return accession
+    base = accession.split(".")[0]
+    return next((a for a in accs if a.split(".")[0] == base), None)
+
+
+def _gene_of(accession: str) -> tuple[ncbi.GeneTranscripts, str]:
+    """An accession -> (its gene's curated transcripts, the accession as the gene lists it).
+
+    The species is never asked for: the accession resolves to its own gene, and the gene's
+    record says whose it is. A species the engine does not cover is an error that says so.
+
+    An entry resolved before species support carries no tax id and is read as human. If
+    the gene that yields does not contain the accession, the entry may be a non-human
+    record from back when that could not be told apart — so it is resolved afresh, once.
+    """
+    symbol, _gid, tax_id = ncbi.resolve_accession(accession)
+    for attempt in (0, 1):
+        sp = species_mod.by_tax_id(tax_id)
+        if sp is None:
+            raise AnalysisError(
+                "UNSUPPORTED_SPECIES",
+                f"{accession} belongs to a species this tool does not cover (NCBI taxonomy "
+                f"id {tax_id}). Supported: {species_mod.supported_names()}.")
+        gene = ncbi.refseq_transcripts(ncbi.get_product_report(symbol, sp), sp)
+        target = _match_version(accession, [t["accession"] for t in gene.transcripts])
+        if target or tax_id or attempt:
+            return gene, target or accession
+        try:
+            symbol, _gid, tax_id = ncbi.resolve_accession(accession, refresh=True)
+        except ncbi.RateLimited:
+            raise
+        except Exception:
+            return gene, accession          # offline or unknown: the first answer stands
+    raise AssertionError("unreachable")
+
+
 def analyze(accession: str, k: int = 20) -> AnalyzeResponse:
     """Run the full analysis and return the response (non-streaming wrapper)."""
     result: AnalyzeResponse | None = None
@@ -327,31 +404,28 @@ def analyze_events(accession: str, k: int = 20):
 
     yield {"type": "progress", "pct": 3, "detail": "Resolving gene…"}
     try:
-        symbol, _gid = ncbi.resolve_accession(accession)
-        report = ncbi.get_product_report(symbol)
-        gene_id, symbol, description, chromosome, strand, transcripts = ncbi.refseq_transcripts(report)
+        gene, target_acc = _gene_of(accession)
     except ncbi.NotFound as e:
         raise AnalysisError("NOT_FOUND", str(e))
+    symbol = gene.symbol
 
     # NM and NR together: a gene's non-coding transcripts are in the same cDNA as its
     # mRNAs, so they are siblings to be told apart from (or co-amplified with) like any
     # other — GAPDH's NR_152150 can take a primer pair as readily as NM_002046 can.
-    accs = {t["accession"]: t for t in transcripts}
-    target_acc = accession
+    accs = {t["accession"]: t for t in gene.transcripts}
     if target_acc not in accs:
-        base = accession.split(".")[0]
-        match = next((a for a in accs if a.split(".")[0] == base), None)
-        if match:
-            target_acc = match
-    if target_acc not in accs:
+        if accession.split(".")[0] in {a.split(".")[0] for a in gene.unplaced}:
+            raise _no_transcripts(gene)
         raise AnalysisError("NOT_FOUND", f"{accession} is not a curated RefSeq transcript of "
-                                         f"{symbol} on GRCh38.")
+                                         f"{gene.species.common.lower()} {symbol} on "
+                                         f"{gene.assembly or 'the reference assembly'}.")
 
     n = len(accs)
     n_nr = sum(ncbi.is_noncoding(a) for a in accs)
     kinds = f" ({n - n_nr} NM + {n_nr} NR)" if n_nr and n_nr < n else " (NR)" if n_nr else ""
+    who = symbol if gene.species is species_mod.HUMAN else f"{gene.species.common} {symbol}"
     yield {"type": "progress", "pct": 10,
-           "detail": f"{symbol}: {n} isoform{'s' if n != 1 else ''}{kinds}"}
+           "detail": f"{who}: {n} isoform{'s' if n != 1 else ''}{kinds}"}
 
     # Fetch sequences — the main cost. Cache-first, and every miss travels in ONE efetch
     # rather than a call per isoform: the per-transcript loop this replaces is what turned
@@ -420,8 +494,7 @@ def analyze_events(accession: str, k: int = 20):
 
     response = AnalyzeResponse(
         target_accession=target_acc,
-        gene=GeneInfo(gene_id=gene_id, symbol=symbol, description=description,
-                      chromosome=chromosome, strand=strand),
+        gene=_gene_info(gene),
         target_verdict=tgt_verdict,
         target_mrna=seqs[target_acc],
         primer_design=PrimerDesignOut(
@@ -435,7 +508,8 @@ def analyze_events(accession: str, k: int = 20):
         summary=summary,
         pan_variant=_pan_out(pan_opts[0]) if pan_opts else None,
         pan_variant_options=[_pan_out(o) for o in pan_opts],
-        meta={"assembly": "GRCh38", "k": k, "features": FEATURES},
+        meta={"assembly": gene.assembly, "species": gene.species.slug, "k": k,
+              "features": FEATURES},
     )
     yield {"type": "progress", "pct": 100, "detail": "Done"}
     yield {"type": "result", "result": response}

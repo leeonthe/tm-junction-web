@@ -20,6 +20,10 @@ describe("route round trip", () => {
     { page: "home", mode: "gene", gene: "CFH", transcript: "NM_000186.4", tab: "gene" },
     // the box the user switched to survives, even when the search implies the other one
     { page: "home", mode: "accession", gene: "CFH", transcript: "NM_000186.4", tab: "pan" },
+    // another species: the symbol keeps its own capitalization, the species rides along
+    { page: "home", mode: "gene", gene: "Gapdh", tab: "summary", species: "mouse" },
+    { page: "home", mode: "gene", gene: "gapdh", transcript: "NM_001115114.1", tab: "pan", species: "zebrafish" },
+    { page: "home", mode: "accession", tab: "summary", species: "rat" },
     { page: "sequence", five: "", three: "" },
     { page: "sequence", five: "TTTTGCGTCGCCAG", three: "CCGAGCCACATCGCTCAGAC" },
     { page: "method" },
@@ -42,6 +46,18 @@ describe("route addresses", () => {
     expect(routeUrl({ page: "home", mode: "gene", gene: "CFH", transcript: "NM_000186.4", tab: "summary" }))
       .toBe("/?g=CFH&t=NM_000186.4");
     expect(routeUrl({ page: "sequence", five: "ACGT ACGT", three: "" })).toBe("/sequence?five=ACGT+ACGT");
+  });
+
+  it("names the species only when it is not human", () => {
+    expect(routeUrl({ page: "home", mode: "gene", gene: "Gapdh", tab: "summary", species: "mouse" }))
+      .toBe("/?g=Gapdh&sp=mouse");
+    expect(routeUrl({ page: "home", mode: "gene", gene: "GAPDH", tab: "summary", species: "human" }))
+      .toBe("/?g=GAPDH");
+    // Human symbols are upper-cased as before; no other species' spelling is touched.
+    expect(parse("/?g=gapdh&sp=zebrafish")).toEqual(
+      { page: "home", mode: "gene", gene: "gapdh", tab: "summary", species: "zebrafish" });
+    expect(parse("/?g=gapdh&sp=human")).toEqual({ page: "home", mode: "gene", gene: "GAPDH", tab: "summary" });
+    expect(parse("/?g=gapdh&sp=unicorn")).toEqual({ page: "home", mode: "gene", gene: "GAPDH", tab: "summary" });
   });
 
   it("does not carry a tab without a transcript to show it on", () => {

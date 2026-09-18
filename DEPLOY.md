@@ -27,7 +27,8 @@ Both auto-deploy on push to `main`.
 - **Redeploy the web app after setting `VITE_API_URL`** — Vite bakes env vars at build time.
 
 ## Notes
-- `engine/data/nm_index.json` + the GAPDH/MYC cache fixtures are committed, so typeahead and
+- `engine/data/index/<species>.json` (one accession index per species; rebuild with
+  `engine/scripts/build_nm_index.py`) + the cache fixtures are committed, so typeahead and
   the demo genes work immediately with no NCBI calls.
 - `primer3-py` installs from a prebuilt wheel — no compiler or Docker needed.
 - **Persistent cache (optional):** attach a Render Disk mounted at `engine/data/cache` (paid)

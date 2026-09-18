@@ -109,6 +109,19 @@ describe("sole-isoform transcripts", () => {
     expect(mechanism(actbLike, true)).not.toContain("exon 1");
   });
 
+  it("does not name two exons on a transcript that has one", () => {
+    // Yeast TDH3 NM_001181321.3: one transcript, ONE exon. Intronless genes are the rule in
+    // yeast (and the exception in human — JUN), and "any two nearby exons" is advice that
+    // cannot be followed there.
+    const exon = { order: 1, begin: 882812, end: 883810, length: 999, tx_begin: 1, tx_end: 999,
+                   cds: "cds" as const, gc: 47, unique_sites: 980 };
+    const tdh3Like = v({ tier: "CONVENTIONAL", needs_eej: false, exons: [exon],
+                         unique_regions: [{ exon_order: 1, window_count: 980, side: "either", uniq_len: 999 }] });
+    expect(mechanism(tdh3Like, true)).toBe("Single exon — no junction to span");
+    // Two exons (yeast ACT1) is back to the ordinary sole-isoform wording.
+    expect(mechanism({ ...tdh3Like, exons: [exon, { ...exon, order: 2 }] }, true)).toBe("Any two nearby exons");
+  });
+
   it("leaves multi-isoform genes alone — there the exon IS the constraint", () => {
     expect(mechanism(actbLike, false)).toBe("Unique region · exon 1 (78 nt)");
   });

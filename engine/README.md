@@ -1,6 +1,8 @@
 # TmJunction Engine (Python / FastAPI)
 
-The scientific core: resolve a RefSeq **NM** accession → gene → sibling NM isoforms,
+The scientific core: resolve a RefSeq **NM/NR** accession (or a species + gene symbol —
+human, mouse, rat, fruit fly, baker's yeast, zebrafish; see `app/species.py`) → gene →
+sibling isoforms,
 run the **sequence (ATGC) amplifiability** test, and design **Tm-guided** primers
 (conventional or exon–exon junction). Deployable independently of the web frontend.
 
@@ -12,11 +14,13 @@ app/
                (also exposes unique-window positions so primer specificity is provable)
   primers.py   ⭐ primer3 QC hybrid: Tm + hairpin/dimer gates, multi-length sweep,
                selection ranked by QC + ΔTm specificity (junction primers ΔTm-weighted)
+  species.py   the species covered, and the taxonomy id each is named to NCBI by
   ncbi.py      cache-first NCBI Datasets v2 / E-utilities client
   analyze.py   orchestration → AnalyzeResponse
   models.py    pydantic response schemas
   main.py      FastAPI app  (POST /analyze, GET /analyze/{acc}, GET /health)
-data/cache/    seeded GAPDH + MYC fixtures → runs fully offline for the demo genes
+data/cache/    seeded fixtures → runs fully offline for the demo genes of every species
+data/index/    one NM/NR accession index per species, for the accession typeahead
 tests/         regression tests locked to the validated GAPDH/MYC matrix
 ```
 

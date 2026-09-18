@@ -46,23 +46,23 @@ def test_strand_comes_from_ncbis_orientation_not_exon_order():
             "exons": [{"begin": "100", "end": "900", "orientation": "minus", "order": 1}],
         }],
     }
-    assert ncbi.grch38_strand(one_exon) == "-"
+    assert ncbi.reference_strand(one_exon) == "-"
 
 
 def test_unstated_orientation_is_empty_not_a_guess():
     """No orientation anywhere -> "" so the UI can omit the badge rather than assert a
     direction the source never gave."""
-    assert ncbi.grch38_strand({"genomic_locations": [{
+    assert ncbi.reference_strand({"genomic_locations": [{
         "genomic_accession_version": "NC_000017.11",
         "genomic_range": {"begin": "100", "end": "900"},
         "exons": [{"begin": "100", "end": "900"}],
     }]}) == ""
-    assert ncbi.grch38_strand({}) == ""
+    assert ncbi.reference_strand({}) == ""
 
 
 def test_every_nm_of_a_gene_shares_the_genes_strand():
     """The gene-level value is the first transcript's; that is only sound if they agree."""
     report = ncbi.get_product_report("TP53")
-    _, _, _, _, strand, transcripts = ncbi.refseq_transcripts(report)
-    assert strand == "-"
-    assert {t["strand"] for t in transcripts} == {"-"}
+    gene = ncbi.refseq_transcripts(report)
+    assert gene.strand == "-"
+    assert {t["strand"] for t in gene.transcripts} == {"-"}

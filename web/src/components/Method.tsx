@@ -57,7 +57,8 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
         <p className="mth-lede">
           Every verdict on this site is sequence-based: the target mRNA is compared against the
           other curated RefSeq isoforms of the same gene — <b>NM</b> mRNAs and <b>NR</b>{" "}
-          non-coding RNAs alike, since both are in the cDNA a primer meets — and a primer site counts as specific
+          non-coding RNAs alike, since both are in the cDNA a primer meets, in whichever
+          supported species the gene belongs to — and a primer site counts as specific
           only if it is absent from all of them. Nothing here is a homology guess — it is exact
           substring evidence over the isoform set.
         </p>

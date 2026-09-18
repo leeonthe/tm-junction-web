@@ -19,12 +19,13 @@ FEATURES = [
     "primer_qc",                   # 30: GET /qc — hairpin/self-dimer Tm for browser-designed oligos
     "transcript_sequences",        # 25.b: GET /sequences — sibling mRNAs for the browser's whole-transcript designer
     "noncoding_transcripts",       # NR_ (non-coding RNA) transcripts analyzed alongside NM_
+    "multi_species",               # species= on /gene and /suggest_genes; accessions of any supported species
 ]
 
 
 class Exon(BaseModel):
     order: int
-    begin: int              # GRCh38 genomic
+    begin: int              # genomic, on the gene's reference assembly (GeneInfo.assembly)
     end: int
     length: int
     tx_begin: int           # 1-based position in the mRNA
@@ -106,7 +107,7 @@ class TranscriptVerdict(BaseModel):
     # can name the SAME molecule two different variants (ticket 32's premise), so a folded
     # row must be able to show both names, not just the representative's.
     same_sequence_variants: list[str | None] = []
-    # Set when NCBI's annotation has not placed this (NR) record on GRCh38 yet and its exon
+    # Set when NCBI's annotation has not placed this (NR) record on the reference yet and its exon
     # coordinates are those of the model it replaced — verified exon for exon; see
     # ncbi._place_unplaced_nr. Names that model, so the page can say where the coordinates
     # came from.
@@ -161,10 +162,17 @@ class GeneSummary(BaseModel):
 
 class GeneInfo(BaseModel):
     gene_id: str
-    symbol: str
+    symbol: str               # NCBI's official spelling: GAPDH, Gapdh (mouse), gapdh (zebrafish)
     description: str
+    # The reference assembly every coordinate here is on — GRCh38, GRCm39, GRCr8, R64, … —
+    # read from NCBI's placement, so it follows a species to its next assembly by itself.
     assembly: str = "GRCh38"
-    chromosome: str = ""      # e.g. "12", "X"
+    chromosome: str = ""      # e.g. "12", "X"; fly "2R"; yeast "VII"
+    # Whose gene it is. The defaults are what every response meant before species support.
+    species: str = "human"            # the API's species slug (species.py)
+    organism: str = "Homo sapiens"    # scientific name
+    common_name: str = "Human"
+    tax_id: str = "9606"              # NCBI Taxonomy id the gene was looked up under
     # Genomic strand the gene is transcribed from: "+", "-", or "" when NCBI does not say.
     # On a minus-strand gene the mRNA runs right-to-left across the genomic exon graph.
     strand: str = ""
@@ -187,7 +195,7 @@ class AnalyzeResponse(BaseModel):
 
 class GeneExonOut(BaseModel):
     order: int              # 1-based, by genomic position (left→right on the alignment axis)
-    begin: int             # GRCh38 genomic
+    begin: int             # genomic, on GeneInfo.assembly
     end: int
 
 

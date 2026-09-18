@@ -52,7 +52,7 @@ def test_an_nr_transcript_is_a_target_like_any_other():
 
 def test_the_accession_typeahead_offers_nr():
     got = ncbi.suggest_accessions("NR_15215")
-    assert {"accession": "NR_152150.2", "gene": "GAPDH"} in got
+    assert {"accession": "NR_152150.2", "gene": "GAPDH", "species": "human"} in got
     assert all(g["accession"].startswith("NR_") for g in got)
     assert ncbi.suggest_accessions("NM_00204")             # and NM as before
     # The bare prefix opens the list — "NR_" must not look unsupported.
@@ -104,13 +104,13 @@ def test_a_placement_is_borrowed_only_when_the_exons_match(monkeypatch):
     monkeypatch.setattr(ncbi, "record_structures", records(["XR_000001"], [100, 50]))
     ts = [tx("NR_900001.1"), tx("XR_000001.2", model)]
     assert ncbi._place_unplaced_nr(ts) == {"NR_900001.1": "XR_000001.2"}
-    assert ncbi.grch38_exons(ts[0]) == list(model)
+    assert ncbi.reference_exons(ts[0]) == list(model)
 
     # One exon a single base off: not demonstrably the same structure, so not borrowed.
     monkeypatch.setattr(ncbi, "record_structures", records(["XR_000001"], [100, 51]))
     ts = [tx("NR_900001.1"), tx("XR_000001.2", model)]
     assert ncbi._place_unplaced_nr(ts) == {}
-    assert ncbi.grch38_exons(ts[0]) is None
+    assert ncbi.reference_exons(ts[0]) is None
 
     # A matching model the record does NOT say it replaced is a coincidence, not evidence.
     monkeypatch.setattr(ncbi, "record_structures", records(["XR_000777"], [100, 50]))
@@ -128,6 +128,9 @@ def test_genbank_structure_parsing():
 ACCESSION   NR_201105 XR_007081131 XR_946382
 VERSION     NR_201105.1
 FEATURES             Location/Qualifiers
+     source          1..4755
+                     /organism="Homo sapiens"
+                     /db_xref="taxon:9606"
      gene            1..4755
                      /gene="HTRA1-AS1"
                      /db_xref="GeneID:105378525"
@@ -137,5 +140,5 @@ FEATURES             Location/Qualifiers
      exon            1875..4755
 """
     assert ncbi._parse_genbank_structure(rec) == {
-        "accession": "NR_201105.1", "gene": "HTRA1-AS1", "gene_id": "105378525",
+        "accession": "NR_201105.1", "gene": "HTRA1-AS1", "gene_id": "105378525", "tax_id": "9606",
         "exon_lengths": [457, 1417, 2881], "replaces": ["XR_007081131", "XR_946382"]}

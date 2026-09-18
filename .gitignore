@@ -45,5 +45,5 @@ DNA WHITE.svg
 
 # NOTE: we intentionally DO commit —
 #   web/  engine/ (source; their deps are ignored above)
-#   engine/data/ (nm_index.json + cached fixtures — needed to run/demo)
+#   engine/data/ (index/<species>.json + cached fixtures — needed to run/demo)
 #   README.md  .gitattributes

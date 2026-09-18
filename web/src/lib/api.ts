@@ -1,6 +1,7 @@
 import type { AnalyzeResponse, ApiError, GeneLookupResponse } from "./types";
 import { apiBase } from "./apiBase";
 import { updateThresholds, type StructureTm } from "./qc";
+import { speciesOf, type SpeciesSlug } from "./species";
 
 export class AnalyzeError extends Error {
   code: string;
@@ -10,7 +11,12 @@ export class AnalyzeError extends Error {
   }
 }
 
-export interface RemoteSuggestion { accession: string; gene: string }
+/** `species` is absent from an engine that indexes human only. */
+export interface RemoteSuggestion { accession: string; gene: string; species?: string }
+
+/** `&species=…`, or nothing for human — the request an older engine already understands. */
+const speciesParam = (species: SpeciesSlug, lead: "?" | "&") =>
+  species === "human" ? "" : `${lead}species=${species}`;
 
 export async function suggest(q: string, signal?: AbortSignal): Promise<RemoteSuggestion[]> {
   try {
@@ -23,11 +29,15 @@ export async function suggest(q: string, signal?: AbortSignal): Promise<RemoteSu
   }
 }
 
-/** Gene name -> its human NM transcripts + exon alignment (no classification). */
-export async function lookupGene(symbol: string, signal?: AbortSignal): Promise<GeneLookupResponse> {
+/** Gene name + species -> its NM/NR transcripts + exon alignment (no classification). */
+export async function lookupGene(
+  symbol: string, species: SpeciesSlug = "human", signal?: AbortSignal,
+): Promise<GeneLookupResponse> {
   let res: Response;
   try {
-    res = await fetch(`${await apiBase()}/gene/${encodeURIComponent(symbol.trim())}`, { signal });
+    res = await fetch(
+      `${await apiBase()}/gene/${encodeURIComponent(symbol.trim())}${speciesParam(species, "?")}`,
+      { signal });
   } catch {
     throw new AnalyzeError("NETWORK", "Can't reach the engine. Is the Python backend running?");
   }
@@ -36,16 +46,32 @@ export async function lookupGene(symbol: string, signal?: AbortSignal): Promise<
     const err = data as ApiError;
     throw new AnalyzeError(err.error ?? "ERROR", err.message ?? "Gene lookup failed.");
   }
+  // An engine older than species support ignores `species` and answers with the HUMAN gene
+  // of that name — complete, plausible, and the wrong organism. It names no species in its
+  // reply, which is how it is caught: nothing it returned is shown.
+  const got = (data as GeneLookupResponse).gene.species ?? "human";
+  if (got !== species) {
+    throw new AnalyzeError("ENGINE_OUT_OF_DATE",
+      `The engine that answered does not support ${speciesOf(species).common.toLowerCase()} yet `
+      + `— it looked “${symbol.trim()}” up as a ${speciesOf(got).common.toLowerCase()} gene. Redeploy `
+      + "the backend (engine/) so it matches this page.");
+  }
   return data as GeneLookupResponse;
 }
 
 export interface GeneSuggestion { symbol: string; description: string }
 
-export async function suggestGenes(q: string, signal?: AbortSignal): Promise<GeneSuggestion[]> {
+export async function suggestGenes(
+  q: string, species: SpeciesSlug = "human", signal?: AbortSignal,
+): Promise<GeneSuggestion[]> {
   try {
-    const res = await fetch(`${await apiBase()}/suggest_genes?q=${encodeURIComponent(q)}`, { signal });
+    const res = await fetch(
+      `${await apiBase()}/suggest_genes?q=${encodeURIComponent(q)}${speciesParam(species, "&")}`,
+      { signal });
     if (!res.ok) return [];
     const d = await res.json();
+    // Same guard as lookupGene: an engine that ignored `species` would list human genes.
+    if ((d.species ?? "human") !== species) return [];
     return (d.suggestions ?? []) as GeneSuggestion[];
   } catch {
     return [];

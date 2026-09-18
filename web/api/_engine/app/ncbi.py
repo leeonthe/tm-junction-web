@@ -1,8 +1,11 @@
 """NCBI data access — cache-first, live fallback.
 
 Reads seeded fixtures under `data/cache/` first (so the engine + tests run fully
-offline for GAPDH/MYC); on a miss, calls NCBI Datasets v2 / E-utilities live and
+offline for the fixture genes); on a miss, calls NCBI Datasets v2 / E-utilities live and
 persists the result in the same cache shape.
+
+Species: every query is scoped by the taxonomy id of a `species.Species`, human unless the
+caller says otherwise — see species.py for why ids and not names.
 
 Never logs the API key. See vault `02 Data/NCBI Data Source and API.md`.
 """
@@ -12,11 +15,14 @@ from __future__ import annotations
 import json
 import os
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
+
+from . import species as species_mod
+from .species import HUMAN, Species
 
 CACHE_DIR = Path(os.environ.get("TMJ_CACHE_DIR", Path(__file__).resolve().parent.parent / "data" / "cache"))
-GRCH38_PREFIX = "NC_0000"
 API_KEY = os.environ.get("NCBI_API_KEY", "")
 DATASETS = "https://api.ncbi.nlm.nih.gov/datasets/v2"
 EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
@@ -113,12 +119,18 @@ def _http_get_text(url: str) -> str:
 
 # ---------------------------------------------------------------- public API
 
-def resolve_accession(accession: str) -> tuple[str, str]:
-    """accession -> (gene_symbol, gene_id). Cache-first."""
+def resolve_accession(accession: str, refresh: bool = False) -> tuple[str, str, str]:
+    """accession -> (gene_symbol, gene_id, tax_id). Cache-first.
+
+    The accession alone names the species — a RefSeq transcript belongs to exactly one
+    organism — so an accession search needs no species from the user. tax_id is "" only for
+    an entry cached before species support; those are taken as human, and `refresh`
+    re-resolves one that turns out not to be (see analyze._gene_of).
+    """
     base = _base_accession(accession)
-    cached = _read_json(CACHE_DIR / "resolve" / f"{base}.json")
+    cached = None if refresh else _read_json(CACHE_DIR / "resolve" / f"{base}.json")
     if cached:
-        return cached["symbol"], cached.get("gene_id", "")
+        return cached["symbol"], cached.get("gene_id", ""), str(cached.get("tax_id", ""))
 
     data = _http_get_json(f"{DATASETS}/gene/accession/{base}")
     reports = data.get("reports") or data.get("gene", {}).get("reports") or []
@@ -131,24 +143,75 @@ def resolve_accession(accession: str) -> tuple[str, str]:
         rec = record_structures([accession.strip().upper()]).get(accession.strip().upper()) or {}
         if not rec.get("gene"):
             raise NotFound(f"No gene found for accession {accession}")
-        gene = {"symbol": rec["gene"], "gene_id": rec.get("gene_id", "")}
+        gene = {"symbol": rec["gene"], "gene_id": rec.get("gene_id", ""),
+                "tax_id": rec.get("tax_id", "")}
     symbol = str(gene.get("symbol", ""))
     gene_id = str(gene.get("gene_id", ""))
+    tax_id = str(gene.get("tax_id", ""))
     if not symbol:
         raise NotFound(f"Could not resolve symbol for {accession}")
     _write_json(CACHE_DIR / "resolve" / f"{base}.json",
-                {"symbol": symbol, "gene_id": gene_id, "resolved_accession": accession})
-    return symbol, gene_id
+                {"symbol": symbol, "gene_id": gene_id, "tax_id": tax_id,
+                 "resolved_accession": accession})
+    return symbol, gene_id, tax_id
 
 
-def get_product_report(symbol: str) -> dict:
-    """product_report payload for a gene symbol (human). Cache-first."""
-    cached = _read_json(CACHE_DIR / "product_report" / f"{symbol}__human.json")
+def _file_safe(name: str) -> str:
+    """A gene symbol as a file name. Human symbols pass through unchanged; fly's carry
+    punctuation — l(2)gl, mt:CoI — and a symbol is user input, so it never reaches a path
+    or a URL unescaped."""
+    return quote(name, safe="")
+
+
+def _product_report_path(symbol: str, sp: Species) -> Path:
+    return CACHE_DIR / "product_report" / f"{_file_safe(symbol)}__{sp.slug}.json"
+
+
+def get_product_report(symbol: str, sp: Species = HUMAN) -> dict:
+    """product_report payload for a gene symbol in a species. Cache-first.
+
+    NCBI matches symbols case-insensitively and answers with the official spelling, so the
+    report is cached under THAT, and looked up under the capitalizations a person would
+    type: a mouse "gapdh" finds the cached "Gapdh" instead of costing a request.
+    """
+    sym = symbol.strip()
+    for spelling in dict.fromkeys([sym, sym.upper(), sym.capitalize(), sym.lower()]):
+        cached = _read_json(_product_report_path(spelling, sp))
+        if cached and cached.get("reports"):
+            return cached
+    data = _http_get_json(
+        f"{DATASETS}/gene/symbol/{_file_safe(sym)}/taxon/{sp.tax_id}/product_report")
+    reports = data.get("reports") or []
+    if reports:
+        # More than one gene can answer to a symbol; the exact spelling wins, then the
+        # case-insensitive one. Everything downstream reads reports[0].
+        def rank(r: dict) -> int:
+            got = str((r.get("product") or {}).get("symbol", ""))
+            return 0 if got == sym else 1 if got.lower() == sym.lower() else 2
+        reports.sort(key=rank)
+        official = str((reports[0].get("product") or {}).get("symbol", "")) or sym
+        _write_json(_product_report_path(official, sp), data)
+    return data
+
+
+def get_gene_report(gene_id: str) -> dict:
+    """The gene-level Datasets record — chromosome and annotated assemblies. Cache-first,
+    and best-effort: it only ever supplies labels (see _labels_from_gene_report)."""
+    if not gene_id:
+        return {}
+    cached = _read_json(CACHE_DIR / "gene_report" / f"{gene_id}.json")
     if cached:
         return cached
-    data = _http_get_json(f"{DATASETS}/gene/symbol/{symbol}/taxon/human/product_report")
-    _write_json(CACHE_DIR / "product_report" / f"{symbol}__human.json", data)
-    return data
+    try:
+        data = _http_get_json(f"{DATASETS}/gene/id/{gene_id}")
+    except RateLimited:
+        raise
+    except Exception:
+        return {}
+    gene = ((data.get("reports") or [{}])[0].get("gene")) or {}
+    if gene:
+        _write_json(CACHE_DIR / "gene_report" / f"{gene_id}.json", gene)
+    return gene
 
 
 def get_sequence(accession: str) -> str:
@@ -219,9 +282,16 @@ _VARIANT_IN_TITLE = re.compile(r"\btranscript variant\s+([^,;]+)", re.IGNORECASE
 
 
 def variant_in(title: str | None) -> str | None:
-    """"...(GAPDH), transcript variant 1, mRNA" -> "transcript variant 1"."""
+    """"...(GAPDH), transcript variant 1, mRNA" -> "transcript variant 1".
+
+    FlyBase-derived titles can put the gene symbol AFTER the designation —
+    "…dehydrogenase 1, transcript variant A (Gapdh1), mRNA" — so a trailing parenthetical
+    is the symbol, not part of the variant's name."""
     m = _VARIANT_IN_TITLE.search(title or "")
-    return f"transcript variant {m.group(1).strip()}" if m else None
+    if not m:
+        return None
+    name = re.sub(r"\s*\([^)]*\)\s*$", "", m.group(1)).strip()
+    return f"transcript variant {name}" if name else None
 
 
 def record_titles(accessions: list[str]) -> dict[str, str]:
@@ -290,10 +360,12 @@ _GB_VERSION = re.compile(r"^VERSION\s+(\S+)", re.MULTILINE)
 _GB_ACCESSION = re.compile(r"^ACCESSION\s+(.+(?:\n {12}.+)*)", re.MULTILINE)
 _GB_GENE = re.compile(r'^ {21}/gene="([^"]+)"', re.MULTILINE)
 _GB_GENE_ID = re.compile(r'/db_xref="GeneID:(\d+)"')
+_GB_TAXON = re.compile(r'/db_xref="taxon:(\d+)"')
 
 
 def _parse_genbank_structure(record: str) -> dict | None:
-    """One GenBank flat-file record -> {accession, gene, gene_id, exon_lengths, replaces}.
+    """One GenBank flat-file record -> {accession, gene, gene_id, tax_id, exon_lengths,
+    replaces}.
 
     `replaces` is the record's secondary accessions — the records it superseded, which is
     how a curated NR names the XR model it was promoted from."""
@@ -304,10 +376,12 @@ def _parse_genbank_structure(record: str) -> dict | None:
     names = (_GB_ACCESSION.search(record).group(1).split()
              if _GB_ACCESSION.search(record) else [])
     gene, gene_id = _GB_GENE.search(record), _GB_GENE_ID.search(record)
+    taxon = _GB_TAXON.search(record)
     return {
         "accession": acc,
         "gene": gene.group(1) if gene else "",
         "gene_id": gene_id.group(1) if gene_id else "",
+        "tax_id": taxon.group(1) if taxon else "",
         "exon_lengths": [int(e) - int(b) + 1 for b, e in _GB_EXON.findall(record)],
         "replaces": [n for n in names if n != _base_accession(acc)],
     }
@@ -349,14 +423,14 @@ def record_structures(accessions: list[str]) -> dict[str, dict]:
 
 
 def _place_unplaced_nr(transcripts: list[dict]) -> dict[str, str]:
-    """Give GRCh38 exons to curated NR transcripts the annotation has not placed yet.
+    """Give reference exons to curated NR transcripts the annotation has not placed yet.
 
     A freshly curated NR record is listed in the gene's product report with no genomic
     placement until NCBI's next annotation run — HTRA1-AS1's only curated transcript,
     NR_201105.1, is one: the report places the XR models and leaves the NR bare. But such
     a record names the model it was promoted from (its secondary accession, XR_946382),
     and that model IS placed. The placement is borrowed only when it is demonstrably the
-    same structure: the superseded model is in this gene's report, placed on GRCh38, and
+    same structure: the superseded model is in this gene's report, placed on the reference, and
     its exons match the record's own exon features one for one, length for length.
     Anything less and the transcript stays out, as before.
 
@@ -364,11 +438,11 @@ def _place_unplaced_nr(transcripts: list[dict]) -> dict[str, str]:
     {NR accession: model accession whose placement it took}.
     """
     bare = [t for t in transcripts
-            if is_noncoding(t.get("accession_version") or "") and not grch38_exons(t)]
+            if is_noncoding(t.get("accession_version") or "") and not reference_exons(t)]
     if not bare:
         return {}
     placed = {_base_accession(t.get("accession_version") or ""): t
-              for t in transcripts if grch38_exons(t)}
+              for t in transcripts if reference_exons(t)}
     info = record_structures([t["accession_version"].strip() for t in bare])
     took: dict[str, str] = {}
     for t in bare:
@@ -377,7 +451,7 @@ def _place_unplaced_nr(transcripts: list[dict]) -> dict[str, str]:
             continue
         for old in rec["replaces"]:
             model = placed.get(old)
-            if model and [e - b + 1 for b, e in grch38_exons(model)] == rec["exon_lengths"]:
+            if model and [e - b + 1 for b, e in reference_exons(model)] == rec["exon_lengths"]:
                 t["genomic_locations"] = model["genomic_locations"]
                 took[t["accession_version"].strip()] = model["accession_version"].strip()
                 break
@@ -386,57 +460,100 @@ def _place_unplaced_nr(transcripts: list[dict]) -> dict[str, str]:
 
 # ---------------------------------------------------------------- parsing
 
-def grch38_exons(transcript: dict) -> list[Interval] | None:
-    """GRCh38 (begin,end) exon intervals, 1-based inclusive, or None if unavailable."""
-    for loc in transcript.get("genomic_locations") or []:
-        if not str(loc.get("genomic_accession_version", "")).startswith(GRCH38_PREFIX):
-            continue
-        out: list[Interval] = []
-        for e in loc.get("exons") or []:
-            try:
-                b, t = int(e["begin"]), int(e["end"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            out.append((min(b, t), max(b, t)))
-        return out or None
+# "Chromosome 12 Reference GRCh38.p14 Primary Assembly" -> ("12", "GRCh38.p14")
+_REFERENCE_NAME = re.compile(r"^Chromosome (\S+) Reference (\S+)")
+
+
+def reference_location(transcript: dict) -> dict | None:
+    """The transcript's placement on its species' REFERENCE assembly, chromosome-level.
+
+    A product report places a transcript on everything NCBI annotates: the reference
+    assembly, its patches and alternate loci, and whole alternate assemblies (human
+    T2T-CHM13, rat SHRSP_T2T, zebrafish GRCz12tu). One coordinate system has to be chosen,
+    and it is read from NCBI's own naming rather than from a table of accessions, which
+    would go stale the day a species is re-annotated on a new assembly (rat and zebrafish
+    both were, recently):
+
+      * a placement named "Chromosome N Reference <assembly> …" on an NC_ record — the
+        chromosome itself. Patches and alternate loci say "Reference" too, but sit on
+        NT_/NW_ scaffolds; alternate assemblies say "Alternate".
+      * or, where the assembly names nothing (fly, yeast: one assembly, no alternates), the
+        placement there is.
+
+    On human this selects exactly what the old "NC_0000" prefix did — checked over every
+    curated transcript of ~20k genes (tests/test_species.py pins it on the fixtures).
+    """
+    locs = [loc for loc in transcript.get("genomic_locations") or []
+            if loc.get("genomic_accession_version") and loc.get("exons")]
+    for loc in locs:
+        if (_REFERENCE_NAME.match(str(loc.get("sequence_name") or ""))
+                and str(loc["genomic_accession_version"]).startswith("NC_")):
+            return loc
+    if locs and not any(loc.get("sequence_name") for loc in locs):
+        return locs[0]
     return None
 
 
-def grch38_strand(transcript: dict) -> str:
-    """Genomic orientation of the transcript on GRCh38: "+", "-", or "" if unstated.
+def reference_exons(transcript: dict) -> list[Interval] | None:
+    """Reference-assembly (begin,end) exon intervals, 1-based inclusive, or None."""
+    loc = reference_location(transcript)
+    if not loc:
+        return None
+    out: list[Interval] = []
+    for e in loc.get("exons") or []:
+        try:
+            b, t = int(e["begin"]), int(e["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        out.append((min(b, t), max(b, t)))
+    return out or None
+
+
+def reference_strand(transcript: dict) -> str:
+    """Genomic orientation of the transcript on the reference: "+", "-", or "" if unstated.
 
     Taken from NCBI's explicit `orientation` rather than inferred from exon order, so a
     single-exon transcript — where there is no exon order to read a direction from — still
     reports its strand.
     """
-    for loc in transcript.get("genomic_locations") or []:
-        if not str(loc.get("genomic_accession_version", "")).startswith(GRCH38_PREFIX):
-            continue
-        o = str((loc.get("genomic_range") or {}).get("orientation", "")).lower()
-        if not o:
-            ex = loc.get("exons") or []
-            o = str(ex[0].get("orientation", "")).lower() if ex else ""
-        return {"plus": "+", "minus": "-"}.get(o, "")
-    return ""
-
-
-def _chromosome_from_acc(gav: str) -> str:
-    """GRCh38 genomic accession -> chromosome label. NC_000012 -> '12', 23 -> 'X', 24 -> 'Y'."""
-    m = re.match(r"NC_0*(\d+)", gav or "")
-    if not m:
+    loc = reference_location(transcript)
+    if not loc:
         return ""
-    n = int(m.group(1))
-    if 1 <= n <= 22:
-        return str(n)
-    return {23: "X", 24: "Y", 12920: "MT"}.get(n, "")
+    o = str((loc.get("genomic_range") or {}).get("orientation", "")).lower()
+    if not o:
+        ex = loc.get("exons") or []
+        o = str(ex[0].get("orientation", "")).lower() if ex else ""
+    return {"plus": "+", "minus": "-"}.get(o, "")
 
 
-def _grch38_chromosome(transcript: dict) -> str:
-    for loc in transcript.get("genomic_locations") or []:
-        gav = str(loc.get("genomic_accession_version", ""))
-        if gav.startswith(GRCH38_PREFIX):
-            return _chromosome_from_acc(gav)
-    return ""
+def _assembly_label(name: str) -> str:
+    """"GRCh38.p14" -> "GRCh38": a patch release moves no primary-assembly coordinate."""
+    return re.sub(r"\.p\d+$", "", name or "")
+
+
+def _labels_from_gene_report(gene_id: str, genomic_accession: str) -> tuple[str, str]:
+    """(chromosome, assembly) for a placement the product report left unnamed — fly and
+    yeast. The gene-level record names both: chromosome "2R" on "Release 6 plus ISO1 MT"."""
+    gene = get_gene_report(gene_id)
+    chromosome = str((gene.get("chromosomes") or [""])[0])
+    assembly = ""
+    for ann in gene.get("annotations") or []:
+        for loc in ann.get("genomic_locations") or []:
+            if loc.get("genomic_accession_version") == genomic_accession:
+                assembly = str(ann.get("assembly_name") or "")
+                chromosome = str(loc.get("sequence_name") or chromosome)
+    return chromosome, _assembly_label(assembly)
+
+
+def _reference_labels(transcript: dict, gene_id: str) -> tuple[str, str]:
+    """(chromosome, assembly) of the transcript's reference placement."""
+    loc = reference_location(transcript)
+    if not loc:
+        return "", ""
+    m = _REFERENCE_NAME.match(str(loc.get("sequence_name") or ""))
+    if m:
+        return m.group(1), _assembly_label(m.group(2))
+    return _labels_from_gene_report(gene_id, str(loc.get("genomic_accession_version") or ""))
 
 
 # The curated RefSeq RNA classes the tool analyzes: NM_ (mRNA) and NR_ (non-coding RNA).
@@ -452,48 +569,67 @@ def is_noncoding(accession: str) -> bool:
     return accession.strip().upper().startswith("NR_")
 
 
-def refseq_transcripts(product_report: dict) -> tuple[str, str, str, str, str, list[dict]]:
-    """Return (gene_id, symbol, description, chromosome, strand, [ {accession, variant,
-    is_mane, exons, strand} ... ]) for the gene's curated transcripts, NM and NR alike.
-    Gene strand = the first transcript's — every transcript of a gene is transcribed from
-    the same strand."""
+@dataclass
+class GeneTranscripts:
+    """A gene's curated transcripts as the engine analyzes them."""
+    gene_id: str
+    symbol: str
+    description: str
+    species: Species
+    chromosome: str = ""
+    # Every transcript of a gene is transcribed from the same strand; this is the first's.
+    strand: str = ""
+    assembly: str = ""               # the reference assembly the exons are on, e.g. "GRCm39"
+    # [{accession, variant, is_mane, exons, strand, cds, placed_via}, ...]
+    transcripts: list[dict] = field(default_factory=list)
+    # Curated accessions NCBI lists for the gene WITHOUT a reference placement. Named so an
+    # empty result can say why: rat Gapdh's only record, NM_017008.5, replaced .4 two weeks
+    # after the annotation run that would have placed it, and is listed bare.
+    unplaced: list[str] = field(default_factory=list)
+
+
+def refseq_transcripts(product_report: dict, sp: Species = HUMAN) -> GeneTranscripts:
+    """The gene's curated transcripts, NM and NR alike, on the species' reference assembly."""
     reports = product_report.get("reports") or []
     if not reports:
         raise NotFound("Empty product report")
     product = reports[0].get("product") or {}
-    gene_id = str(product.get("gene_id", ""))
-    symbol = str(product.get("symbol", ""))
-    description = str(product.get("description", ""))
-    chromosome = ""
-    strand = ""
-    out: list[dict] = []
+    gene = GeneTranscripts(
+        gene_id=str(product.get("gene_id", "")),
+        symbol=str(product.get("symbol", "")),
+        description=str(product.get("description", "")),
+        # The report says whose gene it is; the caller's species is only what was asked for.
+        species=species_mod.by_tax_id(product.get("tax_id")) or sp,
+    )
     placed_via = _place_unplaced_nr(product.get("transcripts") or [])
     for t in product.get("transcripts") or []:
         acc = (t.get("accession_version") or "").strip()
         if not acc.startswith(REFSEQ_PREFIXES):
             continue
-        exons = grch38_exons(t)
+        exons = reference_exons(t)
         if not exons:
+            gene.unplaced.append(acc)
             continue
-        if not chromosome:
-            chromosome = _grch38_chromosome(t)
-        tx_strand = grch38_strand(t)
-        if not strand:
-            strand = tx_strand
-        out.append({
+        if not gene.transcripts:
+            gene.chromosome, gene.assembly = _reference_labels(t, gene.gene_id)
+        tx_strand = reference_strand(t)
+        if not gene.strand:
+            gene.strand = tx_strand
+        gene.transcripts.append({
             "accession": acc,
             # NCBI's own designation for the isoform, e.g. "transcript variant 5". Absent on
             # a gene with a single transcript — there is no variant to number — which is
             # what the clients render as "mono-isoform".
             "variant": (t.get("name") or "").strip() or None,
+            # MANE Select is a human designation; no other species has one.
             "is_mane": t.get("select_category") == "MANE_SELECT",
             "exons": exons,
             "strand": tx_strand,
             "cds": _cds_range(t),   # (begin, end) in 1-based transcript coords, or None
-            # The model whose GRCh38 placement this record took — see _place_unplaced_nr.
+            # The model whose placement this record took — see _place_unplaced_nr.
             "placed_via": placed_via.get(acc),
         })
-    return gene_id, symbol, description, chromosome, strand, out
+    return gene
 
 
 def _cds_range(transcript: dict) -> tuple[int, int] | None:
@@ -539,30 +675,32 @@ def _eutils_json(endpoint: str, params: dict) -> dict:
     return _http_get_json(f"{EUTILS}/{endpoint}?{urlencode(params)}")
 
 
-INDEX_PATH = Path(os.environ.get("TMJ_NM_INDEX",
-                                 Path(__file__).resolve().parent.parent / "data" / "nm_index.json"))
-_NM_INDEX: list[dict] | None = None
-_NM_KEYS: list[str] | None = None
+# One accession index per species: data/index/<slug>.json, as two parallel arrays —
+# {"accessions": [sorted, upper-case order], "genes": [...]} — because a quarter of a million
+# {"accession":…, "gene":…} objects cost several times the bytes and the memory.
+INDEX_DIR = Path(os.environ.get("TMJ_INDEX_DIR",
+                                Path(__file__).resolve().parent.parent / "data" / "index"))
+_INDEX: dict[str, tuple[list[str], list[str]]] = {}
 
 
-def _load_index() -> tuple[list[dict], list[str]]:
-    """Lazy-load the human NM/NR accession index (accession -> gene). Sorted for bisect.
-    (The file keeps its `nm_index.json` name from when it held NM only.)"""
-    global _NM_INDEX, _NM_KEYS
-    if _NM_INDEX is None:
-        rows = _read_json(INDEX_PATH) or []
-        rows.sort(key=lambda r: r["accession"].upper())
-        _NM_INDEX = rows
-        _NM_KEYS = [r["accession"].upper() for r in rows]
-    return _NM_INDEX, _NM_KEYS or []
+def _load_index(sp: Species) -> tuple[list[str], list[str]]:
+    """Lazy-load one species' NM/NR accession index: (accessions sorted for bisect, genes)."""
+    if sp.slug not in _INDEX:
+        data = _read_json(INDEX_DIR / f"{sp.slug}.json") or {}
+        _INDEX[sp.slug] = (data.get("accessions") or [], data.get("genes") or [])
+    return _INDEX[sp.slug]
 
 
 def suggest_accessions(q: str, limit: int = 8) -> list[dict]:
-    """Typeahead: human NM/NR transcripts whose accession starts with `q`.
+    """Typeahead: NM/NR transcripts, of any supported species, whose accession starts with `q`.
 
-    Primary source is a local index of real human NM and NR accessions (built from NCBI
-    data). Reliable, instant, comprehensive. Falls back to a live NCBI lookup only if the
-    index has no match (e.g. an accession newer than the index). Returns [{accession, gene}].
+    An accession belongs to exactly one organism, so the box that takes one needs no species
+    selector: every species' index is searched and each row says whose it is. Returns
+    [{accession, gene, species}].
+
+    Primary source is the local indexes of real accessions (built from NCBI data).
+    Reliable, instant, comprehensive. Falls back to a live NCBI lookup only if no index has a
+    match (e.g. an accession newer than the indexes).
     See vault `02 Data/NCBI Data Source and API.md`.
 
     The bare prefix is enough to open the list: typing "NR_" is how a user asks whether NR
@@ -575,45 +713,49 @@ def suggest_accessions(q: str, limit: int = 8) -> list[dict]:
         return []
 
     from bisect import bisect_left
-    rows, keys = _load_index()
     out: list[dict] = []
-    i = bisect_left(keys, base)
-    while i < len(keys) and keys[i].startswith(base):
-        out.append(rows[i])
-        if len(out) >= limit:
-            break
-        i += 1
+    for sp in species_mod.SPECIES:
+        accessions, genes = _load_index(sp)
+        i = bisect_left(accessions, base)
+        stop = min(len(accessions), i + limit)       # no species can contribute more
+        while i < stop and accessions[i].startswith(base):
+            out.append({"accession": accessions[i], "gene": genes[i], "species": sp.slug})
+            i += 1
     if out or len(base) < 5:
-        return out
+        out.sort(key=lambda r: r["accession"])
+        return out[:limit]
     return _suggest_live(base, limit)
 
 
 _GENE_TYPES = " OR ".join(
     f'"genetype {g}"[Properties]'
     for g in ("protein coding", "ncrna", "snorna", "snrna", "scrna", "rrna"))
-# A new directory rather than `suggest_gene`: the prefixes cached there were answered under
-# the protein-coding-only filter, and would keep hiding every non-coding gene they predate.
+# Not `suggest_gene`: the prefixes cached there were answered under the protein-coding-only
+# filter, and would keep hiding every non-coding gene they predate. One folder per species.
 _GENE_SUGGEST_DIR = CACHE_DIR / "suggest_gene_rna"
 
 
-def suggest_genes(q: str, limit: int = 8) -> list[dict]:
-    """Typeahead: human RNA-producing genes whose official symbol starts with `q`.
+def suggest_genes(q: str, sp: Species = HUMAN, limit: int = 8) -> list[dict]:
+    """Typeahead: a species' RNA-producing genes whose official symbol starts with `q`.
 
     Live NCBI E-utilities (db=gene), per-prefix cached. Protein-coding genes and the
     non-coding RNA gene types (lncRNA/antisense/miRNA as ncRNA, plus sno/sn/sc/rRNA) — the
     genes that carry NM or NR transcripts to analyze. Pseudogenes stay out of the
     typeahead: most have no transcript at all, and the few transcribed ones still resolve
-    when their symbol is searched in full. Best-effort — any error (incl. E-utilities rate
-    limiting without an API key) yields []. Non-empty results only are cached, so a
-    transient failure doesn't poison the prefix. Returns [{symbol, description}]."""
+    when their symbol is searched in full. Scoped by taxonomy id without subtree expansion,
+    so it offers exactly the genes a lookup under that id will find. Best-effort — any
+    error (incl. E-utilities rate limiting without an API key) yields []. Non-empty results
+    only are cached, so a transient failure doesn't poison the prefix. Symbols come back in
+    NCBI's official capitalization. Returns [{symbol, description}]."""
     base = q.strip().upper()
     if len(base) < 2:
         return []
-    cached = _read_json(_GENE_SUGGEST_DIR / f"{base}.json")
+    cache_path = _GENE_SUGGEST_DIR / sp.slug / f"{_file_safe(base)}.json"
+    cached = _read_json(cache_path)
     if cached is not None:
         return cached[:limit]
     try:
-        term = (f"{base}*[Preferred Symbol] AND Homo sapiens[Organism] "
+        term = (f"{base}*[Preferred Symbol] AND txid{sp.tax_id}[Organism:noexp] "
                 f"AND alive[prop] AND ({_GENE_TYPES})")
         es = _eutils_json("esearch.fcgi",
                           {"db": "gene", "term": term, "retmax": limit,
@@ -630,22 +772,26 @@ def suggest_genes(q: str, limit: int = 8) -> list[dict]:
                 if sym.upper().startswith(base):   # drop Entrez wildcard noise
                     out.append({"symbol": sym, "description": r.get("description", "")})
         if out:
-            _write_json(_GENE_SUGGEST_DIR / f"{base}.json", out[:limit])
+            _write_json(cache_path, out[:limit])
         return out[:limit]
     except Exception:
         return []
 
 
 def _suggest_live(base: str, limit: int) -> list[dict]:
-    """Fallback: NCBI E-utilities lookup (per-prefix cached). Post-filtered to true prefix
-    matches (Entrez's accession wildcard is noisy). Best-effort — errors yield []."""
-    cached = _read_json(CACHE_DIR / "suggest" / f"{base}.json")
+    """Fallback: NCBI E-utilities lookup (per-prefix cached), across the supported species.
+    Post-filtered to true prefix matches (Entrez's accession wildcard is noisy).
+    Best-effort — errors yield []."""
+    # `suggest_refseq`, not `suggest`: what was cached there was asked of human alone.
+    cache_path = CACHE_DIR / "suggest_refseq" / f"{base}.json"
+    cached = _read_json(cache_path)
     if cached is not None:
         return cached[:limit]
     try:
         # No biomol filter: the NM_/NR_ prefix already names the molecule class, and the
         # post-filter below keeps only true prefix matches.
-        term = f"{base}*[ACCN] AND srcdb_refseq[PROP] AND txid9606[ORGN]"
+        taxa = " OR ".join(f"txid{sp.tax_id}[ORGN]" for sp in species_mod.SPECIES)
+        term = f"{base}*[ACCN] AND srcdb_refseq[PROP] AND ({taxa})"
         es = _eutils_json("esearch.fcgi",
                           {"db": "nuccore", "term": term, "retmax": 20, "retmode": "json"})
         ids = ((es.get("esearchresult") or {}).get("idlist")) or []
@@ -657,9 +803,11 @@ def _suggest_live(base: str, limit: int) -> list[dict]:
             for uid in res.get("uids", []):
                 r = res.get(uid) or {}
                 acc = r.get("accessionversion") or r.get("caption") or ""
-                if acc.upper().startswith(base):   # drop Entrez wildcard noise
-                    out.append({"accession": acc, "gene": _symbol_from_title(r.get("title", ""))})
-        _write_json(CACHE_DIR / "suggest" / f"{base}.json", out[:limit])
+                sp = species_mod.by_tax_id(r.get("taxid"))
+                if acc.upper().startswith(base) and sp:   # drop Entrez wildcard noise
+                    out.append({"accession": acc, "gene": _symbol_from_title(r.get("title", "")),
+                                "species": sp.slug})
+        _write_json(cache_path, out[:limit])
         return out[:limit]
     except Exception:
         return []
