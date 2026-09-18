@@ -22,7 +22,9 @@ export const SPECIES: readonly SpeciesInfo[] = [
   { slug: "human", taxId: "9606", scientific: "Homo sapiens", common: "Human",
     examples: ["GAPDH", "TCF7L2", "ACTB"] },
   { slug: "mouse", taxId: "10090", scientific: "Mus musculus", common: "Mouse",
-    examples: ["Gapdh", "Tcf7l2", "Trp53"] },
+    // Not Trp53: NCBI revised both its records in May 2024 and has not placed them on GRCm39
+    // since, so it answers NOT_PLACED — true, but no way to meet the tool.
+    examples: ["Gapdh", "Tcf7l2", "Actb"] },
   { slug: "rat", taxId: "10116", scientific: "Rattus norvegicus", common: "Rat",
     examples: ["Actb", "Tp53", "Bdnf"] },
   { slug: "fly", taxId: "7227", scientific: "Drosophila melanogaster", common: "Fruit fly",
