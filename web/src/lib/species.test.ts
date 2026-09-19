@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  SPECIES, decodeGeneRef, encodeGeneRef, isSpecies, sameSymbol, speciesOf, typedSymbol,
+  SPECIES, decodeGeneRef, encodeGeneRef, isSpecies, sameSymbol, shortBinomial, speciesOf, typedSymbol,
 } from "./species";
 
 const ENGINE_SPECIES = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "engine", "app", "species.py");
@@ -43,6 +43,14 @@ describe("species helpers", () => {
     expect(typedSymbol(" Gapdh ", "mouse")).toBe("Gapdh");
     expect(typedSymbol("gapdh", "zebrafish")).toBe("gapdh");     // lower case IS the convention
     expect(typedSymbol("w", "fly")).toBe("w");                    // and in fly it is the name
+  });
+
+  it("abbreviates the genus of a binomial, the standard short form", () => {
+    expect(SPECIES.map((s) => shortBinomial(s.scientific))).toEqual(
+      ["H. sapiens", "M. musculus", "R. norvegicus", "D. melanogaster", "S. cerevisiae", "D. rerio"]);
+    expect(shortBinomial("  Mus   musculus ")).toBe("M. musculus");
+    expect(shortBinomial("Saccharomyces cerevisiae S288C")).toBe("S. cerevisiae S288C");
+    expect(shortBinomial("Drosophila")).toBe("Drosophila");      // nothing to abbreviate against
   });
 
   it("compares symbols the way NCBI's lookup does", () => {

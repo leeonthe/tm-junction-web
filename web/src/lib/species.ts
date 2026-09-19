@@ -46,6 +46,15 @@ export const speciesOf = (slug?: string | null): SpeciesInfo =>
   SPECIES.find((x) => x.slug === slug) ?? SPECIES[0];
 
 /**
+ * A binomial with its genus abbreviated — "Mus musculus" → "M. musculus" — the standard short
+ * form, for a label too small to carry the whole name beside the control that spells it out.
+ */
+export const shortBinomial = (scientific: string): string => {
+  const [genus, ...rest] = scientific.trim().split(/\s+/);
+  return rest.length ? `${genus[0]}. ${rest.join(" ")}` : scientific.trim();
+};
+
+/**
  * A gene symbol as the page holds it before NCBI has answered. Human symbols are upper
  * case, so a pasted "gapdh" reads "GAPDH" straight away; every other species keeps what was
  * typed, because its convention is not something to guess (zebrafish is all lower case,

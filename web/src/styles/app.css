@@ -147,13 +147,20 @@ h1{margin:0;font-weight:600;font-size:clamp(34px,5.4vw,56px);line-height:1.04;le
   background-repeat:no-repeat;background-position:right 12px center}
 .sp-select:focus-visible{box-shadow:0 0 0 2px var(--brand)}
 .suggest .sg-sp,.chip-sp{font-weight:500;opacity:.75;font-family:var(--sans,inherit)}
+/* Binomials are set in italics — in the selector and on the chips that point back at it. */
+.sp-select,.chip-sp{font-style:italic}
 /* Phones: three controls share ~340px, so each gives something up — the button its label
    (the arrow stays; it keeps the label while loading, when it has no arrow), the selector
    some padding, the lede its scientific name (see Hero) — and the symbol keeps the rest. */
 @media (max-width:520px){
   .search .btn:not(.is-loading){padding:9px 13px}
   .search .btn:not(.is-loading) .btn-label{display:none}
-  .sp-select{font-size:13px;padding:0 26px 0 12px;background-position:right 10px center;max-width:44%}
+  /* The selector spells out a binomial, and the longest (Saccharomyces cerevisiae) has to
+     survive a phone. So its cap is what the REST of the bar needs — the two gaps, the arrow
+     button and ~93px of input — rather than a share of the bar: every name is whole down to
+     a 360px screen, and below that the longest give way before the input does. */
+  .sp-select{font-size:12px;padding:0 22px 0 11px;background-position:right 8px center;
+    max-width:calc(100% - 150px)}
   .search input{padding:0 4px 0 10px}
   .lede-sci{display:none}
 }

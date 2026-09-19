@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { suggest, suggestGenes } from "../lib/api";
-import { SPECIES, speciesOf, type GeneRef, type SpeciesSlug } from "../lib/species";
+import { SPECIES, shortBinomial, speciesOf, type GeneRef, type SpeciesSlug } from "../lib/species";
 import { CustomArmInputs, type Arms } from "./CustomJunction";
 import { ArrowRight } from "./icons";
 
@@ -160,13 +160,15 @@ export default function Hero({
         <div className="search-wrap">
           <form className="search" onSubmit={(e) => { e.preventDefault(); submit(); }}>
             {/* Species + symbol is the search, as it is at NCBI ("Mus musculus Gapdh"), so the
-                species sits in the bar, ahead of the symbol it scopes. */}
+                species sits in the bar, ahead of the symbol it scopes — and under the name
+                NCBI and the literature know it by, the binomial, not the common name. The
+                common name is a hover away (title) and in the sentence above the bar. */}
             {geneMode && (
               <select className="sp-select" value={species} aria-label="Species"
-                title={`${sp.common} — ${sp.scientific}`}
+                title={`${sp.scientific} — ${sp.common.toLowerCase()}`}
                 onChange={(e) => changeSpecies(e.target.value as SpeciesSlug)}>
                 {SPECIES.map((x) => (
-                  <option key={x.slug} value={x.slug}>{x.common}</option>
+                  <option key={x.slug} value={x.slug}>{x.scientific}</option>
                 ))}
               </select>
             )}
@@ -224,7 +226,9 @@ export default function Hero({
           const recents: Chip[] = geneMode
             ? geneHistory.map((g) => ({
                 key: `${g.species}:${g.symbol}`, label: g.symbol,
-                tag: g.species === species ? undefined : speciesOf(g.species).common,
+                // Clicking a tagged chip moves the selector to that species, so the tag reads
+                // like the option it selects — genus abbreviated, so three chips keep to a row.
+                tag: g.species === species ? undefined : shortBinomial(speciesOf(g.species).scientific),
                 go: () => choose(g.symbol, g.species) }))
             : history.map((h) => ({ key: h, label: h, go: () => choose(h) }));
           // Examples follow the selector, so they are offered whenever the recents hold

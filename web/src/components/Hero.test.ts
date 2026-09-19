@@ -38,6 +38,25 @@ describe("the search hero keeps its shape", () => {
     expect(lede).toContain("{sp.scientific}");
   });
 
+  it("names species in the selector by their binomial, not their common name", () => {
+    // The species is searched under the name NCBI and the literature use — Homo sapiens,
+    // Mus musculus — so that is what the selector lists; the common name is its tooltip.
+    const select = /<select className="sp-select"[\s\S]*?<\/select>/.exec(hero)?.[0] ?? "";
+    expect(select).toContain("<option key={x.slug} value={x.slug}>{x.scientific}</option>");
+    expect(select).not.toMatch(/\{x\.common\}/);
+    expect(select).toMatch(/title=\{`\$\{sp\.scientific\} — /);
+    // A recent-search chip moves the selector when clicked, so its tag reads like the option.
+    expect(hero).toMatch(/tag: g\.species === species \? undefined : shortBinomial\(/);
+    expect(css).toMatch(/\.sp-select,\.chip-sp\{font-style:italic\}/);
+  });
+
+  it("caps the phone selector by what the rest of the bar needs, so a full binomial fits", () => {
+    // A share of the bar (it was 44%) cut "Saccharomyces cerevisiae" off on every phone.
+    const phone = /@media \(max-width:520px\)\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(phone).toMatch(/\.sp-select\{[^}]*max-width:calc\(100% - 150px\)/);
+    expect(phone).not.toMatch(/\.sp-select\{[^}]*max-width:\d+%/);
+  });
+
   it("drops the scientific name only where even the species line cannot fit", () => {
     const phone = /@media \(max-width:520px\)\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(phone).toMatch(/\.lede-sci\{display:none\}/);
