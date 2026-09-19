@@ -121,15 +121,26 @@ export default function Hero({
       <div className="wrap hero-in">
         <span className="eyebrow"><b />Tm-guided exon–exon junction RT-PCR</span>
         <h1>Exon Junction Primer</h1>
+        {/* Three lines, always, and broken in the same place. Left to wrap on its own the
+            sentence came out two lines for human and three for every other species — each
+            breaking somewhere different ("to analyze." alone on a line for rat) — so the
+            search bar jumped whenever the species changed. The break sits after the species
+            because that is the longest stretch that fits for all six: "…(Saccharomyces
+            cerevisiae) to browse its transcripts," does not. Human names its species too, so
+            every option reads from one template; the other two modes break the same way, so
+            the mode tabs below do not move under the pointer either. On a phone even the
+            species line is too long for yeast, so the scientific name is dropped there
+            (.lede-sci) — the selector beside it already says which species. */}
         <p className="lede">
           Primer design tool for transcript-specific PCR/qPCR.<br />
           {seqMode
-            ? <>Paste the two sides of a junction to design an EEJ primer against your own sequence.</>
+            ? <>Paste the two sides of a junction<br />
+                to design an EEJ primer against your own sequence.</>
             : geneMode
-            ? <>Search a {sp.common.toLowerCase()} gene{species !== "human" && <> (<i>{sp.scientific}</i>)</>} to
-                browse its transcripts, then pick a variant to analyze.</>
-            : <>Enter a RefSeq accession — NM (mRNA) or NR (non-coding RNA), of any supported
-                species — to find unique primer regions.</>}
+            ? <>Search a {sp.common.toLowerCase()} gene<span className="lede-sci"> (<i>{sp.scientific}</i>)</span><br />
+                to browse its transcripts, then pick a variant to analyze.</>
+            : <>Enter a RefSeq accession — NM (mRNA) or NR (non-coding RNA),<br />
+                of any supported species — to find unique primer regions.</>}
         </p>
 
         <div className="mode-toggle" role="tablist" aria-label="Search by">
@@ -170,8 +181,13 @@ export default function Hero({
               onFocus={() => setFocused(true)}
               onBlur={() => setTimeout(() => setFocused(false), 120)}
               onKeyDown={onKeyDown} />
-            <button className="btn" type="submit" disabled={loading}>
-              {loading ? (geneMode ? "Searching…" : "Analyzing…") : (geneMode ? "Find variants" : "Analyze")}
+            {/* On a phone the label gives way to the arrow alone (.btn-label), so the symbol
+                being typed keeps the room; aria-label keeps the button's name either way. */}
+            <button className={`btn${loading ? " is-loading" : ""}`} type="submit" disabled={loading}
+              aria-label={loading ? (geneMode ? "Searching" : "Analyzing") : (geneMode ? "Find variants" : "Analyze")}>
+              <span className="btn-label">
+                {loading ? (geneMode ? "Searching…" : "Analyzing…") : (geneMode ? "Find variants" : "Analyze")}
+              </span>
               {!loading && <ArrowRight />}
             </button>
           </form>

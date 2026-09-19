@@ -131,7 +131,10 @@ h1{margin:0;font-weight:600;font-size:clamp(34px,5.4vw,56px);line-height:1.04;le
   text-overflow:ellipsis;max-width:60%;text-align:right}
 .suggest-loading{display:flex;align-items:center;gap:9px;padding:10px 12px;font-size:13px;color:var(--muted)}
 .suggest-loading .spinner{width:14px;height:14px}
-.search input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);
+/* min-width:0 — a flex item will not shrink below its content's width, and a text input's
+   is ~20 characters. Beside the species selector that pushed the submit button 84px off the
+   edge of a 390px phone; the input is the one thing in the bar that CAN give way. */
+.search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);
   font-family:var(--mono);font-size:15px;padding:0 8px 0 14px}
 .search input::placeholder{color:var(--faint)}
 /* The species sits inside the search bar, ahead of the symbol it scopes. A native select,
@@ -144,6 +147,16 @@ h1{margin:0;font-weight:600;font-size:clamp(34px,5.4vw,56px);line-height:1.04;le
   background-repeat:no-repeat;background-position:right 12px center}
 .sp-select:focus-visible{box-shadow:0 0 0 2px var(--brand)}
 .suggest .sg-sp,.chip-sp{font-weight:500;opacity:.75;font-family:var(--sans,inherit)}
+/* Phones: three controls share ~340px, so each gives something up — the button its label
+   (the arrow stays; it keeps the label while loading, when it has no arrow), the selector
+   some padding, the lede its scientific name (see Hero) — and the symbol keeps the rest. */
+@media (max-width:520px){
+  .search .btn:not(.is-loading){padding:9px 13px}
+  .search .btn:not(.is-loading) .btn-label{display:none}
+  .sp-select{font-size:13px;padding:0 26px 0 12px;background-position:right 10px center;max-width:44%}
+  .search input{padding:0 4px 0 10px}
+  .lede-sci{display:none}
+}
 .examples{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);flex-wrap:wrap;justify-content:center}
 .chip-ex{font-family:var(--mono);font-size:12.5px;padding:4px 10px;border-radius:var(--r-pill);
   border:1px solid var(--border-2);color:var(--text);background:var(--surface);cursor:pointer}
