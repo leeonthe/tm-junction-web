@@ -139,16 +139,30 @@ h1{margin:0;font-weight:600;font-size:clamp(34px,5.4vw,56px);line-height:1.04;le
 .search input::placeholder{color:var(--faint)}
 /* The species sits inside the search bar, ahead of the symbol it scopes. A native select,
    so it is keyboard- and screen-reader-complete for free; the chevron is drawn because
-   appearance:none removes the platform's. */
-.sp-select{flex:none;appearance:none;-webkit-appearance:none;border:0;outline:0;cursor:pointer;
-  font:inherit;font-size:13.5px;font-weight:600;color:var(--brand-ink);background-color:var(--brand-tint);
-  padding:0 30px 0 14px;border-radius:var(--r-pill);max-width:46%;text-overflow:ellipsis;
+   appearance:none removes the platform's.
+
+   The pill is .sp-wrap, and it is exactly as wide as the SELECTED name: .sp-sizer is an
+   invisible copy of that name, in the select's own type and padding, and the select is laid
+   over the pair. (Left to itself a select is as wide as its widest option, so a short name
+   sat in a box cut for the longest.) The type lives on the wrapper so both inherit the same. */
+.sp-wrap{position:relative;flex:none;display:inline-flex;align-items:center;overflow:hidden;
+  max-width:46%;border-radius:var(--r-pill);background:var(--brand-tint);
+  font-size:13.5px;font-weight:600;color:var(--brand-ink)}
+.sp-wrap:has(:focus-visible){box-shadow:0 0 0 2px var(--brand)}
+/* +2px on the right: a select and a span can round the same text a pixel apart, and the
+   difference must never be an ellipsis. */
+.sp-sizer{visibility:hidden;white-space:nowrap;padding:0 32px 0 14px}
+/* letter-spacing:inherit is load-bearing. Browsers reset it to `normal` on form controls, and
+   `font:inherit` does not cover it — so the select set the name wider than the sizer measuring
+   it (the page tracks at -.01em), and the three longest names were cut off by two pixels. */
+.sp-select{position:absolute;inset:0;width:100%;height:100%;appearance:none;-webkit-appearance:none;
+  border:0;outline:0;cursor:pointer;font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;
+  padding:0 30px 0 14px;border-radius:inherit;text-overflow:ellipsis;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236B7685' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center}
-.sp-select:focus-visible{box-shadow:0 0 0 2px var(--brand)}
 .suggest .sg-sp,.chip-sp{font-weight:500;opacity:.75;font-family:var(--sans,inherit)}
 /* Binomials are set in italics — in the selector and on the chips that point back at it. */
-.sp-select,.chip-sp{font-style:italic}
+.sp-wrap,.chip-sp{font-style:italic}
 /* Phones: three controls share ~340px, so each gives something up — the button its label
    (the arrow stays; it keeps the label while loading, when it has no arrow), the selector
    some padding, the lede its scientific name (see Hero) — and the symbol keeps the rest. */
@@ -159,8 +173,9 @@ h1{margin:0;font-weight:600;font-size:clamp(34px,5.4vw,56px);line-height:1.04;le
      survive a phone. So its cap is what the REST of the bar needs — the two gaps, the arrow
      button and ~93px of input — rather than a share of the bar: every name is whole down to
      a 360px screen, and below that the longest give way before the input does. */
-  .sp-select{font-size:12px;padding:0 22px 0 11px;background-position:right 8px center;
-    max-width:calc(100% - 150px)}
+  .sp-wrap{font-size:12px;max-width:calc(100% - 150px)}
+  .sp-sizer{padding:0 24px 0 11px}
+  .sp-select{padding:0 22px 0 11px;background-position:right 8px center}
   .search input{padding:0 4px 0 10px}
   .lede-sci{display:none}
 }

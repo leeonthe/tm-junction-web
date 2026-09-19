@@ -47,14 +47,43 @@ describe("the search hero keeps its shape", () => {
     expect(select).toMatch(/title=\{`\$\{sp\.scientific\} — /);
     // A recent-search chip moves the selector when clicked, so its tag reads like the option.
     expect(hero).toMatch(/tag: g\.species === species \? undefined : shortBinomial\(/);
-    expect(css).toMatch(/\.sp-select,\.chip-sp\{font-style:italic\}/);
+    expect(css).toMatch(/\.sp-wrap,\.chip-sp\{font-style:italic\}/);
+  });
+
+  it("sizes the species pill to the SELECTED name, not to the longest one", () => {
+    // A native select is as wide as its widest option, so "Mus musculus" sat in a box cut
+    // for "Saccharomyces cerevisiae" with a dead gap before the chevron. The pill's width
+    // now comes from an invisible copy of the selected name, with the select laid over it.
+    const wrap = /<span className="sp-wrap">([\s\S]*?)<\/select>\s*<\/span>/.exec(hero)?.[1] ?? "";
+    expect(wrap).toContain('<span className="sp-sizer" aria-hidden="true">{sp.scientific}</span>');
+    expect(wrap).toContain('<select className="sp-select"');
+    expect(rule(".sp-sizer")).toMatch(/visibility:hidden/);
+    expect(rule(".sp-sizer")).toMatch(/white-space:nowrap/);
+    expect(rule(".sp-select")).toMatch(/position:absolute;inset:0/);
+    expect(rule(".sp-wrap")).toMatch(/position:relative/);
+  });
+
+  it("sets the name identically in the select and in the copy that measures it", () => {
+    // Browsers reset letter-spacing to `normal` on form controls and `font:inherit` does not
+    // cover it. With the page tracking at -.01em the select drew each name wider than the
+    // sizer allowed for, and the three longest were cut off by two pixels. Found by measuring
+    // rendered widths in a browser; a canvas estimate ignores letter-spacing and hid it.
+    expect(rule(".sp-select")).toMatch(/font:inherit;letter-spacing:inherit/);
+    // Same padding on both, plus the sizer's two pixels of slack on the chevron side.
+    const pad = (r: string) => /padding:0 (\d+)px 0 (\d+)px/.exec(r)?.slice(1).map(Number) ?? [];
+    const [selRight, selLeft] = pad(rule(".sp-select")), [sizRight, sizLeft] = pad(rule(".sp-sizer"));
+    expect(sizLeft).toBe(selLeft);
+    expect(sizRight - selRight).toBe(2);
   });
 
   it("caps the phone selector by what the rest of the bar needs, so a full binomial fits", () => {
     // A share of the bar (it was 44%) cut "Saccharomyces cerevisiae" off on every phone.
     const phone = /@media \(max-width:520px\)\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(phone).toMatch(/\.sp-select\{[^}]*max-width:calc\(100% - 150px\)/);
-    expect(phone).not.toMatch(/\.sp-select\{[^}]*max-width:\d+%/);
+    expect(phone).toMatch(/\.sp-wrap\{[^}]*max-width:calc\(100% - 150px\)/);
+    expect(phone).not.toMatch(/\.sp-(wrap|select)\{[^}]*max-width:\d+%/);
+    // The phone paddings keep the same relation as the desktop ones.
+    expect(phone).toMatch(/\.sp-sizer\{padding:0 24px 0 11px\}/);
+    expect(phone).toMatch(/\.sp-select\{padding:0 22px 0 11px;/);
   });
 
   it("drops the scientific name only where even the species line cannot fit", () => {

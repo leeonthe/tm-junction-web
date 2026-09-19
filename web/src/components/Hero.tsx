@@ -162,15 +162,25 @@ export default function Hero({
             {/* Species + symbol is the search, as it is at NCBI ("Mus musculus Gapdh"), so the
                 species sits in the bar, ahead of the symbol it scopes — and under the name
                 NCBI and the literature know it by, the binomial, not the common name. The
-                common name is a hover away (title) and in the sentence above the bar. */}
+                common name is a hover away (title) and in the sentence above the bar.
+
+                The pill hugs the name that is selected. A native select is as wide as its
+                WIDEST option, which left "Mus musculus" adrift in a box cut for
+                "Saccharomyces cerevisiae", a dead gap before the chevron. So the width comes
+                from an invisible copy of the selected name (.sp-sizer) and the select is
+                stretched over it — still a native select, with everything that brings, and
+                no measuring in script to go stale when the font loads. */}
             {geneMode && (
-              <select className="sp-select" value={species} aria-label="Species"
-                title={`${sp.scientific} — ${sp.common.toLowerCase()}`}
-                onChange={(e) => changeSpecies(e.target.value as SpeciesSlug)}>
-                {SPECIES.map((x) => (
-                  <option key={x.slug} value={x.slug}>{x.scientific}</option>
-                ))}
-              </select>
+              <span className="sp-wrap">
+                <span className="sp-sizer" aria-hidden="true">{sp.scientific}</span>
+                <select className="sp-select" value={species} aria-label="Species"
+                  title={`${sp.scientific} — ${sp.common.toLowerCase()}`}
+                  onChange={(e) => changeSpecies(e.target.value as SpeciesSlug)}>
+                  {SPECIES.map((x) => (
+                    <option key={x.slug} value={x.slug}>{x.scientific}</option>
+                  ))}
+                </select>
+              </span>
             )}
             <input className="mono" value={value} spellCheck={false}
               aria-label={geneMode ? "Gene symbol" : "Transcript accession"}
