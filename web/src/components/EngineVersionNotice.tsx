@@ -49,6 +49,11 @@ const REQUIRED: { feature: string; missing: string }[] = [
     missing: "a single-exon transcript gets a forward primer and no pair, and on a "
       + "minus-strand one the unique region is reported at the wrong end of the mRNA",
   },
+  {
+    feature: "transcript_exclusion",
+    missing: "transcripts cannot be excluded from the comparison — an exclusion in the "
+      + "address was ignored, and every transcript of the gene was compared",
+  },
 ];
 
 export default function EngineVersionNotice({ result }: { result: AnalyzeResponse }) {

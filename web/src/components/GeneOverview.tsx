@@ -18,6 +18,12 @@ export default function GeneOverview({ result }: { result: AnalyzeResponse }) {
         <div className="stat-tile t-hard"><div className="n">{summary.hard_case_count}</div><div className="l">Infeasible</div></div>
       </div>
 
+      {!!summary.excluded_count && (
+        <p className="stat-note">
+          <b>{summary.excluded_count}</b> transcript{summary.excluded_count > 1 ? "s" : ""} excluded
+          from this comparison by you — every count and verdict here is over the {summary.nm_count} included.
+        </p>
+      )}
       {/* The isoform count is sequences, not accessions. Where RefSeq has issued more than
           one accession for a molecule, saying so keeps the tile from looking short. */}
       {!!summary.merged_accession_count && (

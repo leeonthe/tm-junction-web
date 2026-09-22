@@ -10,10 +10,11 @@ import VerdictTable from "./VerdictTable";
  * tab (`onSelect`), keeping this tab purely gene-wide.
  */
 export default function GeneClassification({
-  result, onSelect,
+  result, onSelect, onInclude,
 }: {
   result: AnalyzeResponse;
   onSelect: (accession: string) => void;
+  onInclude?: (accession: string) => void;
 }) {
   return (
     <>
@@ -24,7 +25,8 @@ export default function GeneClassification({
           <h3 className="card-title">Per-isoform verdict</h3>
           <span className="hint">Click an isoform to see its primers ↗</span>
         </div>
-        <VerdictTable transcripts={result.transcripts} targetAccession={result.target_accession} onSelect={onSelect} />
+        <VerdictTable transcripts={result.transcripts} targetAccession={result.target_accession} onSelect={onSelect}
+          excluded={result.excluded} onInclude={onInclude} />
       </section>
     </>
   );

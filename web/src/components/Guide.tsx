@@ -332,7 +332,11 @@ export default function Guide({ onBack, onMethod, backLabel }: {
           inside its one exon, and a gene that has such a transcript gets whole-transcript
           pairs in the stretch its transcripts share, since no product across a junction can
           include it. Those pairs are marked: genomic DNA gives the same band, so DNase-treat
-          the RNA and run a no-RT control alongside. Specificity is
+          the RNA and run a no-RT control alongside. And the transcript set itself is yours to
+          edit: the chips above the tabs list every transcript of the gene, and clicking one
+          sets it aside — every verdict and pair is then made as if the gene did not have it,
+          so you can amplify only the transcripts you want, or measure the gene without a
+          variant you do not expect in the sample. Specificity is
           established within the gene's RefSeq (NM + NR) isoform set — for genome-wide uniqueness, run
           the pair through NCBI Primer-BLAST or UCSC's BLAT (Genome Browser → Tools →
           Blat) as usual. The formulas and constants behind every

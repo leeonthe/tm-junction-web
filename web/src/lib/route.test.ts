@@ -24,6 +24,8 @@ describe("route round trip", () => {
     { page: "home", mode: "gene", gene: "Gapdh", tab: "summary", species: "mouse" },
     { page: "home", mode: "gene", gene: "gapdh", transcript: "NM_001115114.1", tab: "pan", species: "zebrafish" },
     { page: "home", mode: "accession", tab: "summary", species: "rat" },
+    // excluded transcripts are part of the analysis, so part of the address
+    { page: "home", mode: "accession", transcript: "NM_002046.7", tab: "pan", exclude: ["NR_152150.2", "NM_001357943.2"] },
     { page: "sequence", five: "", three: "" },
     { page: "sequence", five: "TTTTGCGTCGCCAG", three: "CCGAGCCACATCGCTCAGAC" },
     { page: "method" },
@@ -58,6 +60,14 @@ describe("route addresses", () => {
       { page: "home", mode: "gene", gene: "gapdh", tab: "summary", species: "zebrafish" });
     expect(parse("/?g=gapdh&sp=human")).toEqual({ page: "home", mode: "gene", gene: "GAPDH", tab: "summary" });
     expect(parse("/?g=gapdh&sp=unicorn")).toEqual({ page: "home", mode: "gene", gene: "GAPDH", tab: "summary" });
+  });
+
+  it("carries an exclusion only with the transcript it applies to", () => {
+    expect(routeUrl({ page: "home", mode: "accession", transcript: "NM_002046.7", tab: "summary", exclude: ["NR_152150.2"] }))
+      .toBe("/?t=NM_002046.7&x=NR_152150.2");
+    expect(parse("/?t=NM_002046.7&x=nr_152150.2,%20NM_001357943.2,,")).toEqual(
+      { page: "home", mode: "accession", transcript: "NM_002046.7", tab: "summary", exclude: ["NR_152150.2", "NM_001357943.2"] });
+    expect(parse("/?g=GAPDH&x=NR_152150.2")).toEqual({ page: "home", mode: "gene", gene: "GAPDH", tab: "summary" });
   });
 
   it("does not carry a tab without a transcript to show it on", () => {

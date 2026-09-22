@@ -295,6 +295,7 @@ export default function PanVariantDesigner({ result, seqs }: {
               {chosen && (
                 <span className={`mini-chip ${all ? "tc-conv" : "tc-eej"}`}>
                   covers {nCovered} of {total} {tx(total)}
+                  {!!result.excluded?.length && <> · {result.excluded.length} excluded</>}
                 </span>
               )}
             </>}
@@ -563,7 +564,7 @@ export default function PanVariantDesigner({ result, seqs }: {
         </div>
         <PanTrackGraph transcripts={mixed ? nmRows : transcripts} targetAccession={target_accession}
           status={rowStatus} size={chosen?.cov.size ?? null} seqs={seqs}
-          chromosome={gene.chromosome} strand={gene.strand} />
+          chromosome={gene.chromosome} strand={gene.strand} excluded={mixed ? [] : result.excluded} />
         <p className="g-note">
           Each row ends with the band that transcript gives: ✓ the pair's one size; ≠ another
           size, a second band, so not covered; or no product. Tiers are not shown here — this
@@ -589,7 +590,7 @@ export default function PanVariantDesigner({ result, seqs }: {
           </div>
           <PanTrackGraph transcripts={transcripts} targetAccession={target_accession} groupByClass
             status={rowStatus} size={chosen?.cov.size ?? null} seqs={seqs}
-            chromosome={gene.chromosome} strand={gene.strand} />
+            chromosome={gene.chromosome} strand={gene.strand} excluded={result.excluded} />
           <p className="g-note">
             The pair is searched and its coverage counted over both classes at once: a
             non-coding transcript is in the same cDNA as the mRNAs, so a pair whose two sites

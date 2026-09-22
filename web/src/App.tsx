@@ -24,6 +24,7 @@ import Guide from "./components/Guide";
 import CustomJunctionResult, { EMPTY_ARMS, type Arms } from "./components/CustomJunction";
 import { DEFAULT_MODE, type Mode } from "./components/Hero";
 import LoadingState from "./components/LoadingState";
+import TranscriptFilter from "./components/TranscriptFilter";
 import { ArrowRight } from "./components/icons";
 
 interface RunOpts {
@@ -32,10 +33,13 @@ interface RunOpts {
   restore?: boolean;
   /** The gene context the URL says this transcript sits in (restores only); undefined clears it. */
   gene?: string;
+  /** Transcripts to leave out of the comparison. Omitted = keep the current list. */
+  exclude?: string[];
 }
 interface GeneSearchOpts { silent?: boolean; restore?: boolean }
-/** What the user asked for — the search, as distinct from what came back. Drives the URL. */
-interface Query { gene?: string; transcript?: string }
+/** What the user asked for — the search, as distinct from what came back. Drives the URL.
+ *  `exclude` is part of the analysis asked for: the transcripts left out of the comparison. */
+interface Query { gene?: string; transcript?: string; exclude?: string[] }
 
 const HISTORY_KEY = "tmj.history";
 const GENE_HISTORY_KEY = "tmj.gene_history";
@@ -62,7 +66,7 @@ export default function App() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [gene, setGene] = useState<GeneLookupResponse | null>(null);   // gene-name lookup (variant picker)
   const [query, setQuery] = useState<Query>(() =>
-    initial.page === "home" ? { gene: initial.gene, transcript: initial.transcript } : {});
+    initial.page === "home" ? { gene: initial.gene, transcript: initial.transcript, exclude: initial.exclude } : {});
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [tab, setTab] = useState<Tab>(initial.page === "home" ? initial.tab : "summary");
   const [history, setHistory] = useState<string[]>(() => loadStored(HISTORY_KEY));
@@ -125,7 +129,8 @@ export default function App() {
     : showMethod ? { page: "method" }
     : mode === "sequence" ? { page: "sequence", five: arms.five, three: arms.three }
     : { page: "home", mode, gene: query.gene, transcript: query.transcript, tab,
-        ...(species !== "human" ? { species } : {}) };
+        ...(species !== "human" ? { species } : {}),
+        ...(query.transcript && query.exclude?.length ? { exclude: query.exclude } : {}) };
   const routeRef = useRef(route);
   routeRef.current = route;
   const url = routeUrl(route);
@@ -174,11 +179,14 @@ export default function App() {
     if (r.transcript) {
       const haveGene = !!r.gene && pickerIs(cur.gene, r.gene, sp);
       if (!r.gene) setGene(null);
-      if (cur.result?.target_accession === r.transcript) {
+      const wantX = r.exclude ?? [];
+      const haveX = (cur.result?.meta?.excluded as string[] | undefined) ?? [];
+      const sameX = wantX.length === haveX.length && wantX.every((a) => haveX.includes(a));
+      if (cur.result?.target_accession === r.transcript && sameX) {
         setError(null);
-        setQuery({ gene: r.gene, transcript: r.transcript });
+        setQuery({ gene: r.gene, transcript: r.transcript, exclude: wantX });
       } else {
-        run(r.transcript, { keepTab: true, restore: true, silent, soft: !!cur.result, fromGene: !!r.gene, gene: r.gene });
+        run(r.transcript, { keepTab: true, restore: true, silent, soft: !!cur.result, fromGene: !!r.gene, gene: r.gene, exclude: wantX });
       }
       // The picker (and its "All variants" way back) for a link that came through it.
       if (r.gene && !haveGene) {
@@ -248,6 +256,12 @@ export default function App() {
   async function run(accession: string, opts: RunOpts = {}) {
     const { keepTab = false, soft = false, silent = false, fromGene = false, restore = false } = opts;
     if (!accession) return;
+    // The exclusion list outlives a re-target within the gene (amplify only these transcripts
+    // is a decision about the gene), but never covers the transcript now being analyzed, and
+    // a fresh search starts clean.
+    const acc = accession.trim().toUpperCase();
+    const carried = (soft || fromGene || restore) ? (opts.exclude ?? latest.current.query.exclude ?? []) : (opts.exclude ?? []);
+    const exclude = carried.filter((a) => a.split(".")[0] !== acc.split(".")[0]);
     const { signal, isCurrent } = claimRun();
     // A fresh accession search leaves the gene picker; picking a variant from it keeps the picker.
     if (!soft && !fromGene) setGene(null);
@@ -261,13 +275,17 @@ export default function App() {
     // pick from the picker keeps what is there; a fresh accession search drops it.
     setQuery((q) => ({
       gene: "gene" in opts ? opts.gene : (soft || fromGene) ? q.gene : undefined,
-      transcript: accession.trim().toUpperCase(),
+      transcript: acc,
+      exclude,
     }));
     try {
-      const r = await analyzeStream(accession, (p) => { if (!soft && isCurrent()) setProgress(p); }, signal);
+      const r = await analyzeStream(accession, (p) => { if (!soft && isCurrent()) setProgress(p); }, signal, exclude);
       if (!isCurrent()) return;
       setResult(r);
-      setQuery((q) => ({ ...q, transcript: r.target_accession }));   // canonical, versioned
+      // Canonical: the versioned accession, and the exclusion as the engine applied it (a
+      // twin pulled in by molecule, an unknown name dropped).
+      setQuery((q) => ({ ...q, transcript: r.target_accession,
+        exclude: (r.meta?.excluded as string[] | undefined) ?? exclude }));
       // The accession named its own species; the search box follows it.
       if (isSpecies(r.gene.species)) setSpecies(r.gene.species);
       if (!keepTab) setTab("summary");   // a fresh search lands on the everything view
@@ -290,6 +308,11 @@ export default function App() {
 
   // Re-target in place, staying on the current tab (Summary/Amplify sibling picks).
   const selectIsoform = (accession: string) => run(accession, { keepTab: true, soft: true });
+  // Change which transcripts the comparison includes: the same analysis, re-run in place.
+  const setExclusion = (exclude: string[]) => {
+    const t = latest.current.result?.target_accession ?? latest.current.query.transcript;
+    if (t) run(t, { keepTab: true, soft: true, exclude });
+  };
   // From the Gene tab: re-target and hand off to the Transcript-specific amplification tab to show its primers.
   const inspectIsoform = (accession: string) => { run(accession, { keepTab: true, soft: true }); setTab("amplify"); };
 
@@ -382,6 +405,7 @@ export default function App() {
               <Result result={result} tab={tab} setTab={setTab} busy={busy}
                 backToVariants={gene ? backToVariants : undefined}
                 onSelect={selectIsoform} onInspect={inspectIsoform}
+                onExclude={setExclusion}
                 />
             )}
             </>}
@@ -392,12 +416,20 @@ export default function App() {
   );
 }
 
-function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants }: {
+function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants, onExclude }: {
   result: AnalyzeResponse; tab: Tab; setTab: (t: Tab) => void;
   busy: boolean; onSelect: (acc: string) => void; onInspect: (acc: string) => void;
   backToVariants?: () => void;
+  onExclude: (exclude: string[]) => void;
 }) {
   const { gene, target_accession, target_verdict, primer_design, summary } = result;
+  const excludedNow = (result.meta?.excluded as string[] | undefined) ?? [];
+  /** Bring one transcript back into the comparison — from a dimmed row — with the accessions
+   *  that are the same molecule, which the engine excluded alongside it. */
+  const onInclude = (acc: string) => {
+    const twins = result.excluded?.find((e) => e.accession === acc)?.same_sequence_accessions ?? [];
+    onExclude(excludedNow.filter((a) => a !== acc && !twins.includes(a)));
+  };
   return (
     <>
       {backToVariants && (
@@ -419,11 +451,17 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
           <span className="gchip">Gene <b>{gene.gene_id}</b></span>
           <span className="gchip"><b>{gene.assembly}</b></span>
           <span className="gchip"><b>{summary.nm_count}</b> isoform{summary.nm_count === 1 ? "" : "s"}
-            {!!summary.nr_count && <> · {classBreakdown(summary.nm_count, summary.nr_count)}</>}</span>
+            {!!summary.nr_count && <> · {classBreakdown(summary.nm_count, summary.nr_count)}</>}
+            {!!summary.excluded_count && <> · <b>{summary.excluded_count}</b> excluded</>}</span>
         </div>
       </div>
 
       <EngineVersionNotice result={result} />
+
+      {/* Which transcripts the comparison includes. Above the tabs because it changes the
+          meaning of every one of them: tiers, unique regions, primers and whole-transcript
+          coverage are all "against the included transcripts". */}
+      <TranscriptFilter result={result} busy={busy} onChange={onExclude} />
 
       <div className="tabs">
         <button className={`tab ${tab === "summary" ? "on" : ""}`} onClick={() => setTab("summary")}>Summary</button>
@@ -432,7 +470,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
         <button className={`tab ${tab === "gene" ? "on" : ""}`} onClick={() => setTab("gene")}>Gene classification</button>
       </div>
 
-      {tab === "summary" && <Summary result={result} busy={busy} onSelect={onSelect} />}
+      {tab === "summary" && <Summary result={result} busy={busy} onSelect={onSelect} onInclude={onInclude} />}
 
       {tab === "pan" && <PanVariantTab result={result} busy={busy} />}
 
@@ -458,7 +496,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
         </div>
       )}
 
-      {tab === "gene" && <GeneClassification result={result} onSelect={onInspect} />}
+      {tab === "gene" && <GeneClassification result={result} onSelect={onInspect} onInclude={onInclude} />}
 
       <footer><div className="foot-in">
         <span>Data: NCBI RefSeq · Datasets v2 ({gene.assembly})</span>

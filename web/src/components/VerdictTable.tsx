@@ -1,13 +1,16 @@
-import type { TranscriptVerdict } from "../lib/types";
+import type { ExcludedTranscript, TranscriptVerdict } from "../lib/types";
 import { tierChipClass, tierColorVar, tierLabel } from "../lib/tier";
 import { foldedEntry, isNoncoding, variantLabel } from "../lib/format";
 
 export default function VerdictTable({
-  transcripts, targetAccession, onSelect,
+  transcripts, targetAccession, onSelect, excluded = [], onInclude,
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
   onSelect?: (accession: string) => void;
+  /** Transcripts set aside from the comparison: listed after the verdicts, dimmed, with a way back. */
+  excluded?: ExcludedTranscript[];
+  onInclude?: (accession: string) => void;
 }) {
   // A gene with ONE NM transcript has nothing to be distinguished FROM, so every exon comes
   // back "unique" and naming one of them (always exon 1, the first in the list) reads as a
@@ -77,6 +80,27 @@ export default function VerdictTable({
               </tr>
             );
           })}
+          {excluded.map((e) => (
+            <tr key={e.accession} className="is-excluded">
+              <td>
+                <span className="tacc">{e.accession}</span>
+                {e.is_mane && <span className="badge-mane">MANE</span>}
+                {isNoncoding(e.accession) && <span className="badge-nr">non-coding</span>}
+                <span className="tacc-variant">{variantLabel(e.variant, transcripts.length + excluded.length)}</span>
+                {!!e.same_sequence_accessions?.length && (
+                  <span className="tacc-same">= {e.same_sequence_accessions.map((a, i) =>
+                    foldedEntry(a, e.same_sequence_variants?.[i], e.variant)).join(", ")}</span>
+                )}
+              </td>
+              <td><span className="mini-chip tc-hard"><span className="d" style={{ background: "var(--faint)" }} />Excluded</span></td>
+              <td colSpan={2}>
+                {e.requested ? "Set aside by you" : "Identical sequence to an excluded transcript"} — not compared
+                against, not credited, no verdict.
+                {onInclude && <> <button type="button" className="linkish" onClick={() => onInclude(e.accession)}>Include</button></>}
+              </td>
+              <td><span className="annot">—</span></td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

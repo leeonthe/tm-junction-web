@@ -21,6 +21,7 @@ FEATURES = [
     "noncoding_transcripts",       # NR_ (non-coding RNA) transcripts analyzed alongside NM_
     "multi_species",               # species= on /gene and /suggest_genes; accessions of any supported species
     "single_exon_pairs",           # a one-exon transcript gets a pair inside its exon (flag SAME_EXON)
+    "transcript_exclusion",        # exclude= on /analyze: design against the transcripts the user keeps
 ]
 
 
@@ -149,6 +150,21 @@ class PanVariantOut(BaseModel):
     flags: list[str] = []
 
 
+class ExcludedTranscript(BaseModel):
+    """A transcript the user set aside. Not a sibling: nothing is designed to avoid it, no
+    whole-transcript pair is credited with it, and no verdict is given for it. Listed so the
+    page can show it dimmed, with its exons on the graphs, and offer it back."""
+    accession: str
+    variant: str | None = None
+    is_mane: bool = False
+    exons: list[Exon] = []
+    same_sequence_accessions: list[str] = []
+    same_sequence_variants: list[str | None] = []
+    # False when it was not asked for by name but is byte-identical to one that was: the
+    # same molecule cannot be half in and half out of the comparison.
+    requested: bool = True
+
+
 class GeneSummary(BaseModel):
     # Distinct transcript sequences, not accessions — NM and NR together. The name predates
     # NR support and stays because clients read it; nr_count says how many of them are NR.
@@ -159,6 +175,7 @@ class GeneSummary(BaseModel):
     needs_eej_count: int
     hard_case_count: int
     coord_non_unique_count: int
+    excluded_count: int = 0         # transcripts set aside by the user (see AnalyzeResponse.excluded)
 
 
 class GeneInfo(BaseModel):
@@ -191,6 +208,9 @@ class AnalyzeResponse(BaseModel):
     # variants covered first. pan_variant stays as options[0] for older clients.
     pan_variant: PanVariantOut | None = None
     pan_variant_options: list[PanVariantOut] = []
+    # Transcripts the user excluded from the comparison — every design above was made as if
+    # the gene did not have them. Empty unless `exclude` was given.
+    excluded: list[ExcludedTranscript] = []
     meta: dict
 
 

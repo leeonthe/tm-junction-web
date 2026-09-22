@@ -10,6 +10,7 @@
 //   /?t=NM_000186.4                     one transcript's analysis (accession search)
 //   /?g=CFH&t=NM_000186.4               the same, reached from the picker (keeps "All variants")
 //   /?t=NM_000186.4&tab=amplify         a result tab other than Summary
+//   /?t=NM_002046.7&x=NR_152150.2       the same analysis with transcripts excluded (comma list)
 //   /sequence?five=…&three=…            the custom-sequence designer, arms included
 //   /method, /guide                     the two documents
 //
@@ -32,7 +33,9 @@ export type Route =
   | { page: "home"; mode: SearchMode; gene?: string; transcript?: string; tab: Tab;
       /** Whose gene. Absent means human, so every link made before species support still
        *  says what it said. A transcript names its own species; this is the search box's. */
-      species?: SpeciesSlug };
+      species?: SpeciesSlug;
+      /** Transcripts excluded from the comparison — part of the analysis, so part of the address. */
+      exclude?: string[] };
 
 export const HOME: Route = { page: "home", mode: "gene", tab: "summary" };
 
@@ -62,8 +65,13 @@ export function parseRoute(pathname: string, search: string): Route {
     ? modeParam : impliedMode(gene, transcript);
   const tabParam = q.get("tab");
   const tab: Tab = transcript && isTab(tabParam) ? tabParam : "summary";
-  return species ? { page: "home", mode, gene, transcript, tab, species }
-    : { page: "home", mode, gene, transcript, tab };
+  const exclude = transcript
+    ? [...new Set((q.get("x") ?? "").split(",").map((a) => a.trim().toUpperCase()).filter(Boolean))]
+    : [];
+  const r: Route = { page: "home", mode, gene, transcript, tab };
+  if (species) r.species = species;
+  if (exclude.length) r.exclude = exclude;
+  return r;
 }
 
 /** Path plus query for a route — the shortest string that parses back to it. */
@@ -83,6 +91,7 @@ export function routeUrl(r: Route): string {
       if (r.species && r.species !== "human") q.set("sp", r.species);
       if (r.transcript) q.set("t", r.transcript);
       if (r.transcript && r.tab !== "summary") q.set("tab", r.tab);
+      if (r.transcript && r.exclude?.length) q.set("x", r.exclude.join(","));
       if (r.mode !== impliedMode(r.gene, r.transcript)) q.set("mode", r.mode);
       return withQuery("/", q);
     }

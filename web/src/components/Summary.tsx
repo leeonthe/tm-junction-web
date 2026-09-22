@@ -9,11 +9,12 @@ import VerdictTable from "./VerdictTable";
 
 /** Summary tab — everything in one place: the target's answer + the whole-gene map. */
 export default function Summary({
-  result, busy, onSelect,
+  result, busy, onSelect, onInclude,
 }: {
   result: AnalyzeResponse;
   busy: boolean;
   onSelect: (acc: string) => void;
+  onInclude?: (acc: string) => void;
 }) {
   return (
     <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
@@ -38,7 +39,8 @@ export default function Summary({
           <h3 className="card-title">Per-isoform verdict</h3>
           <span className="hint">Click an isoform to design its primers ↑</span>
         </div>
-        <VerdictTable transcripts={result.transcripts} targetAccession={result.target_accession} onSelect={onSelect} />
+        <VerdictTable transcripts={result.transcripts} targetAccession={result.target_accession} onSelect={onSelect}
+          excluded={result.excluded} onInclude={onInclude} />
       </section>
     </div>
   );

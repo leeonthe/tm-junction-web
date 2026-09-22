@@ -46,7 +46,7 @@ export default function TargetTrackCard({
         </div>
       </div>
       <ExonTrackGraph transcripts={[target_verdict]} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} mrna={result.target_mrna} />
-      {siblings.length > 0 && (
+      {(siblings.length > 0 || !!result.excluded?.length) && (
         <div className="sibling-note">
           <span className="sn-label">Distinguished from {siblings.length} other {gene.symbol} isoform{siblings.length !== 1 ? "s" : ""}:</span>
           <span className="sn-chips">
@@ -63,6 +63,13 @@ export default function TargetTrackCard({
                 </button>
               );
             })}
+            {/* The ones NOT distinguished from: set aside above, so the design ignores them. */}
+            {(result.excluded ?? []).map((e) => (
+              <span key={e.accession} className="chip-ex tf-chip out"
+                title={`${e.accession} is excluded from the comparison — this design does not avoid it`}>
+                <span className="mono">{e.accession}</span>
+              </span>
+            ))}
           </span>
           <button className="btn btn-ghost sn-explore" onClick={onExplore}>
             See the whole gene <ArrowRight />

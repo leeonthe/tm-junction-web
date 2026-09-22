@@ -10,7 +10,7 @@ from . import ncbi, overlap, panvariant, primers
 from . import species as species_mod
 from .amplify import AmplifyResult, analyze_amplifiability, cumulative_exon_ends
 from .models import (
-    FEATURES, AnalyzeResponse, Exon, GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
+    FEATURES, AnalyzeResponse, ExcludedTranscript, Exon, GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
     GeneTranscriptOut, JunctionOut, PanVariantOut, PrimerDesignOut, PrimerOut,
     TranscriptVerdict, UniqueRegionOut,
 )
@@ -190,7 +190,8 @@ def _cds_status(tx_begin: int, tx_end: int, cds: tuple[int, int] | None) -> str:
 
 
 def _exons_out(exons: list[tuple[int, int]], seq: str, cds: tuple[int, int] | None,
-               amp: AmplifyResult) -> list[Exon]:
+               amp: AmplifyResult | None) -> list[Exon]:
+    """`amp` None for a transcript outside the comparison: no unique sites to count."""
     cum = cumulative_exon_ends(exons)   # 0-based exclusive running mRNA ends
     out: list[Exon] = []
     for i, (b, e) in enumerate(exons):
@@ -202,7 +203,7 @@ def _exons_out(exons: list[tuple[int, int]], seq: str, cds: tuple[int, int] | No
             order=i + 1, begin=b, end=e, length=e - b + 1,
             tx_begin=tx_begin, tx_end=tx_end,
             cds=_cds_status(tx_begin, tx_end, cds), gc=gc,
-            unique_sites=len(amp.internal_starts.get(i + 1, [])),
+            unique_sites=len(amp.internal_starts.get(i + 1, [])) if amp else 0,
         ))
     return out
 
@@ -392,18 +393,59 @@ def _gene_of(accession: str) -> tuple[ncbi.GeneTranscripts, str]:
     raise AssertionError("unreachable")
 
 
-def analyze(accession: str, k: int = 20) -> AnalyzeResponse:
+def analyze(accession: str, k: int = 20, exclude: list[str] | None = None) -> AnalyzeResponse:
     """Run the full analysis and return the response (non-streaming wrapper)."""
     result: AnalyzeResponse | None = None
-    for ev in analyze_events(accession, k):
+    for ev in analyze_events(accession, k, exclude):
         if ev.get("type") == "result":
             result = ev["result"]
     assert result is not None
     return result
 
 
-def analyze_events(accession: str, k: int = 20):
+def _apply_exclusion(reps: list[str], same_seq: dict[str, list[str]], accs: dict,
+                     seqs: dict[str, str], target_acc: str, exclude: list[str],
+                     cds_of) -> tuple[list[str], list[ExcludedTranscript]]:
+    """Take the user's excluded transcripts out of the comparison.
+
+    An excluded transcript is not a sibling: nothing is designed to avoid it and nothing is
+    credited with it — the analysis proceeds as if the gene did not have it. Two rules:
+
+      * Exclusion is by MOLECULE. Accessions with byte-identical sequences are one
+        transcript here (see _same_sequence_groups), so excluding one of a pair excludes the
+        pair — leaving the twin in would keep the identical sequence in the comparison and
+        make the exclusion a no-op, silently. The twin is reported with requested=False.
+      * The target cannot be excluded: it is what the design is for.
+
+    Names are matched by accession with or without a version. Unknown names are ignored
+    rather than refused — a stale link naming a retired accession should still load.
+    """
+    want = {a.strip().upper().split(".")[0] for a in exclude if a and a.strip()}
+    if not want:
+        return reps, []
+    kept, out = [], []
+    for r in reps:
+        members = [r, *same_seq.get(r, [])]
+        hit = {m for m in members if m.split(".")[0] in want}
+        if not hit or r == target_acc:
+            kept.append(r)
+            continue
+        for m in members:
+            t = accs[m]
+            twins = [x for x in members if x != m]
+            out.append(ExcludedTranscript(
+                accession=m, variant=t.get("variant"), is_mane=t["is_mane"],
+                exons=_exons_out(t["exons"], seqs[m], cds_of(t), None),
+                same_sequence_accessions=twins,
+                same_sequence_variants=[accs[x].get("variant") for x in twins],
+                requested=m in hit))
+    return kept, out
+
+
+def analyze_events(accession: str, k: int = 20, exclude: list[str] | None = None):
     """Generator yielding real progress events, then the result.
+
+    `exclude`: accessions to leave out of the comparison entirely — see _apply_exclusion.
 
     Events: {"type":"progress","pct":int,"detail":str} … {"type":"result","result":AnalyzeResponse}.
     The sequence fetches (one per isoform) are the bulk of the wall-clock on a cold cache,
@@ -457,6 +499,12 @@ def analyze_events(accession: str, k: int = 20):
     # molecule, and comparing a transcript against it would find nothing that tells the two
     # apart — see _same_sequence_groups. The target always represents its own group.
     reps, same_seq = _same_sequence_groups(accs, seqs, target_acc)
+    reps, excluded = _apply_exclusion(reps, same_seq, accs, seqs, target_acc, exclude or [],
+                                      lambda t: t.get("cds"))
+    if excluded:
+        n = len(excluded)
+        yield {"type": "progress", "pct": 79,
+               "detail": f"{n} transcript{'s' if n != 1 else ''} excluded from the comparison"}
     if len(reps) < len(accs):
         merged = len(accs) - len(reps)
         yield {"type": "progress", "pct": 80,
@@ -497,7 +545,8 @@ def analyze_events(accession: str, k: int = 20):
     summary = GeneSummary(
         nm_count=len(reps),
         nr_count=sum(ncbi.is_noncoding(a) for a in reps),
-        merged_accession_count=len(accs) - len(reps),
+        merged_accession_count=len(accs) - len(reps) - len(excluded),
+        excluded_count=len(excluded),
         conventional_count=sum(v.tier == "CONVENTIONAL" for v in verdicts),
         needs_eej_count=sum(v.tier == "NEEDS_EEJ" for v in verdicts),
         hard_case_count=sum(v.tier == "NO_SINGLE_UNIQUE_JUNCTION" for v in verdicts),
@@ -518,11 +567,12 @@ def analyze_events(accession: str, k: int = 20):
             flags=design.flags, tm_method=design.tm_method, pair_dimer_tm=design.pair_dimer_tm,
         ),
         transcripts=verdicts,
+        excluded=excluded,
         summary=summary,
         pan_variant=_pan_out(pan_opts[0]) if pan_opts else None,
         pan_variant_options=[_pan_out(o) for o in pan_opts],
         meta={"assembly": gene.assembly, "species": gene.species.slug, "k": k,
-              "features": FEATURES},
+              "features": FEATURES, "excluded": [e.accession for e in excluded]},
     )
     yield {"type": "progress", "pct": 100, "detail": "Done"}
     yield {"type": "result", "result": response}

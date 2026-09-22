@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { Exon, TranscriptVerdict } from "../lib/types";
+import type { Exon, ExcludedTranscript, TranscriptVerdict } from "../lib/types";
 import { foldedEntry, isNoncoding } from "../lib/format";
 import { txToGenomic, type Product } from "../lib/panvariant";
-import { ExonSequenceBox, NoncodingBadge, exonBoxPx } from "./ExonTrackGraph";
+import { ExcludedRows, ExonSequenceBox, NoncodingBadge, excludedRowsHeight, exonBoxPx } from "./ExonTrackGraph";
 
 /**
  * The whole-transcript designer's exon graph: every isoform of the gene, one row each,
@@ -35,9 +35,11 @@ export interface RowStatus {
 
 export default function PanTrackGraph({
   transcripts: given, targetAccession, status, size, seqs, chromosome = "", strand = "",
-  groupByClass = false,
+  groupByClass = false, excluded = [],
 }: {
   transcripts: TranscriptVerdict[];
+  /** Transcripts set aside from the comparison: drawn beneath, dimmed, no product. */
+  excluded?: ExcludedTranscript[];
   /** Band the rows by RefSeq class — NM, then NR — each under its own label. */
   groupByClass?: boolean;
   targetAccession: string;
@@ -130,14 +132,15 @@ export default function PanTrackGraph({
   const rowTop = (i: number) =>
     top + i * rowH + BAND_H * bands.filter((b) => b.at <= i).length;
   let gmin = Infinity, gmax = -Infinity;
-  for (const t of transcripts) for (const e of t.exons) {
+  for (const t of [...transcripts, ...excluded]) for (const e of t.exons) {
     if (e.begin < gmin) gmin = e.begin;
     if (e.end > gmax) gmax = e.end;
   }
   const span = gmax - gmin || 1;
   const x = (p: number) => padL + ((p - gmin) / span) * (W - padL - padR);
   const showDir = strand === "+" || strand === "-";
-  const axisY = rowTop(transcripts.length - 1) + rowH + 10 + (showDir ? 16 : 0);
+  const excludedTop = rowTop(transcripts.length - 1) + rowH;
+  const axisY = excludedTop + excludedRowsHeight(excluded.length, rowH) + 10 + (showDir ? 16 : 0);
   const height = axisY + 26;
   const ticks = [gmin, (gmin + gmax) / 2, gmax];
 
@@ -280,6 +283,7 @@ export default function PanTrackGraph({
             </g>
           );
         })}
+        <ExcludedRows excluded={excluded} x={x} top={excludedTop} rowH={rowH} exH={exH} W={W} />
         <line x1={padL} y1={axisY} x2={x(gmax)} y2={axisY} stroke="var(--border)" strokeWidth={1} />
         {ticks.map((p, i) => (
           <g key={i}>

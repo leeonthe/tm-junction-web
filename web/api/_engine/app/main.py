@@ -40,6 +40,13 @@ app.add_middleware(
 class AnalyzeRequest(BaseModel):
     accession: str
     k: int = 20
+    # Transcripts to leave out of the comparison (see analyze._apply_exclusion).
+    exclude: list[str] = []
+
+
+def _exclude_list(exclude: str | None) -> list[str]:
+    """`exclude=NM_1,NM_2` on a GET — comma-separated, blanks dropped."""
+    return [a for a in (exclude or "").split(",") if a.strip()]
 
 
 @app.get("/health")
@@ -181,7 +188,7 @@ def gene_lookup(symbol: str, species: str | None = None):
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze_endpoint(req: AnalyzeRequest):
     try:
-        return analyze(req.accession, k=req.k)
+        return analyze(req.accession, k=req.k, exclude=req.exclude)
     except AnalysisError as e:
         return JSONResponse(status_code=400, content={"error": e.code, "message": e.message})
     except ncbi.RateLimited:
@@ -190,13 +197,13 @@ def analyze_endpoint(req: AnalyzeRequest):
 
 
 @app.get("/analyze/stream")
-def analyze_stream(accession: str, k: int = 20):
+def analyze_stream(accession: str, k: int = 20, exclude: str | None = None):
     """Server-Sent Events: real progress (`progress`) then the full result (`result`).
     Analysis errors are sent as a `failed` event (named so it doesn't clash with the
     browser EventSource's built-in `error`)."""
     def gen():
         try:
-            for ev in analyze_events(accession, k):
+            for ev in analyze_events(accession, k, _exclude_list(exclude)):
                 if ev.get("type") == "result":
                     yield f"event: result\ndata: {json.dumps(ev['result'].model_dump())}\n\n"
                 else:
@@ -214,9 +221,9 @@ def analyze_stream(accession: str, k: int = 20):
 
 
 @app.get("/analyze/{accession}", response_model=AnalyzeResponse)
-def analyze_get(accession: str, k: int = 20):
+def analyze_get(accession: str, k: int = 20, exclude: str | None = None):
     try:
-        return analyze(accession, k=k)
+        return analyze(accession, k=k, exclude=_exclude_list(exclude))
     except AnalysisError as e:
         return JSONResponse(status_code=400, content={"error": e.code, "message": e.message})
     except ncbi.RateLimited:

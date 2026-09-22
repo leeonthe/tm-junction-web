@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Exon, TranscriptVerdict } from "../lib/types";
+import type { Exon, ExcludedTranscript, TranscriptVerdict } from "../lib/types";
 import { tierColorVar, tierLabel } from "../lib/tier";
 import { foldedEntry, isNoncoding } from "../lib/format";
 
@@ -63,10 +63,12 @@ export function bracketSpanPx(
  * Hovering an exon / marker shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
-  transcripts, targetAccession, primerExon, chromosome = "", strand = "", mrna = "",
+  transcripts, targetAccession, primerExon, chromosome = "", strand = "", mrna = "", excluded = [],
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
+  /** Transcripts set aside from the comparison: drawn beneath the rest, dimmed and unpainted. */
+  excluded?: ExcludedTranscript[];
   primerExon?: number | null;
   chromosome?: string;
   /** "+" | "-" | "" — draws the 5′→3′ arrow over the axis. The axis itself is always
@@ -154,7 +156,7 @@ export default function ExonTrackGraph({
   const padL = 178, padR = 24, rowH = 42, top = 14, exH = 15;
 
   let gmin = Infinity, gmax = -Infinity;
-  for (const t of transcripts) for (const e of t.exons) {
+  for (const t of [...transcripts, ...excluded]) for (const e of t.exons) {
     if (e.begin < gmin) gmin = e.begin;
     if (e.end > gmax) gmax = e.end;
   }
@@ -163,7 +165,8 @@ export default function ExonTrackGraph({
   // The strand arrow sits in the gap between the last row and the axis; widen that gap so
   // its label cannot ride up into the last transcript's exons.
   const showDir = strand === "+" || strand === "-";
-  const axisY = top + transcripts.length * rowH + 10 + (showDir ? 16 : 0);
+  const excludedTop = top + transcripts.length * rowH;
+  const axisY = excludedTop + excludedRowsHeight(excluded.length, rowH) + 10 + (showDir ? 16 : 0);
   const height = axisY + 26;
   const ticks = [gmin, (gmin + gmax) / 2, gmax];
 
@@ -311,6 +314,7 @@ export default function ExonTrackGraph({
             </g>
           );
         })}
+        <ExcludedRows excluded={excluded} x={x} top={excludedTop} rowH={rowH} exH={exH} W={W} />
         <line x1={padL} y1={axisY} x2={x(gmax)} y2={axisY} stroke="var(--border)" strokeWidth={1} />
         {ticks.map((p, i) => (
           <g key={i}>
@@ -459,6 +463,51 @@ function ExonSequence({ exon, t, isTarget, mrna }: {
   }
   return <ExonSequenceBox accession={t.accession} exon={exon}
     seq={mrna.slice(exon.tx_begin - 1, exon.tx_end)} />;
+}
+
+/** The vertical room excluded rows take: a divider label, then one row each. */
+export const excludedRowsHeight = (n: number, rowH: number) => (n ? 18 + n * rowH : 0);
+
+/**
+ * Transcripts set aside from the comparison, drawn beneath the compared ones on the same
+ * genomic axis: their exons in the faintest grey, no tier, no paint, nothing to click — and
+ * a divider saying what they are. They are on the graph at all so a reader can still see
+ * WHERE the excluded isoform differs, which is often the reason it was excluded.
+ */
+export function ExcludedRows({ excluded, x, top, rowH, exH, W }: {
+  excluded: readonly ExcludedTranscript[]; x: (p: number) => number;
+  top: number; rowH: number; exH: number; W: number;
+}) {
+  if (!excluded.length) return null;
+  return (
+    <g aria-label={`${excluded.length} excluded`}>
+      <text x={20} y={top + 12} fontSize={10.5} fontWeight={700} letterSpacing={0.4} fill="var(--faint)">
+        EXCLUDED FROM THE COMPARISON
+        <tspan fontWeight={500}>{"  "}{excluded.length} {excluded.length === 1 ? "transcript" : "transcripts"}</tspan>
+      </text>
+      <line x1={20} y1={top + 18} x2={W - 12} y2={top + 18} stroke="var(--border)" strokeWidth={1} strokeDasharray="3 4" />
+      {excluded.map((t, i) => {
+        const cy = top + 18 + i * rowH + rowH / 2;
+        const first = t.exons[0], last = t.exons[t.exons.length - 1];
+        return (
+          <g key={t.accession} opacity={0.55}>
+            <text x={20} y={cy + 4} fontFamily="var(--mono)" fontSize={12.5} fill="var(--faint)"
+              textDecoration="line-through">{t.accession}</text>
+            <title>{t.accession} — excluded: not compared against, not credited, no verdict</title>
+            {first && last && (
+              <line x1={x(first.begin)} y1={cy} x2={x(last.end)} y2={cy} stroke="var(--border-2)" strokeWidth={1.5} />
+            )}
+            {t.exons.map((e, k) => {
+              const [exX, exRight] = exonBoxPx(e, x);
+              return <rect key={k} x={exX} y={cy - exH / 2} width={exRight - exX} height={exH} rx={2.5}
+                fill="var(--pan-exon)" />;
+            })}
+            <text x={W - 12} y={cy + 4} fontSize={11} fontFamily="var(--mono)" textAnchor="end" fill="var(--faint)">excluded</text>
+          </g>
+        );
+      })}
+    </g>
+  );
 }
 
 /**

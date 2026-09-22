@@ -77,6 +77,7 @@ export interface GeneSummary {
   merged_accession_count?: number;
   conventional_count: number; needs_eej_count: number;
   hard_case_count: number; coord_non_unique_count: number;
+  excluded_count?: number;
 }
 /** One pair for the whole gene: total expression rather than one isoform. */
 export interface PanVariant {
@@ -89,6 +90,14 @@ export interface PanVariant {
   exons: number[];
   flags: string[];
 }
+/** A transcript the user set aside — nothing designed to avoid it, nothing credited with
+ *  it, no verdict. Shown dimmed, with its exons, and offered back. */
+export interface ExcludedTranscript {
+  accession: string; variant?: string | null; is_mane: boolean; exons: Exon[];
+  same_sequence_accessions?: string[]; same_sequence_variants?: (string | null)[];
+  /** false: not asked for by name, but byte-identical to one that was (one molecule). */
+  requested: boolean;
+}
 export interface AnalyzeResponse {
   target_accession: string;
   gene: GeneInfo;
@@ -100,6 +109,8 @@ export interface AnalyzeResponse {
   pan_variant?: PanVariant | null;
   /** Ranked whole-transcript pair options; pan_variant is options[0]. */
   pan_variant_options?: PanVariant[];
+  /** Transcripts excluded from the comparison; absent from an older engine. */
+  excluded?: ExcludedTranscript[];
   /** meta.features names what the ENGINE implements — see EngineVersionNotice. */
   meta: Record<string, unknown>;
 }

@@ -183,10 +183,14 @@ export async function analyzeStream(
   accession: string,
   onProgress: (p: Progress) => void,
   signal?: AbortSignal,
+  /** Transcripts to leave out of the comparison entirely — see the engine's _apply_exclusion. */
+  exclude: readonly string[] = [],
 ): Promise<AnalyzeResponse> {
   let res: Response;
+  const q = `accession=${encodeURIComponent(accession)}`
+    + (exclude.length ? `&exclude=${encodeURIComponent(exclude.join(","))}` : "");
   try {
-    res = await fetch(`${await apiBase()}/analyze/stream?accession=${encodeURIComponent(accession)}`, { signal });
+    res = await fetch(`${await apiBase()}/analyze/stream?${q}`, { signal });
   } catch {
     throw new AnalyzeError("NETWORK", "Can't reach the engine. Is the Python backend running?");
   }
