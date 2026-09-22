@@ -323,14 +323,23 @@ def design(target_exons: list[Interval], target_seq: str,
     if not s_eval.ok:
         flags.append("LOW_QC")
 
-    # partner primer on the opposite side, forming a sensible amplicon
-    partner = _choose_partner(seq, s_start, len(s_seq), specific_is_forward, cum)
+    # partner primer on the opposite side, forming a sensible amplicon. A single exon has no
+    # junction to cross; a transcript whose other exons are too short for a primer gets the
+    # junction-crossing search FIRST (the short exon as a partial binding site) and the
+    # same-exon one only if that finds nothing — see _product_ok.
+    same_exon_ok = len(cum) == 1
+    partner = _choose_partner(seq, s_start, len(s_seq), specific_is_forward, cum, same_exon_ok)
     if partner is None:
         # The preferred side cannot reach a junction — a specific primer in the terminal
         # exon has nothing downstream of it. Try the other orientation before giving up:
         # the specific oligo is the same sequence either way, only its role changes.
-        flipped = _choose_partner(seq, s_start, len(s_seq), not specific_is_forward, cum)
-        if flipped is not None:
+        flipped = _choose_partner(seq, s_start, len(s_seq), not specific_is_forward, cum, same_exon_ok)
+        if flipped is None and not same_exon_ok and amp.tier == "CONVENTIONAL" and _usable_exons(cum) < 2:
+            same_exon_ok = True
+            partner = _choose_partner(seq, s_start, len(s_seq), specific_is_forward, cum, True)
+            if partner is None:
+                flipped = _choose_partner(seq, s_start, len(s_seq), not specific_is_forward, cum, True)
+        if partner is None and flipped is not None:
             specific_is_forward = not specific_is_forward
             specific = _mk_primer(s_seq, s_eval, specific.kind,
                                   "forward" if specific_is_forward else "reverse",
@@ -344,9 +353,8 @@ def design(target_exons: list[Interval], target_seq: str,
     # here another way — the rule is a correctness requirement (a single-exon product cannot
     # be told from one amplified off contaminating gDNA), so it is enforced where the pair is
     # emitted rather than trusted to every branch that builds one.
-    if fwd and rev and partner and not _spans_junction(
-            cum, min(s_start, partner[1]),
-            max(s_start + len(s_seq), partner[1] + partner[0].length)):
+    span = (min(s_start, partner[1]), max(s_start + len(s_seq), partner[1] + partner[0].length)) if partner else None
+    if fwd and rev and partner and not _product_ok(cum, span[0], span[1], same_exon_ok):
         # Keep the specific oligo — it is still the right primer — and drop the partner that
         # would have made an unusable product, rather than emit the pair.
         partner = None
@@ -366,6 +374,18 @@ def design(target_exons: list[Interval], target_seq: str,
 
     if dtm < DELTA_TM_SAFE:
         flags.append("LOW_DELTA_TM")
+
+    # The pair is inside one exon, and nothing about the product excludes genomic DNA.
+    if fwd and rev and span and cum and not _crosses(cum, span[0], span[1]):
+        flags.append("SAME_EXON")
+        why = ("the transcript's single exon" if len(cum) == 1 else
+               f"exon {region.exon_order}, its other exon{'s' if len(cum) > 2 else ''} being too "
+               "short to hold a primer")
+        mech = (f"Conventional pair inside {why} ({region.window_count} unique sites) — no "
+                "junction-crossing pair exists, so DNase-treat the RNA and run a no-RT control.")
+    elif fwd and rev and partner and len(cum) > 1 and _usable_exons(cum) < 2:
+        mech += (" Its partner starts in the short neighbouring exon and runs on across the "
+                 "junction, so the product still crosses one.")
 
     return PrimerDesign(
         tier=amp.tier, mechanism=mech, forward=fwd, reverse=rev,
@@ -421,8 +441,13 @@ def _design_exon_pair(amp: AmplifyResult, seq: str, cum: list[int],
     )
 
 
-def _p3_ranked(seq: str, a: tuple[int, int], b: tuple[int, int]):
+def _p3_ranked(seq: str, a: tuple[int, int], b: tuple[int, int], junction: int | None = None):
     """primer3 pair design confined to sense-strand spans a (left) and b (right).
+
+    `junction` (0-based index of the first base AFTER it) asks instead for a pair in which
+    one primer OVERLAPS that junction with at least MIN_JX_ARM bases on each side — how an
+    exon too short to hold a primer still serves as a partial binding site. The spans then
+    only bound the product.
 
     Returns a ranked list of ((f_start, f_oligo, f_eval), (r_start, r_oligo, r_eval)) with
     starts = 0-based binding-site starts on the mRNA, oligos 5'->3' as ordered. Pairs that
@@ -433,15 +458,20 @@ def _p3_ranked(seq: str, a: tuple[int, int], b: tuple[int, int]):
     hi = b_hi - a_lo + 1
     if lo > hi:
         return []
+    seq_args = {"SEQUENCE_ID": "target", "SEQUENCE_TEMPLATE": seq}
+    overlap_args = {}
+    if junction is None:
+        seq_args["SEQUENCE_PRIMER_PAIR_OK_REGION_LIST"] = [[a_lo, a_hi - a_lo + 1, b_lo, b_hi - b_lo + 1]]
+    else:
+        # primer3 names a junction by the base to its LEFT.
+        seq_args["SEQUENCE_OVERLAP_JUNCTION_LIST"] = [junction - 1]
+        overlap_args = {"PRIMER_MIN_5_PRIME_OVERLAP_OF_JUNCTION": MIN_JX_ARM,
+                        "PRIMER_MIN_3_PRIME_OVERLAP_OF_JUNCTION": MIN_JX_ARM}
     try:
         res = primer3.bindings.design_primers(
+            seq_args,
             {
-                "SEQUENCE_ID": "target",
-                "SEQUENCE_TEMPLATE": seq,
-                "SEQUENCE_PRIMER_PAIR_OK_REGION_LIST":
-                    [[a_lo, a_hi - a_lo + 1, b_lo, b_hi - b_lo + 1]],
-            },
-            {
+                **overlap_args,
                 "PRIMER_TASK": "generic",
                 "PRIMER_PICK_LEFT_PRIMER": 1, "PRIMER_PICK_RIGHT_PRIMER": 1,
                 "PRIMER_PICK_INTERNAL_OLIGO": 0,
@@ -528,6 +558,48 @@ def _spans_junction(cum: list[int], start: int, end: int) -> bool:
     return _exon_of(cum, start) != _exon_of(cum, end - 1)
 
 
+def _crosses(cum: list[int], start: int, end: int) -> bool:
+    """Does [start, end) cross a junction with a FOOTHOLD on both sides of it?
+
+    _spans_junction asks only whether the product starts in one exon and ends in another,
+    which a primer reaching 2 nt into the next exon satisfies — while the other 18 nt of it
+    prime genomic DNA just as well, so nothing has been excluded. Wherever the claim
+    "genomic DNA cannot give this band" rests on the crossing, the product must put
+    MIN_JX_ARM bases on each side of the junction, the junction designer's own minimum.
+    Primers that sit whole in different exons clear this by construction; it bites only
+    where a primer straddles, which is exactly where it matters.
+    """
+    return any(start + MIN_JX_ARM <= b <= end - MIN_JX_ARM for b in cum[:-1])
+
+
+def _usable_exons(cum: list[int]) -> int:
+    """How many exons are long enough to hold a whole primer."""
+    return sum((c - (cum[i - 1] if i else 0)) >= LEN_MIN for i, c in enumerate(cum))
+
+
+def _product_ok(cum: list[int], start: int, end: int, same_exon_ok: bool = False) -> bool:
+    """May [start, end) be offered as a product? It must cross a junction — unless the
+    caller has established there is none it COULD cross (`same_exon_ok`).
+
+    The junction rule guards against genomic DNA, and it presumes a junction is there to be
+    crossed. Two kinds of transcript break the presumption:
+
+      * a single exon — intronless genes are the rule in yeast and not rare elsewhere (human
+        JUN, RPRM, the histones). Nothing to cross, so the pair sits inside the one exon.
+      * a second exon too SHORT to hold a primer (yeast ACT1: 10 nt, then 1118). Here a
+        junction does exist, and the short exon can still be a PARTIAL binding site: a
+        primer that starts in it and runs on into its neighbour makes a product that
+        crosses the junction, so that is tried first (see _can_span). Only when no such
+        pair exists do both primers go in the long exon.
+
+    Refusing those a pair does not protect them from gDNA, it just leaves them with no
+    assay. A same-exon pair is flagged SAME_EXON so the page can say what it costs: the
+    same sites sit uninterrupted in the genome, so the RNA must be DNase-treated and run
+    beside a no-RT control. A transcript with two usable exons is held to the rule as before.
+    """
+    return same_exon_ok or not cum or _crosses(cum, start, end)
+
+
 def _can_span(cum: list[int], s: int, length: int) -> bool:
     """Could SOME partner put a junction inside this primer's amplicon?
 
@@ -538,20 +610,36 @@ def _can_span(cum: list[int], s: int, length: int) -> bool:
     within AMPLICON_MAX of the primer's start; an upstream one, within AMPLICON_MAX of its
     end. Either orientation counts here; _choose_partner decides which is actually used.
     """
-    if not cum:
+    if len(cum) < 2:                       # unknown structure, or one exon: nothing to reach
         return True
     e = s + length
-    return any(s < b < s + AMPLICON_MAX or e - AMPLICON_MAX < b < e
-               for b in cum[:-1])          # cum[-1] is the transcript end, not a junction
+    for b in cum[:-1]:                     # cum[-1] is the transcript end, not a junction
+        # Downstream partner: the product [s, r_end) crosses b if this primer starts before
+        # it, and some legal product length ends beyond it.
+        # ... WITH a foothold beyond it (_crosses), which a product of AMPLICON_MAX must reach.
+        if (s + MIN_JX_ARM <= b and b + MIN_JX_ARM <= s + AMPLICON_MAX
+                and max(s + AMPLICON_MIN, b + MIN_JX_ARM) <= cum[-1]):
+            return True
+        # Upstream partner: it must START before b — leaving MIN_JX_ARM of it in that exon
+        # when it straddles the junction — at a distance that makes a legal product. The
+        # distance is the part this check used to skip: ACT1's first exon is 10 nt, and a
+        # specific primer 45 nt in can only make a 66 bp product with anything upstream of
+        # it, so "a junction is in reach" was true and no pair existed.
+        f_hi = min(b - MIN_JX_ARM, e - AMPLICON_MIN)
+        if b < e and f_hi >= max(0, e - AMPLICON_MAX):
+            return True
+    return False
 
 
 def _choose_partner(seq: str, spec_start: int, spec_len: int,
-                    spec_is_forward: bool, cum: list[int] | None = None) -> tuple[Primer, int] | None:
+                    spec_is_forward: bool, cum: list[int] | None = None,
+                    same_exon_ok: bool = False) -> tuple[Primer, int] | None:
     """Pick the partner primer (downstream if specific is forward, else upstream).
     Returns (Primer, start_position) or None. Start is the oligo's 5'-most template index.
 
     The pair must span a junction (see _spans_junction), so a partner that would keep the
-    whole product inside one exon is rejected however good its Tm."""
+    whole product inside one exon is rejected however good its Tm — except on a transcript
+    that has only the one exon (see _product_ok)."""
     cum = cum or []
     if spec_is_forward:
         lo = max(spec_start + spec_len, spec_start + AMPLICON_MIN - LEN_MAX)
@@ -561,7 +649,7 @@ def _choose_partner(seq: str, spec_start: int, spec_len: int,
             amp_len = (r + len(win)) - spec_start
             if not (AMPLICON_MIN <= amp_len <= AMPLICON_MAX):
                 continue
-            if not _spans_junction(cum, spec_start, r + len(win)):
+            if not _product_ok(cum, spec_start, r + len(win), same_exon_ok):
                 continue
             ev = _evaluate(revcomp(win), TM_MIN)
             key = (ev.ok, ev.quality - abs(amp_len - AMPLICON_OPT) * 0.05)
@@ -578,7 +666,7 @@ def _choose_partner(seq: str, spec_start: int, spec_len: int,
             amp_len = (spec_start + spec_len) - f
             if not (AMPLICON_MIN <= amp_len <= AMPLICON_MAX):
                 continue
-            if not _spans_junction(cum, f, spec_start + spec_len):
+            if not _product_ok(cum, f, spec_start + spec_len, same_exon_ok):
                 continue
             ev = _evaluate(win, TM_MIN)
             key = (ev.ok, ev.quality - abs(amp_len - AMPLICON_OPT) * 0.05)
@@ -609,12 +697,13 @@ def _fallback(amp, seq, region, starts, k, sibs, excluded, cum) -> PrimerDesign:
     s_seq = seq[s_start:s_start + LEN_OPT]
     ev = _evaluate(s_seq, TM_MIN)
     fwd = _mk_primer(s_seq, ev, "conventional", "forward", f"exon {region.exon_order} (unique)", pos=s_start)
-    partner = _choose_partner(seq, s_start, len(s_seq), True, cum)
+    partner = _choose_partner(seq, s_start, len(s_seq), True, cum, same_exon_ok=len(cum) == 1)
     dtm = round(tm(s_seq) - best_offtarget_tm(s_seq, sibs), 1)
     return PrimerDesign(
         tier=amp.tier,
         mechanism=f"Conventional primer in exon {region.exon_order} (QC-relaxed).",
         forward=fwd, reverse=partner[0] if partner else None,
         amplicon_len=((partner[1] + partner[0].length) - s_start) if partner else None,
-        delta_tm=dtm, confidence="low", excluded_siblings=excluded, flags=["LOW_QC"],
+        delta_tm=dtm, confidence="low", excluded_siblings=excluded,
+        flags=["LOW_QC"] + (["SAME_EXON"] if partner and len(cum) == 1 else []),
     )

@@ -44,6 +44,11 @@ const REQUIRED: { feature: string; missing: string }[] = [
     missing: "only human genes are understood — a gene searched in another species is "
       + "looked up as the human gene of that name",
   },
+  {
+    feature: "single_exon_pairs",
+    missing: "a single-exon transcript gets a forward primer and no pair, and on a "
+      + "minus-strand one the unique region is reported at the wrong end of the mRNA",
+  },
 ];
 
 export default function EngineVersionNotice({ result }: { result: AnalyzeResponse }) {

@@ -326,7 +326,13 @@ export default function Guide({ onBack, onMethod, backLabel }: {
         <p className="card-label">6 · Before you order</p>
         <p>
           Every amplicon here spans at least two exons, so a product off contaminating
-          genomic DNA either fails or runs visibly longer on a gel. Specificity is
+          genomic DNA either fails or runs visibly longer on a gel. The one exception is a{" "}
+          <b>single-exon transcript</b> — intronless genes are the rule in yeast and not rare
+          elsewhere (human JUN, the histones). It has no junction to span, so its pair sits
+          inside its one exon, and a gene that has such a transcript gets whole-transcript
+          pairs in the stretch its transcripts share, since no product across a junction can
+          include it. Those pairs are marked: genomic DNA gives the same band, so DNase-treat
+          the RNA and run a no-RT control alongside. Specificity is
           established within the gene's RefSeq (NM + NR) isoform set — for genome-wide uniqueness, run
           the pair through NCBI Primer-BLAST or UCSC's BLAT (Genome Browser → Tools →
           Blat) as usual. The formulas and constants behind every

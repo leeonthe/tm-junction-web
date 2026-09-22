@@ -5,7 +5,7 @@ import {
   useJunctionSettings,
 } from "./JunctionWorkbench";
 import {
-  AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR, LONG_AMPLICON,
+  AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR, LONG_AMPLICON, PARTNER_LEN_MIN,
 } from "../lib/partner";
 import { ampRange, findPairs, openingSearch, type PairArgs, type PairOption } from "../lib/conventional";
 import { coverage, defaultPairChoice, offeredPairs, type Coverage } from "../lib/panvariant";
@@ -16,6 +16,7 @@ import PanTrackGraph, { SiteGlyph, type RowStatus } from "./PanTrackGraph";
 import { QcTag, useStructureQc } from "./QcTag";
 import { Copy } from "./icons";
 import Info from "./Info";
+import GdnaCaveat from "./GdnaCaveat";
 
 /**
  * Whole-transcript amplification, as a designer — one pair for the GENE, steered.
@@ -60,14 +61,17 @@ export default function PanVariantDesigner({ result, seqs }: {
     () => [...verdict.exons].sort((a, b) => a.order - b.order), [verdict.exons]);
   /** 0-based exclusive mRNA end of each exon — what the intron-spanning rule measures. */
   const exonEnds = useMemo(() => exons.map((e) => e.tx_end), [exons]);
-  /** An intronless transcript (the rule in yeast): there is no exon pair to place primers in. */
-  const singleExon = exons.length < 2;
+
 
   // Which exon PAIRS are offered, and where in each exon a primer may sit: the forward
   // exon's shared 3′ side, the reverse exon's shared 5′ side, with everything between
   // identical in every carrier (offeredPairs). A gene with no pair shared by all falls
   // back to the pairs the most transcripts share.
-  const offered = useMemo(() => offeredPairs(transcripts, verdict), [transcripts, verdict]);
+  // A gene with a single-exon transcript is also offered SAME-EXON choices — both primers in
+  // the stretch of one exon its transcripts share — because no junction-crossing product can
+  // include a transcript that has no junction (lib/panvariant sameExonChoices).
+  const offered = useMemo(
+    () => offeredPairs(transcripts, verdict, undefined, gene.strand), [transcripts, verdict, gene.strand]);
 
   // Open on the engine's own best pair when it was numbered on this transcript and is
   // offered; otherwise on the offered pair the most transcripts carry. Keyed on a string so
@@ -102,6 +106,12 @@ export default function PanVariantDesigner({ result, seqs }: {
   const choice = offered.pairs.find((p) => p.fwd === fwdExon && p.rev === revExon) ?? null;
   /** Transcripts carrying the chosen pair with room for both primers — the structural expectation. */
   const carriers = choice?.carriers ?? [];
+  /** Both primers in one exon: the product cannot exclude genomic DNA, and says so. */
+  const sameExon = !!choice?.sameExon;
+  /** The transcripts that force a same-exon pair: one exon, or one exon able to hold a primer. */
+  const singleExonTx = useMemo(
+    () => transcripts.filter((t) => t.exons.filter((x) => x.length >= PARTNER_LEN_MIN).length < 2), [transcripts]);
+  const oneExon = (t: { exons: unknown[] }) => t.exons.length === 1;
 
   /** Where each primer may sit: the shared stretch of its exon. Null until a pair is chosen. */
   const plan = useMemo(
@@ -110,15 +120,15 @@ export default function PanVariantDesigner({ result, seqs }: {
   // Geometry first: two exons far apart cannot make a 150 bp product, so the starting
   // window is chosen from what this pair of exons can actually produce.
   const feasible = useMemo(() => plan && ampRange({
-    mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion, exonEnds,
+    mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion, exonEnds, sameExon,
     tmMin: s.tmMin, tmMax: s.tmMax, ampMin: 0, ampMax: 0, dTmMax: 0, cond: s.cond,
-  }), [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond]);
+  }), [plan, mrna, k, exonEnds, sameExon, s.tmMin, s.tmMax, s.cond]);
 
   // Everything the panel opens with — window, Tm range, Tm match — probed so the first
   // render shows a design whenever one exists at any reasonable setting. See openingSearch.
   const initial = useMemo(() => openingSearch(
     plan ? {
-      mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion, exonEnds,
+      mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion, exonEnds, sameExon,
       tmMin: s.tmMin, tmMax: s.tmMax, dTmMax: DEFAULT_DTM_MAX, cond: s.cond,
     } : { mrna, k, exonEnds, tmMin: s.tmMin, tmMax: s.tmMax, dTmMax: DEFAULT_DTM_MAX, cond: s.cond },
     feasible ?? null, AMP_FLOOR,
@@ -152,7 +162,7 @@ export default function PanVariantDesigner({ result, seqs }: {
   const found = useMemo<PanOption[]>(() => {
     if (!plan) return [];
     const args: PairArgs = {
-      mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion, exonEnds,
+      mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion, exonEnds, sameExon,
       tmMin: s.tmMin, tmMax: s.tmMax, ampMin, ampMax, dTmMax, cond: s.cond,
     };
     const out: PanOption[] = [];
@@ -161,7 +171,7 @@ export default function PanVariantDesigner({ result, seqs }: {
       if (cov) out.push({ ...p, cov });
     }
     return out.sort((a, b) => b.cov.covered.length - a.cov.covered.length);
-  }, [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond, ampMin, ampMax, dTmMax, seqs, order, target_accession]);
+  }, [plan, mrna, k, exonEnds, sameExon, s.tmMin, s.tmMax, s.cond, ampMin, ampMax, dTmMax, seqs, order, target_accession]);
 
   // Primer QC (Method § 4), judged against the user's Tm range with GC applied — these are
   // conventional primers; the pair passes when both do. Coverage still comes first: a pair
@@ -292,8 +302,9 @@ export default function PanVariantDesigner({ result, seqs }: {
               <p className="sub jd-intro">
                 One pair for the gene rather than one isoform — every covered transcript gives
                 the same single band.{" "}
-                {singleExon
-                  ? <>{target_accession} has a single exon, so there is no exon pair to place it in.</>
+                {sameExon
+                  ? <>Both primers in <b>exon {fwdExon}</b> of {target_accession}, inside the
+                      stretch its transcripts share.</>
                   : <>Forward in <b>exon {fwdExon}</b>, reverse in <b>exon {revExon}</b> of {target_accession}.</>}
                 <Info>Pick the two exons in the panel beside this card: exons shared identically by
                   more transcripts are where one pair can measure more of the gene, and among a
@@ -302,19 +313,29 @@ export default function PanVariantDesigner({ result, seqs }: {
                   transcript's mRNA, once each, and the product measured — at the one size it
                   gives on {target_accession}. A transcript that amplifies at another size is a
                   second band, so it is reported as missed, not covered. Every product crosses a
-                  junction, so genomic DNA cannot give the same band.</Info>
+                  junction, so genomic DNA cannot give the same band — except where the gene has
+                  a single-exon transcript: no product across a junction can include one, so
+                  the pair is placed inside the exon the transcripts share instead, and carries
+                  the genomic-DNA note.</Info>
               </p>
             }
           />
 
+          {sameExon && (
+            <GdnaCaveat>
+              {singleExonTx.length === total && singleExonTx.every(oneExon)
+                ? <>{total === 1 ? "This transcript has" : `All ${total} transcripts have`} a single
+                    exon, so there is no junction for a product to cross.</>
+                : <>{singleExonTx.map((t) => t.accession).join(", ")}{" "}
+                    {singleExonTx.length === 1 ? "has" : "have"}{" "}
+                    {singleExonTx.every(oneExon) ? "a single exon" : "only one exon long enough to hold a primer"},
+                    and no product across a junction can include {singleExonTx.length === 1 ? "it" : "them"}.</>}
+            </GdnaCaveat>
+          )}
+
           {options.length === 0 ? (
             <p className="sub pp-idle">
-              {singleExon
-                ? <>{target_accession} is a <b>single exon</b>. The forward primer sits in one exon
-                    and the reverse in a later one, so that every product crosses a junction and
-                    genomic DNA cannot give the same band — and this transcript has no junction
-                    to cross, so no pair is offered.</>
-                : !choice
+              {!choice
                 ? offered.pairs.length
                   ? <>Exons {fwdExon} and {revExon} are not offered as a pair — pick a reverse exon
                       from the list, which follows the forward choice.</>
@@ -378,11 +399,17 @@ export default function PanVariantDesigner({ result, seqs }: {
                       </div>
                     </div>
                     <div className="pv-stat">
-                      <div className="n">exon {fwdExon} <span className="u">→</span> exon {revExon}</div>
-                      <div className="l">spans {revExon - fwdExon === 1 ? "a junction" : `${revExon - fwdExon} junctions`}
-                        <Info>Numbered on {target_accession}. The product crosses at least one
-                          exon–exon junction, so it cannot be confused with one amplified off
-                          contaminating genomic DNA.</Info>
+                      <div className="n">{sameExon
+                        ? <>within exon {fwdExon}</>
+                        : <>exon {fwdExon} <span className="u">→</span> exon {revExon}</>}</div>
+                      <div className="l">{sameExon ? "no junction to span"
+                        : <>spans {revExon - fwdExon === 1 ? "a junction" : `${revExon - fwdExon} junctions`}</>}
+                        <Info>Numbered on {target_accession}.{" "}{sameExon
+                          ? <>The product lies inside one exon — the only way to include a
+                              single-exon transcript — so it CAN be confused with one amplified
+                              off contaminating genomic DNA; see the note above the pairs.</>
+                          : <>The product crosses at least one exon–exon junction, so it cannot
+                              be confused with one amplified off contaminating genomic DNA.</>}</Info>
                       </div>
                     </div>
                   </div>
@@ -484,7 +511,10 @@ export default function PanVariantDesigner({ result, seqs }: {
             qualifies on its shared side; an exon shared on its 3′ side only can lead a pair
             but never end one. Each primer is confined to the shared stretch. (A gene with no
             pair shared by all offers the pairs the most transcripts share.) The note below
-            counts the carriers of the chosen pair and the room each site has.</>}>
+            counts the carriers of the chosen pair and the room each site has. Where the gene
+            has a single-exon transcript, an exon can also pair with ITSELF: both primers go in
+            the stretch of it the transcripts share, which is the only product that can
+            include a transcript with no junction.</>}>
           <RailField label="Forward in">
             <select value={fwdExon} onChange={(e) => pickFwd(Number(e.target.value))}
               aria-label="Exon the forward primer sits in">
@@ -497,20 +527,24 @@ export default function PanVariantDesigner({ result, seqs }: {
             <select value={revExon} onChange={(e) => setRevExon(Number(e.target.value))}
               aria-label="Exon the reverse primer sits in">
               {revOptions.map((o) => (
-                <option key={o} value={o}>{o} · {exons.find((e) => e.order === o)?.length} nt</option>
+                <option key={o} value={o}>
+                  {o} · {o === fwdExon ? "same exon" : `${exons.find((e) => e.order === o)?.length} nt`}
+                </option>
               ))}
             </select>
           </RailField>
         </RailGroup>
         <p className="rail-note" title="Transcripts carrying this pair with room for both primers — where a product is the same length by construction — and how much of each exon the primer may use. Coverage is still verified from each transcript's sequence.">
           {choice
-            ? <>exons {fwdExon}–{revExon}: shared in <b>{carriers.length} of {total}</b>
-                {" "}· F site {choice.fwdRegion.hi - choice.fwdRegion.lo} nt
-                {" "}· R site {choice.revRegion.hi - choice.revRegion.lo} nt
-                {offered.share < total && <> · no pair is shared by all {total}</>}</>
-            : singleExon
-              ? <>single exon — no exon pair to choose</>
-              : <>pick a reverse exon that pairs with exon {fwdExon}</>}
+            ? sameExon
+              ? <>exon {fwdExon}: <b>{choice.fwdRegion.hi - choice.fwdRegion.lo} nt</b> shared in{" "}
+                  <b>{carriers.length} of {total}</b>
+                  {offered.share < total && <> · no choice is shared by all {total}</>}</>
+              : <>exons {fwdExon}–{revExon}: shared in <b>{carriers.length} of {total}</b>
+                  {" "}· F site {choice.fwdRegion.hi - choice.fwdRegion.lo} nt
+                  {" "}· R site {choice.revRegion.hi - choice.revRegion.lo} nt
+                  {offered.share < total && <> · no pair is shared by all {total}</>}</>
+            : <>pick a reverse exon that pairs with exon {fwdExon}</>}
         </p>
 
         <RailConditions s={s} dirty={dirty} onReset={resetOwn} />

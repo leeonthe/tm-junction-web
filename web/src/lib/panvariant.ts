@@ -13,8 +13,8 @@
 // mRNA and measuring the product. `amplifies` and `coverage` are panvariant.py's
 // `_amplifies` and `_coverage`, with one deliberate difference recorded on `coverage`.
 
-import { PARTNER_LEN_MIN, revComp } from "./partner";
-import type { Span } from "./conventional";
+import { PARTNER_LEN_MAX, PARTNER_LEN_MIN, revComp } from "./partner";
+import { MIN_FOOTHOLD, SHORT_EXON, type Span } from "./conventional";
 import type { Exon, TranscriptVerdict } from "./types";
 
 /** A product on one transcript: 0-based half-open mRNA span, 5′ of forward to 3′ of reverse site. */
@@ -86,8 +86,14 @@ const sameExon = (a: { begin: number; end: number }, b: { begin: number; end: nu
   a.begin === b.begin && a.end === b.end;
 
 const byOrder = (exons: readonly Exon[]) => [...exons].sort((a, b) => a.order - b.order);
-/** Transcribed left-to-right on the genome? Exon 1 sits at the lower coordinate if so. */
-const isPlus = (ex: readonly Exon[]) => ex.length < 2 || ex[0].begin <= ex[ex.length - 1].begin;
+/**
+ * Transcribed left-to-right on the genome? Exon 1 sits at the lower coordinate if so. A
+ * single-exon transcript has no exon order to read that from, and assuming "plus" for it
+ * mirrors every position inside the exon on a minus-strand gene (yeast TDH3, fly Gapdh1) —
+ * so one exon takes the gene's stated `strand`.
+ */
+const isPlus = (ex: readonly Exon[], strand?: string | null) =>
+  ex.length >= 2 ? ex[0].begin <= ex[ex.length - 1].begin : strand !== "-";
 
 /**
  * The exon of `t` that ends where `e` ends (its transcript-3′ boundary), and how many nt
@@ -167,12 +173,74 @@ export function pairCarriers(
 export interface PairChoice {
   fwd: number;
   rev: number;
+  /** Both primers in ONE exon (fwd === rev), in the stretch the carriers share. Offered only
+   *  to reach a single-exon transcript — see sameExonChoices. */
+  sameExon?: boolean;
   /** Transcripts carrying the pair with room for both primers. */
   carriers: string[];
   /** 0-based half-open mRNA spans on the reference: the shared 3′ side of the forward exon
    *  and the shared 5′ side of the reverse exon, as far as EVERY carrier shares them. */
   fwdRegion: Span;
   revRegion: Span;
+}
+
+/** What a shared stretch must hold: two primers and a product between them. */
+export const MIN_SHARED = 70;
+
+/**
+ * Same-exon choices: for each exon of the reference, the stretch of it that other
+ * transcripts' exons also cover, with both primers confined to that stretch.
+ *
+ * Offered ONLY where a single-exon transcript is among the carriers (the reference itself
+ * counts). Such a transcript has no junction, so no junction-crossing product can include
+ * it — between two spliced exons it carries an intron's worth of extra sequence or nothing —
+ * and the one way to measure it with its siblings is a product inside the exon they share:
+ * one contiguous piece of genome in each of them, hence one size. Anywhere else a
+ * junction-crossing pair does the same job AND excludes genomic DNA, so none is offered.
+ *
+ * Carriers are taken in order of how much they share, and one that would narrow the stretch
+ * below MIN_SHARED is left out rather than allowed to shrink it to nothing. A structural
+ * proposal, like pairCarriers: `coverage` decides from sequence.
+ */
+export function sameExonChoices(
+  transcripts: readonly TranscriptVerdict[], reference: TranscriptVerdict,
+  strand?: string | null, minShared = MIN_SHARED,
+): PairChoice[] {
+  const ref = byOrder(reference.exons);
+  const plus = isPlus(ref, strand);
+  const out: PairChoice[] = [];
+  for (const e of ref) {
+    const overlaps = transcripts
+      .filter((t) => t.accession !== reference.accession)
+      .map((t) => {
+        let best: Exon | null = null, nt = 0;
+        for (const x of t.exons) {
+          const n = Math.min(e.end, x.end) - Math.max(e.begin, x.begin) + 1;
+          if (n > nt) { nt = n; best = x; }
+        }
+        return { t, x: best, nt };
+      })
+      .filter((o): o is { t: TranscriptVerdict; x: Exon; nt: number } => !!o.x && o.nt >= minShared)
+      .sort((a, b) => b.nt - a.nt || a.t.accession.localeCompare(b.t.accession));
+    let lo = e.begin, hi = e.end;
+    const carriers = [reference];
+    for (const o of overlaps) {
+      const nlo = Math.max(lo, o.x.begin), nhi = Math.min(hi, o.x.end);
+      if (nhi - nlo + 1 >= minShared) { lo = nlo; hi = nhi; carriers.push(o.t); }
+    }
+    if (hi - lo + 1 < minShared) continue;
+    // Needed only to reach a transcript no junction-crossing pair of whole-exon primers can:
+    // one exon, or one exon long enough to hold a primer. Otherwise a crossing pair serves.
+    const fewUsable = (t: TranscriptVerdict) => t.exons.filter((x) => x.length >= SHORT_EXON).length < 2;
+    if (!carriers.some(fewUsable)) continue;
+    // Genomic -> the reference's mRNA, 0-based half-open, from the exon's 5′ end.
+    const tx0 = e.tx_begin - 1;
+    const span = plus ? { lo: tx0 + (lo - e.begin), hi: tx0 + (hi - e.begin) + 1 }
+                      : { lo: tx0 + (e.end - hi), hi: tx0 + (e.end - lo) + 1 };
+    out.push({ fwd: e.order, rev: e.order, sameExon: true,
+               carriers: carriers.map((t) => t.accession), fwdRegion: span, revRegion: span });
+  }
+  return out;
 }
 
 /**
@@ -184,20 +252,36 @@ export interface PairChoice {
  */
 export function offeredPairs(
   transcripts: readonly TranscriptVerdict[], reference: TranscriptVerdict, minNt = PARTNER_LEN_MIN,
+  strand?: string | null,
 ): { pairs: PairChoice[]; share: number } {
   const ref = byOrder(reference.exons);
-  const all: (PairChoice & { n: number })[] = [];
+  // Same-exon choices compete with the junction-crossing pairs on the one thing that
+  // matters here — how many transcripts a choice reaches — so a gene whose single-exon
+  // transcript no junction-crossing pair can include is offered the choice that does.
+  const all: (PairChoice & { n: number })[] = sameExonChoices(transcripts, reference, strand)
+    .map((c) => ({ ...c, n: c.carriers.length }));
   for (let i = 0; i < ref.length; i++) {
     for (let j = i + 1; j < ref.length; j++) {
+      // An exon too short to hold a primer can still hold the START of one (forward) or the
+      // END of one (reverse): the primer straddles its junction, MIN_FOOTHOLD of it in the
+      // short exon, and the product still crosses. So a short exon needs only a foothold
+      // shared, and its binding span reaches into its neighbour — which every carrier shares
+      // too: it is an interior exon (identical by pairCarriers) or the partner's own shared side.
+      const fShort = ref[i].length < SHORT_EXON, rShort = ref[j].length < SHORT_EXON;
+      const reach = PARTNER_LEN_MAX - MIN_FOOTHOLD;
+      const adjacent = j === i + 1;
       const carriers = pairCarriers(transcripts, reference, ref[i].order, ref[j].order)
-        .filter((c) => c.fwdNt >= minNt && c.revNt >= minNt);
-      if (!carriers.length) continue;
+        .filter((c) => c.fwdNt >= (fShort ? MIN_FOOTHOLD : minNt) && c.revNt >= (rShort ? MIN_FOOTHOLD : minNt))
+        // Straddling into the PARTNER exon uses up some of its shared side; enough must remain.
+        .filter((c) => !(adjacent && fShort) || c.revNt >= reach + minNt)
+        .filter((c) => !(adjacent && rShort) || c.fwdNt >= reach + minNt);
+      if (!carriers.length || (fShort && rShort && adjacent)) continue;
       const fwdNt = Math.min(...carriers.map((c) => c.fwdNt));
       const revNt = Math.min(...carriers.map((c) => c.revNt));
       all.push({
         fwd: ref[i].order, rev: ref[j].order, carriers: carriers.map((c) => c.accession),
-        fwdRegion: { lo: ref[i].tx_end - fwdNt, hi: ref[i].tx_end },
-        revRegion: { lo: ref[j].tx_begin - 1, hi: ref[j].tx_begin - 1 + revNt },
+        fwdRegion: { lo: ref[i].tx_end - fwdNt, hi: ref[i].tx_end + (fShort ? reach : 0) },
+        revRegion: { lo: ref[j].tx_begin - 1 - (rShort ? reach : 0), hi: ref[j].tx_begin - 1 + revNt },
         n: carriers.length,
       });
     }
@@ -228,7 +312,10 @@ export function defaultPairChoice(
   for (const p of pairs) {
     const room = Math.min(p.fwdRegion.hi - p.fwdRegion.lo, p.revRegion.hi - p.revRegion.lo);
     const key: [number, number, number] = [p.carriers.length, room, p.rev - p.fwd];
+    // At equal reach a junction-crossing pair beats a same-exon one: it excludes genomic DNA.
+    const crossing = !p.sameExon, bestCrossing = !!best && !best.sameExon;
     const better = key[0] !== bestKey[0] ? key[0] > bestKey[0]
+      : crossing !== bestCrossing ? crossing
       : key[1] !== bestKey[1] ? key[1] > bestKey[1]
       : key[2] < bestKey[2];
     if (better) { best = p; bestKey = key; }
@@ -250,13 +337,13 @@ export function exonsInProduct(exons: readonly Exon[], p: Product): number[] {
  * The genomic coordinate of a 0-based mRNA position, honouring strand. Strand is read
  * from the exons themselves — exon 1 sits at the lower genomic coordinate on a plus-strand
  * gene and at the higher on a minus-strand one — so the answer is right even when the
- * gene's strand is unstated. null when the position falls outside every exon.
+ * gene's strand is unstated — except for a single-exon transcript, which has no exon order
+ * and needs the gene's `strand` (see isPlus). null when the position falls outside every exon.
  */
-export function txToGenomic(exons: readonly Exon[], pos: number): number | null {
+export function txToGenomic(exons: readonly Exon[], pos: number, strand?: string | null): number | null {
   const ex = [...exons].sort((a, b) => a.order - b.order);
   const e = ex.find((x) => x.tx_begin - 1 <= pos && pos < x.tx_end);
   if (!e) return null;
   const off = pos - (e.tx_begin - 1);
-  const plus = ex.length < 2 || ex[0].begin <= ex[ex.length - 1].begin;
-  return plus ? e.begin + off : e.end - off;
+  return isPlus(ex, strand) ? e.begin + off : e.end - off;
 }

@@ -7,11 +7,12 @@ import {
 import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR,
 } from "../lib/partner";
-import { ampRange, findPairs, openingSearch, resolveUniqueSide, type PairArgs, type PairOption } from "../lib/conventional";
+import { ampRange, bindingSpan, usableExons, findPairs, openingSearch, resolveUniqueSide, type PairArgs, type PairOption } from "../lib/conventional";
 import { numStr } from "../lib/format";
 import CdnaView from "./CdnaView";
 import { Copy } from "./icons";
 import Info from "./Info";
+import GdnaCaveat from "./GdnaCaveat";
 import { qcCriteriaText, qcFailures, qcOrder, type QcFailure, type QcRule } from "../lib/qc";
 import { QcTag, useStructureQc } from "./QcTag";
 
@@ -38,7 +39,8 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
   /** This gene has ONE NM transcript — nothing to discriminate against. */
   solo?: boolean;
 }) {
-  /** An intronless transcript: no junction exists for a product to cross. */
+  /** An intronless transcript: no junction exists for a product to cross, so its pair sits
+   *  inside the one exon (PairArgs.sameExon) and carries the genomic-DNA caveat. */
   const singleExon = verdict.exons.length < 2;
   const s = useJunctionSettings();
 
@@ -81,18 +83,25 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
       return e ? { lo: e.tx_begin - 1, hi: e.tx_end } : null;   // 1-based incl → 0-based half-open
     };
     if (solo) {
-      const fwdRegion = exonSpan(fwdExon);
-      const revRegion = exonSpan(revExon);
+      // A whole exon — or, for an exon too short to hold a primer (yeast ACT1's 10-nt exon 1),
+      // the exon plus enough of its neighbour for a primer to straddle the junction.
+      const has = (o: number) => verdict.exons.some((x) => x.order === o);
+      const fwdRegion = has(fwdExon) ? bindingSpan(exonEnds, fwdExon - 1, "forward") : null;
+      const revRegion = has(revExon) ? bindingSpan(exonEnds, revExon - 1, "reverse") : null;
       if (!fwdRegion || !revRegion) return null;
       return {
         kind: "solo" as const, fwdRegion, revRegion,
         uniqueStarts: null, requireUniqueIn: null,
         note: singleExon
-          ? <>Only transcript of this gene, and it has a single exon.</>
+          ? <>Only transcript of this gene, and it has a single exon — any pair inside it is
+              specific.</>
           : <>Only transcript of this gene — any pair inside it is specific.</>,
-        detail: <>There is no sibling isoform to discriminate against, so you choose where the
-          primers sit. They must be in <b>different exons</b>: the product has to cross a
-          junction to be distinguishable from genomic DNA.</>,
+        detail: singleExon
+          ? <>There is no sibling isoform to discriminate against and no second exon, so both
+              primers sit in the one exon.</>
+          : <>There is no sibling isoform to discriminate against, so you choose where the
+              primers sit. They must be in <b>different exons</b>: the product has to cross a
+              junction to be distinguishable from genomic DNA.</>,
       };
     }
     const pair = verdict.amplify_exon_pair;
@@ -124,25 +133,42 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
       detail: <>That stretch is mRNA {r.tx_begin}–{r.tx_end}. Its partner is free to sit
         anywhere the amplicon allows.</>,
     };
-  }, [verdict, solo, fwdExon, revExon]);
+  }, [verdict, solo, fwdExon, revExon, exonEnds, singleExon, k]);
+
+  // Same-exon is decided by GEOMETRY, never by an empty list: only a transcript with fewer
+  // than two exons able to hold a primer can qualify, and only if no junction-crossing
+  // product exists at any size. ACT1 does not — a forward primer starting in its 10-nt exon
+  // crosses the junction — so it is held to the rule; a transcript that truly cannot cross
+  // one gets both primers in its long exon, and the genomic-DNA note that goes with that.
+  const crossing = useMemo(() => (!plan || singleExon) ? null : ampRange({
+    mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
+    uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn, exonEnds,
+    tmMin: s.tmMin, tmMax: s.tmMax, ampMin: 0, ampMax: 0, dTmMax: 0, cond: s.cond,
+  }), [plan, singleExon, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond]);
+  const sameExon = singleExon || (usableExons(exonEnds) < 2 && !crossing);
+  /** In same-exon mode a sole isoform's primers may sit anywhere; a unique region still binds. */
+  const fwdRegion = sameExon && plan?.kind === "solo" ? null : plan?.fwdRegion ?? null;
+  const revRegion = sameExon && plan?.kind === "solo" ? null : plan?.revRegion ?? null;
 
   // Geometry first: an exon pair ten exons apart cannot make a 150 bp product, so the
   // starting window is chosen from what this target can actually produce.
   const feasible = useMemo(() => plan && ampRange({
-    mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
+    mrna, k, fwdRegion, revRegion,
     uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn,
-    exonEnds,
+    exonEnds, sameExon,
     tmMin: s.tmMin, tmMax: s.tmMax, ampMin: 0, ampMax: 0, dTmMax: 0, cond: s.cond,
-  }), [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond]);
+  }), [plan, mrna, k, exonEnds, sameExon, fwdRegion, revRegion, s.tmMin, s.tmMax, s.cond]);
 
   // Everything the panel opens with — window, Tm range, Tm match — probed so the first
   // render shows a design whenever one exists at any reasonable setting. See openingSearch.
   const initial = useMemo(() => openingSearch(
     plan ? {
-      mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
+      mrna, k, fwdRegion, revRegion,
       uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn,
-      exonEnds, tmMin: s.tmMin, tmMax: s.tmMax, dTmMax: DEFAULT_DTM_MAX, cond: s.cond,
-    } : { mrna, k, exonEnds, tmMin: s.tmMin, tmMax: s.tmMax, dTmMax: DEFAULT_DTM_MAX, cond: s.cond },
+      exonEnds, sameExon,
+      tmMin: s.tmMin, tmMax: s.tmMax, dTmMax: DEFAULT_DTM_MAX, cond: s.cond,
+    } : { mrna, k, exonEnds, sameExon,
+          tmMin: s.tmMin, tmMax: s.tmMax, dTmMax: DEFAULT_DTM_MAX, cond: s.cond },
     feasible ?? null, AMP_FLOOR,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [feasible, plan]);
@@ -173,13 +199,13 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
   const found = useMemo(() => {
     if (!plan) return [];
     const args: PairArgs = {
-      mrna, k, fwdRegion: plan.fwdRegion, revRegion: plan.revRegion,
+      mrna, k, fwdRegion, revRegion,
       uniqueStarts: plan.uniqueStarts, requireUniqueIn: plan.requireUniqueIn,
-      exonEnds,
+      exonEnds, sameExon,
       tmMin: s.tmMin, tmMax: s.tmMax, ampMin, ampMax, dTmMax, cond: s.cond,
     };
     return findPairs(args);
-  }, [plan, mrna, k, exonEnds, s.tmMin, s.tmMax, s.cond, ampMin, ampMax, dTmMax]);
+  }, [plan, mrna, k, exonEnds, sameExon, fwdRegion, revRegion, s.tmMin, s.tmMax, s.cond, ampMin, ampMax, dTmMax]);
 
   // Primer QC on every pair (ticket 30.b): judged against the user's Tm range, GC applied
   // (conventional primers); hairpin / self-dimer from /qc. The pair passes when both do,
@@ -268,10 +294,20 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
           intro={
             <p className="sub jd-intro">
               {plan.note}{" "}{singleExon
-                ? <>No product can span an exon–exon junction, so none is designed.</>
-                : <>Every product spans an exon–exon junction.</>}
-              <Info>{plan.detail}{" "}Spanning a junction means contaminating genomic DNA cannot
-                give the same band. Set the product size and how closely the two primers must
+                ? <>It has no exon–exon junction to span, so both primers sit in its one exon.</>
+                : sameExon
+                  ? <>Its other exon{verdict.exons.length > 2 ? "s are" : " is"} too short even to
+                      start a primer in, so both primers sit in the long one.</>
+                  : usableExons(exonEnds) < 2
+                    ? <>One exon is too short to hold a primer, so a primer starts in it and runs
+                        on across the junction — every product still spans one.</>
+                    : <>Every product spans an exon–exon junction.</>}
+              <Info>{plan.detail}{" "}{singleExon
+                ? <>A transcript with junctions is always given a product that crosses one, so
+                    that contaminating genomic DNA cannot give the same band; an intronless
+                    transcript has none to cross, which is what the note below is about.</>
+                : <>Spanning a junction means contaminating genomic DNA cannot give the same
+                    band.</>}{" "}Set the product size and how closely the two primers must
                 melt together in the panel beside this card; the list re-searches as you type.
                 Every pair carries the primer QC verdict of Method § 4, judged against your Tm
                 range; QC-passed pairs are listed first.</Info>
@@ -279,21 +315,14 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
           }
         />
 
-      {options.length === 0 && singleExon ? (
-        // An intronless transcript — the rule in yeast, the exception in human (JUN). There
-        // is no second exon to pick, so say what is true instead of asking for one.
-        <p className="sub pp-idle">
-          This transcript is a <b>single exon</b>: it has no exon–exon junction, and a product
-          that crosses one is how every pair here is kept from also amplifying contaminating
-          genomic DNA. With no junction to cross, no pair is offered. (For an intronless
-          target the usual route is a pair within the exon, on DNase-treated RNA, with a
-          no-reverse-transcriptase control.)
-        </p>
-      ) : options.length === 0 ? (
+      {/* An intronless transcript — the rule in yeast, the exception in human (JUN). */}
+      {sameExon && <GdnaCaveat />}
+
+      {options.length === 0 ? (
         <p className="sub pp-idle">
           No pair fits a {ampMin}–{ampMax} bp product with both primers melting in{" "}
           {s.tmMin}–{s.tmMax} °C and within <b>±{numStr(dTmMax)} °C</b> of each other
-          {solo && fwdExon === revExon
+          {solo && !sameExon && fwdExon === revExon
             ? <> — and both primers are in <b>exon {fwdExon}</b>, so no product could cross a
                 junction. Pick two different exons.</>
             : feasible && (ampMax < feasible.min || ampMin > feasible.max)
@@ -388,7 +417,7 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
           </button>
         )}
 
-        {solo && (
+        {solo && !sameExon && (
           <RailGroup title="Target exons"
             info={<>This transcript is its gene's only isoform, so nothing has to be told apart
               — any two exons work. The product must still cross a junction, so the two must

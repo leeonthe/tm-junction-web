@@ -109,6 +109,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
                   {" · "}covers <b>{o.covered.length}/{total}</b>
                   <QcChip flags={o.flags} />
                   {o.flags.includes("PAIR_DIMER") && <span className="pv-flag"> · pair dimer</span>}
+                  {o.flags.includes("SAME_EXON") && <span className="pv-flag" title="Inside one exon, to include a single-exon transcript: genomic DNA gives the same band, so DNase-treat and run a no-RT control"> · same exon</span>}
                 </span>
               </button>
             );
@@ -150,6 +151,7 @@ export default function PanVariantCard({ result }: { result: AnalyzeResponse }) 
         GC {p.forward.gc}% / {p.reverse.gc}% · {p.forward.length} / {p.reverse.length} nt
         <QcChip flags={p.flags} />
         {p.flags.includes("PAIR_DIMER") && <span className="pv-flag"> · pair dimer</span>}
+        {p.flags.includes("SAME_EXON") && <span className="pv-flag" title="Inside one exon, to include a single-exon transcript: genomic DNA gives the same band, so DNase-treat and run a no-RT control"> · same exon</span>}
       </p>
 
       <div className="pv-cover">

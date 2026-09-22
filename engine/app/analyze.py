@@ -222,8 +222,21 @@ def _runs(positions: list[int]) -> list[list[int]]:
     return out
 
 
+def _is_plus(exons: list[tuple[int, int]], strand: str = "") -> bool:
+    """Is the transcript read left-to-right on the genome?
+
+    Exon order says so for any transcript with two exons. A single-exon transcript HAS no
+    exon order, and assuming "plus" for it mirrored every position inside the exon on a
+    minus-strand gene: fly Gapdh1's variant A is unique over mRNA 1–150 and was reported as
+    unique over 1331–1480, the other end. So one exon takes NCBI's stated strand.
+    """
+    if len(exons) >= 2:
+        return exons[0][0] <= exons[-1][0]
+    return strand != "-"
+
+
 def _uniq_genomic(exons: list[tuple[int, int]], tx_start: int, tx_end: int,
-                  exon_order: int) -> tuple[int, int]:
+                  exon_order: int, strand: str = "") -> tuple[int, int]:
     """Map a unique window span [tx_start, tx_end] (0-based mRNA) to its genomic (begin,end)
     within its exon, honoring strand (inferred from transcript vs genomic exon order)."""
     cum = cumulative_exon_ends(exons)                 # 0-based exclusive mRNA ends
@@ -231,20 +244,20 @@ def _uniq_genomic(exons: list[tuple[int, int]], tx_start: int, tx_end: int,
     gb, ge = exons[ei]                                # genomic begin <= end
     exon_tx0 = cum[ei - 1] if ei else 0               # 0-based mRNA start of the exon
     off_s, off_e = tx_start - exon_tx0, tx_end - exon_tx0
-    plus = len(exons) < 2 or exons[0][0] <= exons[-1][0]
+    plus = _is_plus(exons, strand)
     b, e = (gb + off_s, gb + off_e) if plus else (ge - off_e, ge - off_s)
     return (min(b, e), max(b, e))
 
 
 def _region_tx(exons: list[tuple[int, int]], exon_order: int,
-               gb: int, ge: int) -> tuple[int, int]:
+               gb: int, ge: int, strand: str = "") -> tuple[int, int]:
     """Inverse of _uniq_genomic for a sub-span: map a genomic (gb,ge) inside exon `exon_order`
     to 1-based mRNA (tx_begin, tx_end), honoring strand."""
     cum = cumulative_exon_ends(exons)
     ei = exon_order - 1
     b, e = exons[ei]
     exon_tx1 = (cum[ei - 1] if ei else 0) + 1          # 1-based mRNA start of the exon
-    plus = len(exons) < 2 or exons[0][0] <= exons[-1][0]
+    plus = _is_plus(exons, strand)
     if plus:
         return (exon_tx1 + (gb - b), exon_tx1 + (ge - b))
     return (exon_tx1 + (e - ge), exon_tx1 + (e - gb))
@@ -256,7 +269,7 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                     same_sequence: list[str] | None = None,
                     variant: str | None = None,
                     same_variants: list[str | None] | None = None,
-                    placed_via: str | None = None) -> TranscriptVerdict:
+                    placed_via: str | None = None, strand: str = "") -> TranscriptVerdict:
     junctions = [
         JunctionOut(donor_order=j.donor_order, acceptor_order=j.acceptor_order,
                     label=_junction_label(j.donor_order, j.acceptor_order))
@@ -284,9 +297,9 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         # when no sibling exon structures were available to subtract.
         if r.uniq_span:
             gb, ge = r.uniq_span
-            tb, te = _region_tx(exons, r.exon_order, gb, ge)
+            tb, te = _region_tx(exons, r.exon_order, gb, ge, strand)
         else:
-            gb, ge = _uniq_genomic(exons, r.tx_start, r.tx_end, r.exon_order)
+            gb, ge = _uniq_genomic(exons, r.tx_start, r.tx_end, r.exon_order, strand)
             tb, te = r.tx_start + 1, r.tx_end + 1
         uniq_out.append(UniqueRegionOut(
             exon_order=r.exon_order, window_count=r.window_count, side=r.side,
@@ -299,7 +312,7 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
     if amp.combo_je and amp.combo_exon_region:
         _, _, ce = amp.combo_je
         gb, ge = amp.combo_exon_region
-        tb, te = _region_tx(exons, ce, gb, ge)
+        tb, te = _region_tx(exons, ce, gb, ge, strand)
         uniq_out.append(UniqueRegionOut(exon_order=ce, window_count=0, side="either",
                                         begin=gb, end=ge, tx_begin=tb, tx_end=te,
                                         uniq_len=te - tb + 1))
@@ -464,7 +477,7 @@ def analyze_events(accession: str, k: int = 20):
                                         t.get("cds"), amp, coord_nu,
                                         same_seq.get(a, []), t.get("variant"),
                                         [accs[x].get("variant") for x in same_seq.get(a, [])],
-                                        t.get("placed_via")))
+                                        t.get("placed_via"), t.get("strand") or gene.strand))
 
     yield {"type": "progress", "pct": 94, "detail": "Designing Tm-guided primers…"}
     tgt = accs[target_acc]

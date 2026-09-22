@@ -81,7 +81,7 @@ def test_the_rule_is_enforced_where_the_pair_is_emitted():
     real = primers._choose_partner
     seen = {}
 
-    def partner_inside_one_exon(seq, spec_start, spec_len, spec_is_forward, cum=None):
+    def partner_inside_one_exon(seq, spec_start, spec_len, spec_is_forward, cum=None, same_exon_ok=False):
         """Return a partner that keeps the product inside one exon.
 
         GAPDH NM_001256799.3's specific primer sits at 171 and exon 1 ends at 206, so a

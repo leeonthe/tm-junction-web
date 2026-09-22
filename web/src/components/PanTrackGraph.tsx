@@ -181,7 +181,7 @@ export default function PanTrackGraph({
             for (const e of t.exons) {
               const lo = Math.max(e.tx_begin - 1, start), hi = Math.min(e.tx_end, end);
               if (lo >= hi) continue;
-              const g1 = txToGenomic(t.exons, lo), g2 = txToGenomic(t.exons, hi - 1);
+              const g1 = txToGenomic(t.exons, lo, strand), g2 = txToGenomic(t.exons, hi - 1, strand);
               if (g1 == null || g2 == null) continue;
               const [a, b] = g1 <= g2 ? [g1, g2] : [g2, g1];
               const [exX, exRight] = exonBoxPx(e, x);
@@ -191,7 +191,7 @@ export default function PanTrackGraph({
             }
             // The two sites: the forward's 5′ start and the reverse's 3′ end on the sense
             // strand — the two ends of the product, whichever side of the graph each is on.
-            const gf = txToGenomic(t.exons, start), gr = txToGenomic(t.exons, end - 1);
+            const gf = txToGenomic(t.exons, start, strand), gr = txToGenomic(t.exons, end - 1, strand);
             if (gf != null) siteF = x(gf);
             if (gr != null) siteR = x(gr + 1);
           }

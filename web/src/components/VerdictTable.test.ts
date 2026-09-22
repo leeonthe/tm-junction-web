@@ -117,7 +117,7 @@ describe("sole-isoform transcripts", () => {
                    cds: "cds" as const, gc: 47, unique_sites: 980 };
     const tdh3Like = v({ tier: "CONVENTIONAL", needs_eej: false, exons: [exon],
                          unique_regions: [{ exon_order: 1, window_count: 980, side: "either", uniq_len: 999 }] });
-    expect(mechanism(tdh3Like, true)).toBe("Single exon — no junction to span");
+    expect(mechanism(tdh3Like, true)).toBe("Same-exon pair · single exon");
     // Two exons (yeast ACT1) is back to the ordinary sole-isoform wording.
     expect(mechanism({ ...tdh3Like, exons: [exon, { ...exon, order: 2 }] }, true)).toBe("Any two nearby exons");
   });

@@ -20,6 +20,7 @@ FEATURES = [
     "transcript_sequences",        # 25.b: GET /sequences — sibling mRNAs for the browser's whole-transcript designer
     "noncoding_transcripts",       # NR_ (non-coding RNA) transcripts analyzed alongside NM_
     "multi_species",               # species= on /gene and /suggest_genes; accessions of any supported species
+    "single_exon_pairs",           # a one-exon transcript gets a pair inside its exon (flag SAME_EXON)
 ]
 
 

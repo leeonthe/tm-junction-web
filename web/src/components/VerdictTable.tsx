@@ -123,8 +123,8 @@ const EEJ_MECHANISM: Record<EejPlan["kind"], string> = {
 export function mechanism(t: TranscriptVerdict, solo = false): string {
   // Sole isoform: the whole transcript is targetable, so say that rather than singling out
   // whichever exon happened to sort first.
-  // …unless it has one exon, where there are no two exons to name.
-  if (solo && t.tier === "CONVENTIONAL" && t.exons.length === 1) return "Single exon — no junction to span";
+  // …unless it has one exon, where there are no two exons to name: the pair sits inside it.
+  if (solo && t.tier === "CONVENTIONAL" && t.exons.length === 1) return "Same-exon pair · single exon";
   if (solo && t.tier === "CONVENTIONAL") return "Any two nearby exons";
   if (t.tier === "NEEDS_EEJ") {
     const p = eejPlan(t);

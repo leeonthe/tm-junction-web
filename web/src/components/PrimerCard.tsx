@@ -7,6 +7,7 @@ const FLAG_TEXT: Record<string, string> = {
   LOW_QC: "The most specific oligo here is GC-rich / high-Tm (a CpG-dense region) — usable but validate it or widen the region.",
   LOW_DELTA_TM: "Specificity margin (ΔTm) is below the safe 10 °C target — this primer may co-amplify a sibling; verify empirically.",
   PAIR_DIMER: "Forward and reverse primers show a strong cross-dimer — consider re-picking the partner.",
+  SAME_EXON: "This transcript has a single exon, so the product lies inside it and genomic DNA gives the same band — DNase-treat the RNA and run a no-RT control alongside.",
 };
 
 export default function PrimerCard({ design, mrna, verdict }: {

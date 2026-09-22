@@ -203,9 +203,10 @@ def test_falls_back_to_the_most_common_region():
 
 
 def test_no_pair_at_all_is_reported_as_none():
-    """A single-exon transcript has no junction to cross, so there is nothing to offer."""
-    tmap = {"NM_300001.1": _tx([(1000, 1299)])}
-    assert panvariant.design(tmap, {"NM_300001.1": EX1}) is None
+    """Nothing to offer is still None — here a transcript too short to hold a product. (A
+    single-exon transcript of ordinary length DOES get a pair now: test_single_exon.py.)"""
+    tmap = {"NM_300001.1": _tx([(1000, 1049)])}
+    assert panvariant.design(tmap, {"NM_300001.1": EX1[:50]}) is None
 
 
 def test_several_ranked_options_not_one():

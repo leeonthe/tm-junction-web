@@ -74,6 +74,14 @@ export interface PairArgs {
    * disables that check rather than silently passing it.
    */
   exonEnds?: number[] | null;
+  /**
+   * The product may lie INSIDE one exon. Set where no junction-crossing product can do the
+   * job: the transcript has a single exon (intronless — the rule in yeast, and human JUN),
+   * or a whole-transcript pair has to include a single-exon sibling, which a product across
+   * a junction never can. Such a product cannot be told from one off genomic DNA, so every
+   * caller that sets this also tells the user to DNase-treat and run a no-RT control.
+   */
+  sameExon?: boolean;
   k: number;
   tmMin: number;
   tmMax: number;
@@ -106,6 +114,47 @@ function exonAt(exonEnds: number[], pos: number): number {
 export function spansJunction(exonEnds: number[] | null | undefined, s: number, e: number): boolean {
   if (!exonEnds?.length) return true;
   return exonAt(exonEnds, s) !== exonAt(exonEnds, e - 1);
+}
+
+/** Bases a product must put on EACH side of the junction it crosses — the junction
+ *  designer's own minimum arm, and the engine's MIN_JX_ARM. */
+export const MIN_FOOTHOLD = 5;
+/** An exon shorter than a primer cannot hold one whole; it can still hold the start of one. */
+export const SHORT_EXON = PARTNER_LEN_MIN;
+
+/**
+ * Does [s, e) cross a junction with a FOOTHOLD on both sides of it?
+ *
+ * spansJunction asks only whether the product starts in one exon and ends in another, which
+ * a primer reaching 2 nt into the next exon satisfies — while the other 18 nt of it prime
+ * genomic DNA just as well, so nothing has been excluded. This is the test the search
+ * applies. Primers sitting whole in different exons clear it by construction; it bites only
+ * where a primer STRADDLES a junction, which is how an exon too short to hold a primer
+ * still serves as a partial binding site (yeast ACT1: a 10-nt first exon).
+ */
+export function crossesJunction(exonEnds: number[] | null | undefined, s: number, e: number): boolean {
+  if (!exonEnds?.length) return true;
+  return exonEnds.slice(0, -1).some((b) => s + MIN_FOOTHOLD <= b && b <= e - MIN_FOOTHOLD);
+}
+
+/** How many exons are long enough to hold a whole primer. Fewer than two, and no pair of
+ *  whole-exon primers can cross a junction — see usableExons' callers. */
+export const usableExons = (exonEnds: readonly number[]): number =>
+  exonEnds.filter((end, i) => end - (i ? exonEnds[i - 1] : 0) >= SHORT_EXON).length;
+
+/**
+ * Where a primer assigned to an exon may bind. A whole exon for an exon that can hold one;
+ * for a SHORT exon, the exon plus enough of its neighbour for a primer to start (forward)
+ * or end (reverse) inside it and run across the junction. The search's junction rule still
+ * decides what is a product, so widening the span cannot let a same-exon pair through.
+ */
+export function bindingSpan(exonEnds: readonly number[], index: number, role: "forward" | "reverse"): Span {
+  const lo = index ? exonEnds[index - 1] : 0, hi = exonEnds[index];
+  if (hi - lo >= SHORT_EXON) return { lo, hi };
+  const reach = PARTNER_LEN_MAX - MIN_FOOTHOLD;
+  return role === "forward"
+    ? { lo, hi: Math.min(exonEnds[exonEnds.length - 1], hi + reach) }
+    : { lo: Math.max(0, lo - reach), hi };
 }
 
 /** Does oligo [s, s+len) fully contain one specific window? */
@@ -218,8 +267,9 @@ export function findPairs(a: PairArgs): PairOption[] {
     for (; i < reverses.length && ends[i] <= f.s + ampMax; i++) {
       const r = reverses[i];
       if (r.s < f.e) continue;                       // primers must not overlap
-      // The product must cross a junction, or it cannot be told from genomic DNA.
-      if (!spansJunction(a.exonEnds, f.s, r.e)) continue;
+      // The product must cross a junction, or it cannot be told from genomic DNA — unless
+      // the caller has said there is no junction it could cross (see PairArgs.sameExon).
+      if (!a.sameExon && !crossesJunction(a.exonEnds, f.s, r.e)) continue;
       const dTm = r.tm - f.tm;
       if (Math.abs(dTm) > a.dTmMax) continue;
       pairs.push({
@@ -279,7 +329,8 @@ export function ampRange(a: PairArgs): { min: number; max: number } | null {
   const rHi = a.revRegion ? a.revRegion.hi : a.mrna.length;
   if (fLo > fHi || rLo > rHi) return null;
   const floor = 2 * PARTNER_LEN_MIN;
-  if (!a.exonEnds?.length) {                     // structure unknown — geometry is all there is
+  if (!a.exonEnds?.length || a.sameExon) {       // structure unknown, or no junction to cross:
+                                                 // geometry is all there is
     const min = Math.max(floor, rLo - fHi);
     const max = rHi - fLo;
     return max >= min ? { min, max } : null;
@@ -290,9 +341,10 @@ export function ampRange(a: PairArgs): { min: number; max: number } | null {
   const junctions = a.exonEnds.slice(0, -1);
   let min = Infinity, max = -Infinity;
   for (const b of junctions) {
-    // A product crosses junction b when it starts before b and ends after it.
-    const f = Math.min(fHi, b - 1);              // latest start still before the junction
-    const r = Math.max(rLo, b + 1);              // earliest end still after it
+    // A product crosses junction b when it starts before b and ends after it — with a
+    // foothold on each side (crossesJunction).
+    const f = Math.min(fHi, b - MIN_FOOTHOLD);   // latest start still before the junction
+    const r = Math.max(rLo, b + MIN_FOOTHOLD);   // earliest end still after it
     if (f >= fLo && r <= rHi) min = Math.min(min, Math.max(floor, r - f));
     if (fLo < b && b < rHi) max = Math.max(max, rHi - fLo);
   }

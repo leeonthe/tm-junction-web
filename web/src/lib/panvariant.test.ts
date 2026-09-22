@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  amplifies, coverage, defaultPairChoice, exonsInProduct, offeredPairs, pairCarriers, txToGenomic,
+  MIN_SHARED, amplifies, coverage, defaultPairChoice, exonsInProduct, offeredPairs, pairCarriers,
+  sameExonChoices, txToGenomic,
 } from "./panvariant";
 import { revComp } from "./partner";
 import type { Exon, TranscriptVerdict } from "./types";
@@ -196,5 +197,92 @@ describe("exonsInProduct / txToGenomic", () => {
     const minus = tx("M", mk([[5000, 5099], E4]));
     expect(txToGenomic(minus.exons, 0)).toBe(5099);
     expect(txToGenomic(minus.exons, 100)).toBe(4299);
+  });
+});
+
+/**
+ * A single-exon transcript has no junction, so no junction-crossing product can include it:
+ * between two spliced exons it carries an intron's worth of extra sequence, or nothing. The
+ * one way to measure it WITH its siblings is a product inside the exon they share. GHSR is
+ * the shape: GHSR1a has two exons, GHSR1b is ONE, reading on past the splice donor.
+ */
+describe("same-exon choices, for genes with a single-exon transcript", () => {
+  const TWO = tx("TWO", mk([[1000, 1799], [5000, 5999]]));        // spliced, two exons
+  const ONE = tx("ONE", mk([[1000, 2499]]));                       // one exon, reads into the intron
+
+  it("offers the stretch both carry, on the reference's own mRNA", () => {
+    const [c] = sameExonChoices([TWO, ONE], TWO, "+");
+    expect(c).toMatchObject({ fwd: 1, rev: 1, sameExon: true, carriers: ["TWO", "ONE"] });
+    expect(c.fwdRegion).toEqual({ lo: 0, hi: 800 });                // genomic 1000–1799
+    expect(c.revRegion).toEqual(c.fwdRegion);
+    // Seen from the single-exon transcript, it is the same stretch of genome.
+    expect(sameExonChoices([TWO, ONE], ONE, "+")[0].fwdRegion).toEqual({ lo: 0, hi: 800 });
+  });
+
+  it("reads a single-exon reference from its 5′ end on the minus strand", () => {
+    // No exon order to infer a direction from: the gene's strand decides. The mRNA of a
+    // minus-strand transcript starts at the exon's HIGH coordinate (yeast TDH3, fly Gapdh1).
+    const sib = tx("SIB", mk([[1000, 1799]]));
+    expect(sameExonChoices([ONE, sib], ONE, "-")[0].fwdRegion).toEqual({ lo: 700, hi: 1500 });
+    expect(sameExonChoices([ONE, sib], ONE, "+")[0].fwdRegion).toEqual({ lo: 0, hi: 800 });
+  });
+
+  it("is offered only where it reaches a single-exon transcript", () => {
+    // A, P and Q all have junctions: a junction-crossing pair serves, and excludes gDNA.
+    expect(sameExonChoices(ALL, A, "+")).toEqual([]);
+    expect(offeredPairs(ALL, A).pairs.every((p) => !p.sameExon)).toBe(true);
+    // A transcript on its own, with one exon, IS the single-exon transcript.
+    expect(sameExonChoices([ONE], ONE, "+")).toHaveLength(1);
+  });
+
+  it("leaves out a transcript that shares too little, rather than shrink the stretch to nothing", () => {
+    const sliver = tx("SLIVER", mk([[2450, 3000]]));                // 50 nt of overlap
+    expect(MIN_SHARED).toBeGreaterThan(50);
+    const [c] = sameExonChoices([ONE, TWO, sliver], ONE, "+");
+    expect(c.carriers).toEqual(["ONE", "TWO"]);
+    expect(c.fwdRegion).toEqual({ lo: 0, hi: 800 });
+  });
+
+  it("wins the offer when it reaches more transcripts than any junction-crossing pair", () => {
+    const { pairs, share } = offeredPairs([TWO, ONE], TWO, undefined, "+");
+    expect(share).toBe(2);                                          // TWO's 1→2 pair reaches only TWO
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].sameExon).toBe(true);
+    expect(defaultPairChoice(pairs, [1, 1])).toBe(pairs[0]);        // the engine's [1, 1] is this one
+  });
+
+  it("loses a tie to the junction-crossing pair, which excludes genomic DNA", () => {
+    const crossing = { fwd: 1, rev: 2, carriers: ["a", "b"], fwdRegion: { lo: 0, hi: 90 }, revRegion: { lo: 100, hi: 190 } };
+    const same = { fwd: 1, rev: 1, sameExon: true, carriers: ["a", "b"], fwdRegion: { lo: 0, hi: 900 }, revRegion: { lo: 0, hi: 900 } };
+    expect(defaultPairChoice([same, crossing])).toBe(crossing);     // despite far more room
+    expect(defaultPairChoice([{ ...same, carriers: ["a", "b", "c"] }, crossing])?.sameExon).toBe(true);
+  });
+
+  it("paints a single-exon product at the right end of a minus-strand exon", () => {
+    const e = mk([[1000, 1999]]);
+    expect(txToGenomic(e, 0, "-")).toBe(1999);                      // mRNA position 0 = the high end
+    expect(txToGenomic(e, 0, "+")).toBe(1000);
+    expect(txToGenomic(e, 0)).toBe(1000);                           // unstated: as before
+  });
+});
+
+describe("a short exon in the whole-transcript designer", () => {
+  // ACT1's shape, plus strand: a 10-nt exon, an intron, a long exon.
+  const act1 = tx("ACT1", mk([[1000, 1009], [1400, 2517]]));
+
+  it("offers the pair across the short exon's junction, with room to straddle it", () => {
+    const { pairs, share } = offeredPairs([act1], act1, undefined, "+");
+    const crossing = pairs.find((p) => !p.sameExon);
+    expect(share).toBe(1);
+    expect(crossing).toMatchObject({ fwd: 1, rev: 2, carriers: ["ACT1"] });
+    expect(crossing!.fwdRegion.lo).toBe(0);
+    expect(crossing!.fwdRegion.hi).toBeGreaterThan(10);        // into exon 2: a partial binding site
+    expect(crossing!.revRegion).toEqual({ lo: 10, hi: 1128 });
+  });
+
+  it("also offers the long exon on its own, and opens on the pair that crosses", () => {
+    const { pairs } = offeredPairs([act1], act1, undefined, "+");
+    expect(pairs.some((p) => p.sameExon && p.fwd === 2)).toBe(true);     // one usable exon
+    expect(defaultPairChoice(pairs)?.sameExon).toBeFalsy();               // crossing wins the tie
   });
 });

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PAIRS, ampRange, findPairs, resolveUniqueSide, spansJunction, type PairArgs } from "./conventional";
+import {
+  MAX_PAIRS, MIN_FOOTHOLD, ampRange, bindingSpan, crossesJunction, findPairs, resolveUniqueSide,
+  spansJunction, usableExons, type PairArgs,
+} from "./conventional";
 import { revComp } from "./partner";
 import { DEFAULT_CONDITIONS, tm } from "./tm";
 
@@ -232,6 +235,46 @@ describe("amplicons must span at least two exons", () => {
   });
 });
 
+/**
+ * A single-exon transcript has no junction for a product to cross — intronless genes are the
+ * rule in yeast, and human has JUN and the histones. Holding it to the junction rule left
+ * it with no pair at all, which protects nothing. `sameExon` is the caller saying so; the
+ * rule itself is untouched for everything else.
+ */
+describe("same-exon products, where no junction exists to cross", () => {
+  const oneExon = (over: Partial<PairArgs> = {}) => uniq({ exonEnds: [1200], ...over });
+
+  it("finds pairs inside the one exon only when told the transcript has no junction", () => {
+    expect(findPairs(oneExon())).toEqual([]);                        // the rule, as before
+    const pairs = findPairs(oneExon({ sameExon: true }));
+    expect(pairs.length).toBeGreaterThan(0);
+    for (const p of pairs) {
+      expect(spansJunction([1200], p.forward.s, p.reverse.e)).toBe(false);   // inside one exon
+      expect(p.reverse.s).toBeGreaterThanOrEqual(p.forward.e);
+    }
+  });
+
+  it("still requires the specific primer to be specific", () => {
+    // Same-exon is a concession on genomic DNA, never on which transcript is amplified.
+    for (const p of findPairs(oneExon({ sameExon: true }))) {
+      const covers = uniqueRun.some(([lo, hi]) => p.forward.s <= hi && p.forward.e >= lo + 20);
+      expect(covers).toBe(true);
+    }
+  });
+
+  it("offers a reachable size range by geometry alone", () => {
+    const r = ampRange(oneExon({ sameExon: true }));
+    expect(r).not.toBeNull();
+    expect(r!.min).toBeLessThan(r!.max);
+  });
+
+  it("does not loosen the rule for a transcript that HAS junctions", () => {
+    const crossing = findPairs(uniq());
+    expect(crossing.length).toBeGreaterThan(0);
+    for (const p of crossing) expect(spansJunction(EXON_ENDS, p.forward.s, p.reverse.e)).toBe(true);
+  });
+});
+
 
 /**
  * FGFR1 NM_001174066.2 in miniature: a 7c exon-pair target whose first exon is so short
@@ -290,5 +333,63 @@ describe("resolveUniqueSide — a terminal-exon region flips its primer", () => 
     const flipped = findPairs(uniq({ uniqueStarts: uniq3, requireUniqueIn: side, ampMin: 80, ampMax: 600, dTmMax: 3 }));
     expect(flipped.length).toBeGreaterThan(0);
     for (const p of flipped) expect(spansJunction(EXON_ENDS, p.forward.s, p.reverse.e)).toBe(true);
+  });
+});
+
+/**
+ * An exon too short to hold a primer is not a lost cause: it can hold the START of one. Yeast
+ * ACT1 is a 10-nt first exon and then 1118 — a forward primer beginning in those 10 bases
+ * and running on into exon 2 makes a product that crosses the junction, which a same-exon
+ * pair never does. So that comes first, and "both primers in the long exon" only when even
+ * a foothold is impossible.
+ */
+describe("an exon too short to hold a primer", () => {
+  const ACT1 = [10, 1128];
+  const act1 = (over: Partial<PairArgs> = {}): PairArgs => ({
+    ...uniq(), uniqueStarts: null, requireUniqueIn: null, exonEnds: ACT1,
+    fwdRegion: bindingSpan(ACT1, 0, "forward"), revRegion: bindingSpan(ACT1, 1, "reverse"),
+    ampMin: 80, ampMax: 300, tmMin: 50, tmMax: 70, dTmMax: 5, ...over,
+  });
+
+  it("counts the exons that can hold a whole primer", () => {
+    expect(usableExons(ACT1)).toBe(1);
+    expect(usableExons([1425])).toBe(1);
+    expect(usableExons(EXON_ENDS)).toBe(EXON_ENDS.length);
+  });
+
+  it("lets a primer start in the short exon and run on across the junction", () => {
+    const span = bindingSpan(ACT1, 0, "forward");
+    expect(span.lo).toBe(0);
+    expect(span.hi).toBeGreaterThan(10);                       // reaches into exon 2
+    expect(bindingSpan(ACT1, 1, "reverse")).toEqual({ lo: 10, hi: 1128 });   // a whole exon: itself
+    // A short LAST exon mirrors it: the reverse primer may end inside it.
+    expect(bindingSpan([500, 512], 1, "reverse").lo).toBeLessThan(500);
+    const pairs = findPairs(act1());
+    expect(pairs.length).toBeGreaterThan(0);
+    for (const p of pairs) {
+      expect(crossesJunction(ACT1, p.forward.s, p.reverse.e)).toBe(true);
+      expect(10 - p.forward.s).toBeGreaterThanOrEqual(MIN_FOOTHOLD);      // a real foothold in exon 1
+      expect(p.forward.e - 10).toBeGreaterThanOrEqual(MIN_FOOTHOLD);      // and in exon 2
+    }
+  });
+
+  it("does not call a 2-nt reach into the next exon a crossing", () => {
+    // The other 18 nt of that primer prime genomic DNA just as well: nothing is excluded.
+    expect(spansJunction(ACT1, 8, 200)).toBe(true);            // by exon bookkeeping, yes
+    expect(crossesJunction(ACT1, 8, 200)).toBe(false);         // by what excludes gDNA, no
+    expect(crossesJunction(ACT1, 5, 200)).toBe(true);
+    expect(crossesJunction(EXON_ENDS, 140, 152)).toBe(false);  // 150 is 2 nt from the end
+    expect(crossesJunction(EXON_ENDS, 10, 900)).toBe(true);
+    expect(crossesJunction(null, 10, 40)).toBe(true);          // unknown structure, as before
+  });
+
+  it("has a crossing product in reach, so ACT1 is NOT a same-exon case", () => {
+    expect(ampRange(act1())).not.toBeNull();
+    // A 4-nt exon cannot give a primer its foothold: nothing crosses, and only then same-exon.
+    const stub = [4, 1128];
+    const args = act1({ exonEnds: stub, fwdRegion: bindingSpan(stub, 0, "forward"), revRegion: bindingSpan(stub, 1, "reverse") });
+    expect(ampRange(args)).toBeNull();
+    expect(findPairs(args)).toEqual([]);
+    expect(findPairs({ ...args, fwdRegion: null, revRegion: null, sameExon: true }).length).toBeGreaterThan(0);
   });
 });
