@@ -47,10 +47,12 @@ import GdnaCaveat from "./GdnaCaveat";
 /** A searched pair with what it does to the gene. */
 interface PanOption extends PairOption { cov: Coverage }
 
-export default function PanVariantDesigner({ result, seqs }: {
+export default function PanVariantDesigner({ result, seqs, filter }: {
   result: AnalyzeResponse;
   /** mRNA by accession for every transcript in `result.transcripts`, the target included. */
   seqs: ReadonlyMap<string, string>;
+  /** The transcript filter, placed right above the exon graph. */
+  filter?: React.ReactNode;
 }) {
   const { target_verdict: verdict, target_mrna: mrna, transcripts, gene, target_accession } = result;
   const k = Number(result.meta.k) || 20;
@@ -552,6 +554,7 @@ export default function PanVariantDesigner({ result, seqs }: {
       </SettingsRail>
       </div>
 
+      {filter}
       <section className="card">
         <div className="card-head">
           <div>

@@ -334,7 +334,7 @@ td .tacc{font-family:var(--mono);font-weight:600;color:var(--ink)}
   padding:2px 7px;border-radius:5px;margin-left:7px}
 /* Which transcripts the comparison includes (TranscriptFilter): chips, click to toggle. An
    excluded chip stays in the row, struck through — the way back is where the way out was. */
-.tf{margin:18px 0 6px}
+.tf{margin:0 0 -14px}
 .tf-head{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:13px;color:var(--text)}
 .tf-head b{color:var(--ink);font-weight:600}
 .tf-count{color:var(--muted)}

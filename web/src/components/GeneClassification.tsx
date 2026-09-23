@@ -10,15 +10,17 @@ import VerdictTable from "./VerdictTable";
  * tab (`onSelect`), keeping this tab purely gene-wide.
  */
 export default function GeneClassification({
-  result, onSelect, onInclude,
+  result, onSelect, onInclude, filter,
 }: {
   result: AnalyzeResponse;
   onSelect: (accession: string) => void;
   onInclude?: (accession: string) => void;
+  filter?: React.ReactNode;
 }) {
   return (
     <>
       <GeneOverview result={result} />
+      {filter}
       <GraphCard result={result} />
       <section className="card">
         <div className="card-head">

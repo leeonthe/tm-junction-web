@@ -430,6 +430,11 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
     const twins = result.excluded?.find((e) => e.accession === acc)?.same_sequence_accessions ?? [];
     onExclude(excludedNow.filter((a) => a !== acc && !twins.includes(a)));
   };
+  // Which transcripts the comparison includes. It changes the meaning of every tab — tiers,
+  // unique regions, primers and whole-transcript coverage are all "against the included
+  // transcripts" — and it is placed on each tab directly above the graph that draws them,
+  // where a reader looking at a row can reach for its chip.
+  const filter = <TranscriptFilter result={result} busy={busy} onChange={onExclude} />;
   return (
     <>
       {backToVariants && (
@@ -458,11 +463,6 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
 
       <EngineVersionNotice result={result} />
 
-      {/* Which transcripts the comparison includes. Above the tabs because it changes the
-          meaning of every one of them: tiers, unique regions, primers and whole-transcript
-          coverage are all "against the included transcripts". */}
-      <TranscriptFilter result={result} busy={busy} onChange={onExclude} />
-
       <div className="tabs">
         <button className={`tab ${tab === "summary" ? "on" : ""}`} onClick={() => setTab("summary")}>Summary</button>
         <button className={`tab ${tab === "pan" ? "on" : ""}`} onClick={() => setTab("pan")}>Whole-transcript amplification</button>
@@ -470,15 +470,16 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
         <button className={`tab ${tab === "gene" ? "on" : ""}`} onClick={() => setTab("gene")}>Gene classification</button>
       </div>
 
-      {tab === "summary" && <Summary result={result} busy={busy} onSelect={onSelect} onInclude={onInclude} />}
+      {tab === "summary" && <Summary result={result} busy={busy} onSelect={onSelect} onInclude={onInclude} filter={filter} />}
 
-      {tab === "pan" && <PanVariantTab result={result} busy={busy} />}
+      {tab === "pan" && <PanVariantTab result={result} busy={busy} filter={filter} />}
 
       {tab === "amplify" && (
         <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <VerdictBanner v={target_verdict} />
           {/* The transcript's own exon track comes first: it shows WHERE the unique region and
               the primer sit, which is the context for reading the primer cards below it. */}
+          {filter}
           <TargetTrackCard result={result} onExplore={() => setTab("gene")} onSelect={onSelect} />
           {/* Show DESIGNED PRIMERS only for a real conventional primer design, or the hard-case
               note. EEJ variants use the Tm designer; combo/7c cases show their info in the verdict. */}
@@ -496,7 +497,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
         </div>
       )}
 
-      {tab === "gene" && <GeneClassification result={result} onSelect={onInspect} onInclude={onInclude} />}
+      {tab === "gene" && <GeneClassification result={result} onSelect={onInspect} onInclude={onInclude} filter={filter} />}
 
       <footer><div className="foot-in">
         <span>Data: NCBI RefSeq · Datasets v2 ({gene.assembly})</span>

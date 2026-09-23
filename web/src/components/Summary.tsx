@@ -9,12 +9,14 @@ import VerdictTable from "./VerdictTable";
 
 /** Summary tab — everything in one place: the target's answer + the whole-gene map. */
 export default function Summary({
-  result, busy, onSelect, onInclude,
+  result, busy, onSelect, onInclude, filter,
 }: {
   result: AnalyzeResponse;
   busy: boolean;
   onSelect: (acc: string) => void;
   onInclude?: (acc: string) => void;
+  /** The transcript filter, placed right above the gene graph. */
+  filter?: React.ReactNode;
 }) {
   return (
     <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
@@ -33,6 +35,7 @@ export default function Summary({
       )}
       <JunctionDesigner mrna={result.target_mrna} verdict={result.target_verdict} />
       <GeneOverview result={result} />
+      {filter}
       <GraphCard result={result} />
       <section className="card">
         <div className="card-head">
