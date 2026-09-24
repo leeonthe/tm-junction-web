@@ -258,7 +258,24 @@ describe("existing rows", () => {
     expect(left.ready).toBe(true);
     const geneTarget = parseCustomInput({ transcripts: [existing()], targetId: "g", objective: "specific" });
     expect(geneTarget.ready).toBe(false);
-    expect(geneTarget.issues[0].text).toMatch(/is a gene with 2 transcripts/);
+    expect(geneTarget.issues[0].text).toMatch(/is a gene with 2 transcripts — pick one/);
+  });
+
+  it("lets one transcript of an existing gene be the target, the rest its comparisons, each with its own tick", () => {
+    const p = parseCustomInput({ transcripts: [existing(), { id: "b", name: "Mine", text: seqB, include: true }],
+      targetId: "g:NR_2.1", objective: "specific" });
+    expect(p.ready).toBe(true);
+    expect(p.target?.id).toBe("g:NR_2.1");
+    expect(p.comparisons.map((c) => c.id)).toEqual(["g:NM_1.1", "b"]);
+    // Untick one transcript of the gene: it is supplied but not compared against.
+    const q = parseCustomInput({ transcripts: [existing({ picks: { "NM_1.1": false } })], targetId: "g:NR_2.1", objective: "specific" });
+    expect(q.comparisons).toEqual([]);
+    expect(q.others.map((c) => c.id)).toEqual(["g:NM_1.1"]);
+    // The row's own tick is the master: off, none of its transcripts are compared, picks or not.
+    const r = parseCustomInput({ transcripts: [existing({ include: false, picks: { "NM_1.1": true } }), { id: "b", name: "", text: seqB, include: true }],
+      targetId: "b", objective: "specific" });
+    expect(r.comparisons).toEqual([]);
+    expect(r.others.map((c) => c.id)).toEqual(["g:NM_1.1", "g:NR_2.1"]);
   });
 
   it("lets a single existing accession be the target", () => {

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   applyBoundaries, autoLabel, bareSequence, defaultName, existingName, isResolved, looksLikeAccession,
-  parseBoundarySpec, parseTranscript,
+  parseBoundarySpec, parseTranscript, rowOf, transcriptId,
   type BoundaryMode, type CustomInput, type DraftKind, type Objective, type TranscriptDraft,
 } from "../lib/customInput";
 import { customExample } from "../lib/customExample";
@@ -48,12 +48,17 @@ export default function CustomTranscriptsInput({ input, onChange, onCompare, bus
   const add = () => update({ transcripts: [...input.transcripts, { id: newId(), name: "", text: "", include: true }] });
   const remove = (id: string) => {
     const rest = input.transcripts.filter((t) => t.id !== id);
-    update({ transcripts: rest, targetId: input.targetId === id ? (rest[0]?.id ?? "") : input.targetId });
+    update({ transcripts: rest, targetId: rowOf(input.targetId) === id ? (rest[0]?.id ?? "") : input.targetId });
   };
   const specific = input.objective === "specific";
   const empty = input.transcripts.every((t) => !t.text.trim() && !t.name.trim() && !(t.query ?? "").trim());
-  const target = input.transcripts.find((t) => t.id === input.targetId);
-  const targetReady = !!target && ((target.kind ?? "custom") === "custom" ? !!target.text.trim() : isResolved(target));
+  // The target is a pasted row, or one transcript of an existing row (id "row:accession").
+  const target = input.transcripts.find((t) => t.id === rowOf(input.targetId));
+  const targetReady = !!target && ((target.kind ?? "custom") === "custom"
+    ? !!target.text.trim()
+    : isResolved(target) && (input.targetId === target.id
+        ? target.resolved.transcripts.length === 1
+        : target.resolved.transcripts.some((t) => transcriptId(target.id, t.accession) === input.targetId)));
   const canRun = targetReady && !busy;
 
   return (
@@ -82,10 +87,10 @@ export default function CustomTranscriptsInput({ input, onChange, onCompare, bus
 
       <div className="ct-list">
         {input.transcripts.map((d, i) => (
-          <DraftRow key={d.id} draft={d} index={i} isTarget={d.id === input.targetId}
+          <DraftRow key={d.id} draft={d} index={i} targetId={input.targetId}
             specific={specific} only={input.transcripts.length === 1} busy={busy} defaultSpecies={defaultSpecies}
             onChange={(patch) => setDraft(d.id, patch)}
-            onTarget={() => update({ targetId: d.id })}
+            onTargetId={(id) => update({ targetId: id })}
             onRemove={() => remove(d.id)} />
         ))}
       </div>
@@ -116,20 +121,22 @@ function ObjectiveTab({ on, value, onPick, children }: {
 }
 
 function DraftRow(props: {
-  draft: TranscriptDraft; index: number; isTarget: boolean; specific: boolean; only: boolean; busy: boolean;
+  draft: TranscriptDraft; index: number; targetId: string; specific: boolean; only: boolean; busy: boolean;
   defaultSpecies: SpeciesSlug;
   onChange: (patch: Partial<TranscriptDraft>) => void;
-  onTarget: () => void;
+  onTargetId: (id: string) => void;
   onRemove: () => void;
 }) {
-  const { draft, isTarget, specific, only, busy, onChange, onTarget, onRemove } = props;
+  const { draft, targetId, specific, only, busy, onChange, onTargetId, onRemove } = props;
   const kind: DraftKind = draft.kind ?? "custom";
   const existing = kind === "existing";
   const setKind = (k: DraftKind) => onChange(k === "existing"
     ? { kind: k, species: draft.species ?? props.defaultSpecies }
     : { kind: k });
-  // A gene is several transcripts; only a single transcript can be the target.
-  const geneRow = existing && isResolved(draft) && draft.resolved.transcripts.length > 1;
+  // A pasted row is the target as a whole; an existing row holds the target when one of its
+  // transcripts is named (the radios sit beside the transcripts, below).
+  const isTarget = rowOf(targetId) === draft.id;
+  const several = existing && isResolved(draft) && draft.resolved.transcripts.length > 1;
   return (
     <div className={`ct-item ${isTarget ? "target" : ""} ${existing ? "existing" : ""}`}>
       <div className="ct-item-head">
@@ -143,21 +150,24 @@ function DraftRow(props: {
           ? <ExistingHead draft={draft} busy={busy} onChange={onChange} />
           : <input className="ct-name" value={draft.name} placeholder={defaultName(props.index)} spellCheck={false}
               aria-label="Transcript name" disabled={busy} onChange={(e) => onChange({ name: e.target.value })} />}
-        <label className={`ct-role ${geneRow ? "muted" : ""}`}
-          title={geneRow ? "A gene is several transcripts — enter one accession to make it the target" : "The transcript the primers are for"}>
-          <input type="radio" name="ct-target" checked={isTarget} onChange={onTarget} disabled={busy || geneRow} /> target
-        </label>
-        <label className={`ct-role ${isTarget ? "muted" : ""}`}
-          title={specific ? "A transcript the pair must not amplify" : "A transcript the pair must amplify too"}>
-          <input type="checkbox" checked={isTarget || draft.include} disabled={isTarget || busy}
+        {!existing && (
+          <label className="ct-role" title="The transcript the primers are for">
+            <input type="radio" name="ct-target" checked={isTarget} onChange={() => onTargetId(draft.id)} disabled={busy} /> target
+          </label>
+        )}
+        <label className={`ct-role ${isTarget && !existing ? "muted" : ""}`}
+          title={existing
+            ? (specific ? "Every transcript of this row the pair must not amplify — each has its own tick below" : "Every transcript of this row the pair must amplify too — each has its own tick below")
+            : (specific ? "A transcript the pair must not amplify" : "A transcript the pair must amplify too")}>
+          <input type="checkbox" checked={(isTarget && !existing) || draft.include} disabled={(isTarget && !existing) || busy}
             onChange={(e) => onChange({ include: e.target.checked })} />
-          {specific ? "avoid" : "amplify"}
+          {specific ? "avoid" : "amplify"}{several ? " all" : ""}
         </label>
         <button type="button" className="ct-remove" onClick={onRemove} disabled={only || busy}
           aria-label="Remove this row" title="Remove">×</button>
       </div>
       {existing
-        ? <ExistingBody draft={draft} busy={busy} onChange={onChange} />
+        ? <ExistingBody draft={draft} busy={busy} onChange={onChange} targetId={targetId} onTargetId={onTargetId} specific={specific} />
         : <CustomBody {...props} />}
     </div>
   );
@@ -329,8 +339,9 @@ const CHECK_AFTER_MS = 600;
  * suggestion. Nobody clicks anything. A lookup that is overtaken by more typing is dropped,
  * and "not found" while the name is still being typed is a quiet note, not an alarm.
  */
-function ExistingBody({ draft, onChange }: {
+function ExistingBody({ draft, busy, onChange, targetId, onTargetId, specific }: {
   draft: TranscriptDraft; busy: boolean; onChange: (patch: Partial<TranscriptDraft>) => void;
+  targetId: string; onTargetId: (id: string) => void; specific: boolean;
 }) {
   const q = (draft.query ?? "").trim();
   const species = draft.species ?? "human";
@@ -387,18 +398,49 @@ function ExistingBody({ draft, onChange }: {
   useEffect(() => () => inFlight.current?.abort(), []);
 
   const r = resolved ? draft.resolved : null;
-  const names = r ? r.transcripts.map((t) => `${existingName(t)}${t.is_mane ? " (MANE)" : ""}`) : [];
   const status = checking ? "" : error ? (error.soft ? "warn" : "bad") : r ? "ok" : "";
   return (
     <div className="ct-ex-body">
       <div className={`ct-status ${status}`}>
         {checking ? "Looking it up at NCBI…"
           : error ? error.text
-          : r ? <>✓ <b>{r.gene}</b> · <i>{r.organism}</i> · {r.transcripts.length} transcript{r.transcripts.length === 1 ? "" : "s"}:{" "}
-                <span className="mono">{names.slice(0, 6).join(", ")}{names.length > 6 ? ", …" : ""}</span></>
+          : r ? <>✓ <b>{r.gene}</b> · <i>{r.organism}</i> · {r.transcripts.length} transcript{r.transcripts.length === 1 ? "" : "s"}
+                {r.transcripts.length > 1 && <> — each can be the target, or be left out of the comparison:</>}</>
           : q ? "Checking…"
           : "Type a RefSeq gene symbol (all its transcripts) or one accession (that transcript). It is looked up as you type; its sequence is not shown, only compared."}
       </div>
+      {/* One line per transcript the name resolved to: its own target radio and its own tick, so a
+          gene row is not one block — any one of its transcripts can be the target and the rest
+          are compared, or set aside, one by one. */}
+      {r && (
+        <ul className="ct-ex-list">
+          {r.transcripts.map((t) => {
+            const id = transcriptId(draft.id, t.accession);
+            const isT = targetId === id;
+            const on = isT || (draft.include && (draft.picks?.[t.accession] ?? true));
+            const nt = t.exons.reduce((n, e) => n + e.length, 0);
+            return (
+              <li key={t.accession} className={`ct-ex-tx ${isT ? "target" : ""}`}>
+                <label className="ct-role" title="The transcript the primers are for">
+                  <input type="radio" name="ct-target" checked={isT} onChange={() => onTargetId(id)} disabled={busy} /> target
+                </label>
+                <label className={`ct-role ${isT || !draft.include ? "muted" : ""}`}
+                  title={!draft.include ? "The row is unticked — tick it to compare any of its transcripts"
+                    : specific ? "A transcript the pair must not amplify" : "A transcript the pair must amplify too"}>
+                  <input type="checkbox" checked={on} disabled={isT || !draft.include || busy}
+                    onChange={(e) => onChange({ picks: { ...(draft.picks ?? {}), [t.accession]: e.target.checked } })} />
+                  {specific ? "avoid" : "amplify"}
+                </label>
+                <span className="mono ct-ex-acc">{existingName(t)}</span>
+                {t.is_mane && <span className="ap-tag">MANE</span>}
+                <span className="ct-ex-meta">
+                  {t.variant ? `${t.variant} · ` : ""}{t.exons.length} exon{t.exons.length === 1 ? "" : "s"} · {nt.toLocaleString("en-US")} nt
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

@@ -54,7 +54,15 @@ export interface TranscriptDraft {
   query?: string;
   species?: SpeciesSlug;
   resolved?: ResolvedRef | null;
+  /** Existing rows: per-transcript inclusion, by accession; absent = in (the row's `include`
+   *  is the master switch). A gene is several transcripts, and each gets its own say. */
+  picks?: Record<string, boolean>;
 }
+
+/** The id an existing row's transcript goes by — what `targetId` names to make it the target. */
+export const transcriptId = (rowId: string, accession: string) => `${rowId}:${accession}`;
+/** The row an id belongs to: its own id, or the row half of a transcript id. */
+export const rowOf = (id: string) => id.split(":")[0];
 
 /** Is an existing row's lookup current for what is typed? */
 export function isResolved(d: TranscriptDraft): d is TranscriptDraft & { resolved: ResolvedRef } {
@@ -283,7 +291,7 @@ export const existingName = (r: ResolvedTranscript) =>
 export function expandExisting(d: TranscriptDraft & { resolved: ResolvedRef }): CustomTranscript[] {
   return d.resolved.transcripts.map((r) => {
     const name = existingName(r);
-    const t = parseTranscript({ id: `${d.id}:${r.accession}`, name, text: r.exons.join("|"), include: d.include }, name);
+    const t = parseTranscript({ id: transcriptId(d.id, r.accession), name, text: r.exons.join("|"), include: d.include }, name);
     // The record's boundaries are NCBI's, not a paste without any.
     t.issues = t.issues.filter((i) => i.code !== "no-boundaries");
     if (!r.structure_ok)
@@ -300,25 +308,34 @@ export function parseCustomInput(input: CustomInput): ParsedInput {
   // pasted or typed into is not a transcript: an added row left blank should not block the
   // run. The target row is kept whatever it holds, so its emptiness can be reported.
   const ofDraft = new Map<string, string>();          // transcript id -> row id
+  const included = new Set<string>();                 // transcript ids ticked into the comparison
   const transcripts: CustomTranscript[] = [];
   input.transcripts.forEach((d, i) => {
-    const isTarget = d.id === input.targetId;
+    // The target names a row (a pasted transcript) or one transcript of an existing row.
+    const isTargetRow = rowOf(input.targetId) === d.id;
     if ((d.kind ?? "custom") === "existing") {
       const q = (d.query ?? "").trim();
       if (!q) {
-        if (isTarget) issues.push({ level: "error", text: "The target row names no gene or transcript." });
+        if (isTargetRow) issues.push({ level: "error", text: "The target row names no gene or transcript." });
         return;
       }
       if (!isResolved(d)) {
-        if (isTarget || d.include)
-          issues.push({ level: "error", text: `“${q}” has not been looked up yet — check it (Enter, or the Check button), or leave it out.` });
+        if (isTargetRow || d.include)
+          issues.push({ level: "error", text: `“${q}” has not been looked up yet — it is looked up as you type; wait for the ✓, or leave it out.` });
         return;
       }
-      for (const t of expandExisting(d)) { transcripts.push(t); ofDraft.set(t.id, d.id); }
+      d.resolved.transcripts.forEach((r, k) => {
+        const t = expandExisting(d)[k];
+        transcripts.push(t); ofDraft.set(t.id, d.id);
+        if (d.include && (d.picks?.[r.accession] ?? true)) included.add(t.id);
+      });
       return;
     }
     const t = parseTranscript(d, defaultName(i));
-    if (isTarget || t.seq.length > 0) { transcripts.push(t); ofDraft.set(t.id, d.id); }
+    if (isTargetRow || t.seq.length > 0) {
+      transcripts.push(t); ofDraft.set(t.id, d.id);
+      if (d.include) included.add(t.id);
+    }
   });
   // Names must be distinct — they are how every result names a transcript.
   const names = new Map<string, number>();
@@ -327,19 +344,20 @@ export function parseCustomInput(input: CustomInput): ParsedInput {
     names.set(t.name, n);
     if (n > 1) t.name = `${t.name} (${n})`;
   }
-  const targetRows = transcripts.filter((t) => ofDraft.get(t.id) === input.targetId);
+  // The target: the transcript whose id is named, or every transcript of the row named — which
+  // is one for a pasted row, and one only if an existing row resolved to one transcript.
+  const targetRows = transcripts.filter((t) => t.id === input.targetId || ofDraft.get(t.id) === input.targetId);
   const target = targetRows.length === 1 ? targetRows[0] : null;
-  const targetDraft = input.transcripts.find((d) => d.id === input.targetId);
+  const targetDraft = input.transcripts.find((d) => d.id === rowOf(input.targetId));
   if (targetRows.length > 1)
-    issues.push({ level: "error", text: `“${(targetDraft?.query ?? "").trim()}” is a gene with ${targetRows.length} transcripts — enter one accession to make it the target.` });
+    issues.push({ level: "error", text: `“${(targetDraft?.query ?? "").trim()}” is a gene with ${targetRows.length} transcripts — pick one of them as the target.` });
   else if (!target && !issues.some((x) => x.level === "error"))
     issues.push({ level: "error", text: "Choose the target transcript — the one the primers are for." });
   else if (target && !target.ok) issues.push({ level: "error", text: `${target.name} (the target) has errors to fix first.` });
   else if (target && !target.seq) issues.push({ level: "error", text: `${target.name} (the target) has no sequence.` });
-  const includedRows = new Set(input.transcripts.filter((d) => d.include && d.id !== input.targetId).map((d) => d.id));
-  const notTarget = (t: CustomTranscript) => ofDraft.get(t.id) !== input.targetId;
-  const comparisons = transcripts.filter((t) => notTarget(t) && includedRows.has(ofDraft.get(t.id)!));
-  const others = transcripts.filter((t) => notTarget(t) && !includedRows.has(ofDraft.get(t.id)!));
+  const notTarget = (t: CustomTranscript) => t !== target;
+  const comparisons = transcripts.filter((t) => notTarget(t) && included.has(t.id));
+  const others = transcripts.filter((t) => notTarget(t) && !included.has(t.id));
   for (const c of comparisons) {
     if (!c.ok) issues.push({ level: "error", text: `${c.name} has errors — fix them or leave it out of the comparison.` });
     else if (!c.seq) issues.push({ level: "error", text: `${c.name} has no sequence — paste one or leave it out of the comparison.` });
