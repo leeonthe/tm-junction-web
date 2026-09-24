@@ -293,7 +293,7 @@ function ExistingHead({ draft, busy, onChange }: {
           aria-label="Existing gene symbol or RefSeq accession" autoComplete="off"
           onChange={(e) => { onChange({ query: e.target.value }); setFocused(true); }}
           onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 120)}
+          onBlur={() => { setTimeout(() => setFocused(false), 120); window.dispatchEvent(new CustomEvent("ct-check", { detail: draft.id })); }}
           onKeyDown={(e) => {
             if (show && e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, remote.length - 1)); }
             else if (show && e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
@@ -321,61 +321,84 @@ function ExistingHead({ draft, busy, onChange }: {
   );
 }
 
-function ExistingBody({ draft, busy, onChange }: {
+/** How long typing must pause before the name is looked up, ms. */
+const CHECK_AFTER_MS = 600;
+
+/**
+ * The lookup runs by itself: as soon as typing pauses, and at once on Enter or a picked
+ * suggestion. Nobody clicks anything. A lookup that is overtaken by more typing is dropped,
+ * and "not found" while the name is still being typed is a quiet note, not an alarm.
+ */
+function ExistingBody({ draft, onChange }: {
   draft: TranscriptDraft; busy: boolean; onChange: (patch: Partial<TranscriptDraft>) => void;
 }) {
   const q = (draft.query ?? "").trim();
   const species = draft.species ?? "human";
   const [checking, setChecking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ text: string; soft: boolean } | null>(null);
   const resolved = isResolved(draft);
-  const latest = useRef({ q, species, draft, onChange });
-  latest.current = { q, species, draft, onChange };
+  const latest = useRef({ q, species, onChange });
+  latest.current = { q, species, onChange };
+  const inFlight = useRef<AbortController | null>(null);
 
   async function check() {
     const { q, species, onChange } = latest.current;
     if (!q) return;
+    inFlight.current?.abort();
+    const ctl = new AbortController();
+    inFlight.current = ctl;
     setChecking(true); setError(null);
-    const r = await fetchCustomTranscripts(looksLikeAccession(q) ? { acc: q } : { gene: q, species });
+    let r;
+    try {
+      r = await fetchCustomTranscripts(looksLikeAccession(q) ? { acc: q } : { gene: q, species }, ctl.signal);
+    } catch { return; }                                   // overtaken by more typing
+    if (ctl.signal.aborted || latest.current.q !== q || latest.current.species !== species) return;
     setChecking(false);
-    if (r.status === "unsupported") { setError("The engine that answered cannot look transcripts up yet — redeploy the backend, or paste the sequence instead."); return; }
-    if (r.status === "error") { setError(r.message); return; }
+    if (r.status === "unsupported") { setError({ text: "The engine that answered cannot look transcripts up yet — redeploy the backend, or paste the sequence instead.", soft: false }); return; }
+    if (r.status === "error") {
+      setError(r.code === "NOT_FOUND" || r.code === "NOT_NM"
+        ? { text: `Nothing at NCBI for “${q}”${looksLikeAccession(q) ? "" : ` in ${speciesOf(species).common.toLowerCase()}`} — keep typing, or pick a suggestion.`, soft: true }
+        : { text: r.message, soft: false });
+      return;
+    }
     onChange({ resolved: {
       query: q, species, gene: r.gene.symbol, organism: r.gene.organism ?? speciesOf(r.gene.species).scientific,
       transcripts: r.transcripts.map((t) => ({ accession: t.accession, variant: t.variant, is_mane: t.is_mane,
         same: t.same_sequence_accessions, exons: t.exons, structure_ok: t.structure_ok })),
     } });
   }
-  // Enter in the box or a picked suggestion asks for a check (see ExistingHead).
+  // Enter in the box or a picked suggestion asks for a check at once (see ExistingHead).
   useEffect(() => {
     const on = (e: Event) => { if ((e as CustomEvent).detail === draft.id) check(); };
     window.addEventListener("ct-check", on);
     return () => window.removeEventListener("ct-check", on);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id]);
-  // A row restored with a name but no lookup (a fresh session) checks itself once.
+  // Otherwise the pause after typing is the trigger — also on mount, for a row restored
+  // with a name but no lookup. Anything overtaken by the next keystroke is cancelled.
   useEffect(() => {
-    if (q && !resolved && !checking && !error) check();
+    setError(null);
+    if (!q || resolved) { setChecking(false); inFlight.current?.abort(); return; }
+    if (q.length < (looksLikeAccession(q) ? 5 : 2)) return;
+    const t = setTimeout(check, CHECK_AFTER_MS);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useEffect(() => { setError(null); }, [q, species]);
+  }, [q, species, resolved]);
+  useEffect(() => () => inFlight.current?.abort(), []);
 
   const r = resolved ? draft.resolved : null;
   const names = r ? r.transcripts.map((t) => `${existingName(t)}${t.is_mane ? " (MANE)" : ""}`) : [];
-  const status = checking ? "" : error ? "bad" : r ? "ok" : "";
+  const status = checking ? "" : error ? (error.soft ? "warn" : "bad") : r ? "ok" : "";
   return (
     <div className="ct-ex-body">
       <div className={`ct-status ${status}`}>
         {checking ? "Looking it up at NCBI…"
-          : error ? error
+          : error ? error.text
           : r ? <>✓ <b>{r.gene}</b> · <i>{r.organism}</i> · {r.transcripts.length} transcript{r.transcripts.length === 1 ? "" : "s"}:{" "}
                 <span className="mono">{names.slice(0, 6).join(", ")}{names.length > 6 ? ", …" : ""}</span></>
-          : q ? "Not checked yet — press Enter or Check to look it up."
-          : "Type a RefSeq gene symbol (all its transcripts) or one accession (that transcript). Its sequence is not shown, only compared."}
+          : q ? "Checking…"
+          : "Type a RefSeq gene symbol (all its transcripts) or one accession (that transcript). It is looked up as you type; its sequence is not shown, only compared."}
       </div>
-      {q && !r && !checking && (
-        <button type="button" className="btn btn-ghost ct-check" onClick={check} disabled={busy}>Check</button>
-      )}
     </div>
   );
 }
