@@ -7,7 +7,7 @@ import {
 import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR,
 } from "../lib/partner";
-import { ampRange, bindingSpan, usableExons, findPairs, openingSearch, resolveUniqueSide, type PairArgs, type PairOption } from "../lib/conventional";
+import { ampRange, bindingSpan, usableExons, findPairs, openingSearch, resolveUniqueSide, type ChosenPair, type PairArgs, type PairOption } from "../lib/conventional";
 import { numStr } from "../lib/format";
 import CdnaView from "./CdnaView";
 import { Copy } from "./icons";
@@ -32,12 +32,14 @@ import { QcTag, useStructureQc } from "./QcTag";
  * Neither test is re-derived here — the browser has no sibling sequences. Both come from the
  * engine (see lib/conventional).
  */
-export default function ConventionalDesigner({ mrna, verdict, k, solo = false }: {
+export default function ConventionalDesigner({ mrna, verdict, k, solo = false, onPair }: {
   mrna: string;
   verdict: TranscriptVerdict;
   k: number;
   /** This gene has ONE NM transcript — nothing to discriminate against. */
   solo?: boolean;
+  /** Live report of the pair currently shown, for a page that checks it elsewhere. */
+  onPair?: (p: ChosenPair | null) => void;
 }) {
   /** An intronless transcript: no junction exists for a product to cross, so its pair sits
    *  inside the one exon (PairArgs.sameExon) and carries the genomic-DNA caveat. */
@@ -223,9 +225,19 @@ export default function ConventionalDesigner({ mrna, verdict, k, solo = false }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [found, structs, qcOn, rule]);
 
-  if (!plan) return null;
+  const chosen: PairOption | null = plan ? options.find((o) => o.id === selId) ?? options[0] ?? null : null;
+  // Report the pair on screen whenever it changes, and withdraw it on unmount.
+  useEffect(() => {
+    onPair?.(chosen ? {
+      forward: { seq: chosen.forward.seq, s: chosen.forward.s, e: chosen.forward.e },
+      reverse: { seq: chosen.reverse.seq, s: chosen.reverse.s, e: chosen.reverse.e },
+      ampLen: chosen.ampLen, eej: null, cond: s.cond,
+    } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen?.id, mrna, s.cond]);
+  useEffect(() => () => onPair?.(null), []);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const chosen: PairOption | null = options.find((o) => o.id === selId) ?? options[0] ?? null;
+  if (!plan) return null;
 
   function copyPair() {
     if (!chosen) return;

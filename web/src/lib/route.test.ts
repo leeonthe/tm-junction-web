@@ -26,8 +26,7 @@ describe("route round trip", () => {
     { page: "home", mode: "accession", tab: "summary", species: "rat" },
     // excluded transcripts are part of the analysis, so part of the address
     { page: "home", mode: "accession", transcript: "NM_002046.7", tab: "pan", exclude: ["NR_152150.2", "NM_001357943.2"] },
-    { page: "sequence", five: "", three: "" },
-    { page: "sequence", five: "TTTTGCGTCGCCAG", three: "CCGAGCCACATCGCTCAGAC" },
+    { page: "sequence" },
     { page: "method" },
     { page: "guide" },
   ];
@@ -47,7 +46,9 @@ describe("route addresses", () => {
       .toBe("/?t=NM_000186.4&tab=amplify");
     expect(routeUrl({ page: "home", mode: "gene", gene: "CFH", transcript: "NM_000186.4", tab: "summary" }))
       .toBe("/?g=CFH&t=NM_000186.4");
-    expect(routeUrl({ page: "sequence", five: "ACGT ACGT", three: "" })).toBe("/sequence?five=ACGT+ACGT");
+    expect(routeUrl({ page: "sequence" })).toBe("/sequence");
+    // The old two-arm links still open the custom mode; their arms are no longer a state.
+    expect(parse("/sequence?five=ACGT&three=GGCC")).toEqual({ page: "sequence" });
   });
 
   it("names the species only when it is not human", () => {

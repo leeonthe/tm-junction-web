@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { suggest, suggestGenes } from "../lib/api";
 import { SPECIES, shortBinomial, speciesOf, type GeneRef, type SpeciesSlug } from "../lib/species";
-import { CustomArmInputs, type Arms } from "./CustomJunction";
+import CustomTranscriptsInput from "./CustomTranscripts";
+import type { CustomInput } from "../lib/customInput";
 import { ArrowRight } from "./icons";
 
 // Unified typeahead row: `primary` is the value inserted/searched; `secondary` is the label
 // (gene symbol for an accession, description for a gene). An accession row also says whose
 // transcript it is when that is not human — the accession box searches every species.
 interface Suggestion { primary: string; secondary?: string; species?: string }
-/** What the user is providing. "sequence" takes no NCBI lookup — the arms ARE the input. */
+/** What the user is providing. "sequence" takes no NCBI lookup — the pasted transcripts ARE the input. */
 export type Mode = "accession" | "gene" | "sequence";
 
 /** The mode the app opens on. Gene symbol is the friendlier entry point: most users know the
@@ -26,8 +27,8 @@ const seedFor = (m: Mode) => (m === "accession" ? "NM_001256799.3" : "");
 const ACCESSION_EXAMPLES = ["NM_002046.7", "NM_001146284.2", "NM_001101.5"];
 
 export default function Hero({
-  onSearch, onGeneSearch, loading, history, geneHistory, mode, onMode, arms, onArms, initialValue,
-  species, onSpecies,
+  onSearch, onGeneSearch, loading, history, geneHistory, mode, onMode, custom, onCustom, onCompare, comparing,
+  initialValue, species, onSpecies,
 }: {
   onSearch: (acc: string) => void;
   /** The species travels with the search: a recent-search chip names its own, and state
@@ -40,11 +41,14 @@ export default function Hero({
    *  its own organism, so its typeahead covers every species at once. */
   species: SpeciesSlug;
   onSpecies: (s: SpeciesSlug) => void;
-  /** Lifted so the page below can swap between analysis results and the sequence designer. */
+  /** Lifted so the page below can swap between analysis results and the custom-sequence result. */
   mode: Mode;
   onMode: (m: Mode) => void;
-  arms: Arms;
-  onArms: (a: Arms) => void;
+  /** The custom-sequence mode's transcripts, and the button that runs the comparison. */
+  custom: CustomInput;
+  onCustom: (c: CustomInput) => void;
+  onCompare: () => void;
+  comparing: boolean;
   /** What the box opens with — the search the URL named, so a shared link reads as typed. */
   initialValue?: string;
 }) {
@@ -134,8 +138,8 @@ export default function Hero({
         <p className="lede">
           Primer design tool for transcript-specific PCR/qPCR.<br />
           {seqMode
-            ? <>Paste the two sides of a junction<br />
-                to design an EEJ primer against your own sequence.</>
+            ? <>Paste your own transcripts, exon by exon,<br />
+                to compare them and design primers with no RefSeq record.</>
             : geneMode
             ? <>Search a {sp.common.toLowerCase()} gene<span className="lede-sci"> (<i>{sp.scientific}</i>)</span><br />
                 to browse its transcripts, then pick a variant to analyze.</>
@@ -154,7 +158,7 @@ export default function Hero({
 
         {seqMode ? (
           <div className="search-wrap seq">
-            <CustomArmInputs arms={arms} onChange={onArms} />
+            <CustomTranscriptsInput input={custom} onChange={onCustom} onCompare={onCompare} busy={comparing} />
           </div>
         ) : (
         <div className="search-wrap">

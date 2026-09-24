@@ -17,10 +17,11 @@ import { QcTag, useStructureQc } from "./QcTag";
 /**
  * The parts of the Tm-guided designer that do not care WHERE the junction came from.
  *
- * Two callers share this: JunctionDesigner (junction taken from a RefSeq transcript's
- * exon structure) and CustomJunction (junction taken from two arms the user pasted).
- * Keeping the drag-select strip, the verdict and the metric cards here means both
- * modes run the identical evalWindow/autoPick path — "same calculation" is guaranteed
+ * JunctionDesigner is its caller for both a RefSeq transcript's exon structure and the
+ * Custom sequence mode's pasted transcripts (which arrive as the same verdict shape, see
+ * lib/customAmplify) — and was shared with the two-arm custom designer that mode replaced.
+ * Keeping the drag-select strip, the verdict and the metric cards here means every
+ * source runs the identical evalWindow/autoPick path — "same calculation" is guaranteed
  * by construction rather than by two implementations that can drift apart.
  */
 

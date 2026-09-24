@@ -16,7 +16,7 @@ Live at **https://tm-junction-web.vercel.app**
 
 ## What it does
 
-Search by species + gene symbol, RefSeq accession, or paste your own junction sequence.
+Search by species + gene symbol, RefSeq accession, or paste your own transcripts, exon by exon.
 Six species are covered — human, mouse, rat, fruit fly, baker's yeast and zebrafish; an
 accession needs no species, since it names its own. Every curated (NM and NR) isoform of
 the gene is fetched from NCBI (sequence + exon structure on the species' reference
@@ -53,8 +53,17 @@ Some details that matter in practice:
   transcript's mRNA (the engine serves the siblings' sequences on demand).
 - NCBI's variant designation ("transcript variant 5") is shown under each accession.
 
-The in-app **Method** page documents the classification rule, the Tm formula, and the
-constants.
+- **Custom sequence** mode needs no RefSeq record at all: paste one or more transcripts
+  with their exon boundaries (`Exon 1: …` labels or `|` between exons), pick the target and
+  the transcripts to avoid — or, for a total-expression assay, to amplify together. The
+  transcripts are aligned to each other by sequence, never by exon number, into shared and
+  unique blocks with the pasted boundaries laid over them; the same verdict, designers and
+  QC then apply, and every supplied transcript is checked for the chosen pair — a transcript
+  giving the identical product is named as co-amplified, and an infeasible target gets the
+  structural reason (which junction or exon every candidate shares with whom).
+
+The in-app **Method** page documents the classification rule, the Tm formula, the constants,
+and how custom sequences are compared without a genome.
 
 ## Repository layout
 

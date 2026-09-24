@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import type { Exon, TranscriptVerdict } from "../lib/types";
 import { qcCriteriaText, qcFailures, qcOrder, type QcRule } from "../lib/qc";
 import { QcTag, useStructureQc } from "./QcTag";
@@ -12,6 +12,7 @@ import {
   ampCeil, feasibleAmplicons, findPartnerOptions, revComp, type PartnerOption, type Side,
 } from "../lib/partner";
 import { numStr } from "../lib/format";
+import type { ChosenPair } from "../lib/conventional";
 import type { TmConditions, WindowEval } from "../lib/tm";
 import CdnaView from "./CdnaView";
 import { Copy } from "./icons";
@@ -44,10 +45,11 @@ import Info from "./Info";
  * into the same reaction — one buffer, one annealing window. Both primers exist
  * by construction there, so no second-primer panel.
  *
- * The strip, the verdict and the metric cards live in JunctionWorkbench, shared
- * with the Custom-sequence hero mode (CustomJunction) so both run the same Tm path.
- * This component only supplies the junction: which exons flank it and where the
- * cut falls in the mRNA.
+ * The strip, the verdict and the metric cards live in JunctionWorkbench. This component
+ * only supplies the junction: which exons flank it and where the cut falls in the mRNA —
+ * from a RefSeq verdict, or from the sequence-derived verdict the Custom sequence mode
+ * builds for pasted transcripts (lib/customAmplify), which is why it never asks where a
+ * verdict came from.
  */
 
 /** One junction to design against: its geometry plus the exons that name it. */
@@ -84,9 +86,12 @@ export function comboAmpliconLen(
   return len > 0 ? len : null;
 }
 
-export default function JunctionDesigner({ mrna, verdict }: {
+export default function JunctionDesigner({ mrna, verdict, onPair }: {
   mrna: string;
   verdict: TranscriptVerdict;
+  /** Live report of the complete pair on screen — EEJ + partner, or the two combo EEJ
+   *  primers — for a page that checks it against other transcripts. */
+  onPair?: (p: ChosenPair | null) => void;
 }) {
   const s = useJunctionSettings();
 
@@ -152,6 +157,18 @@ export default function JunctionDesigner({ mrna, verdict }: {
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   }
+  // A combo's pair is assembled here from the two boxes; a single junction's pair is the
+  // partner panel's, which reports it itself. Withdrawn on unmount either way.
+  useEffect(() => {
+    if (!combo) return;
+    const f = evs[0], r = evs[1];
+    onPair?.(fwdOligo && revOligo && f && r && ampLen != null ? {
+      forward: { seq: fwdOligo, s: f.s, e: f.e }, reverse: { seq: revOligo, s: r.s, e: r.e },
+      ampLen, eej: "both", cond: s.cond,
+    } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combo, fwdOligo, revOligo, ampLen, s.cond]);
+  useEffect(() => () => onPair?.(null), []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Junction+exon combo (recommended junction + a single distinguishing exon slice):
   // the partner primer is not free — it must overlap that slice to keep the pair specific.
@@ -189,6 +206,7 @@ export default function JunctionDesigner({ mrna, verdict }: {
           d={d} s={s} verdict={verdict} index={i} total={designs.length}
           force={force}
           onEval={combo ? (ev) => setEvs((p) => { const n = [...p]; n[i] = ev; return n; }) : undefined}
+          onPair={combo ? undefined : onPair}
         />
       ))}
       {combo && (
@@ -266,7 +284,7 @@ function ComboPrimerRow({ role, label, oligo, ev, dTm }: {
 }
 
 /** One junction = one designer box. */
-function DesignerCard({ d, s, verdict, index, total, force, onEval }: {
+function DesignerCard({ d, s, verdict, index, total, force, onEval, onPair }: {
   d: Design;
   s: JunctionSettings;
   verdict: TranscriptVerdict;
@@ -275,6 +293,7 @@ function DesignerCard({ d, s, verdict, index, total, force, onEval }: {
   force: PartnerForce | null;
   /** Report this box's live selection upward — a combo needs both to size the amplicon. */
   onEval?: (ev: WindowEval | null) => void;
+  onPair?: (p: ChosenPair | null) => void;
 }) {
   const { g, donor, acceptor } = d;
   const combo = total > 1;
@@ -324,7 +343,7 @@ function DesignerCard({ d, s, verdict, index, total, force, onEval }: {
 
         {partnerOn && (
           <PartnerPanel mrna={g.seq} verdict={verdict} ev={ev} cond={s.cond}
-            tmMin={s.tmMin} tmMax={s.tmMax} force={force} showCdna={showCdna} />
+            tmMin={s.tmMin} tmMax={s.tmMax} force={force} showCdna={showCdna} onPair={onPair} />
         )}
       </section>
 
@@ -345,7 +364,7 @@ const signedTm = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)
  * live against the CURRENT EEJ selection (ev), with the full cDNA junction view showing
  * the pair in place. Same type-freely / clamp-on-commit contract as the Tm inputs.
  */
-function PartnerPanel({ mrna, verdict, ev, cond, tmMin, tmMax, force, showCdna }: {
+function PartnerPanel({ mrna, verdict, ev, cond, tmMin, tmMax, force, showCdna, onPair }: {
   mrna: string;
   verdict: TranscriptVerdict;
   ev: WindowEval | null;
@@ -355,6 +374,7 @@ function PartnerPanel({ mrna, verdict, ev, cond, tmMin, tmMax, force, showCdna }
   tmMax: number;
   force: PartnerForce | null;
   showCdna: boolean;
+  onPair?: (p: ChosenPair | null) => void;
 }) {
   const [ampMin, setAmpMin] = useState(DEFAULT_AMP_MIN);
   const [ampMax, setAmpMax] = useState(DEFAULT_AMP_MAX);
@@ -509,6 +529,16 @@ function PartnerPanel({ mrna, verdict, ev, cond, tmMin, tmMax, force, showCdna }
 
   const eejSpan = ev ? { tx_start: ev.s, length: ev.e - ev.s } : null;
   const partnerSpan = chosen ? { tx_start: chosen.s, length: chosen.len } : null;
+
+  // The pair as shown, reported upward whenever it changes.
+  useEffect(() => {
+    onPair?.(ev && chosen && fwdSeq && revSeq ? {
+      forward: eejIsForward ? { seq: fwdSeq, s: ev.s, e: ev.e } : { seq: fwdSeq, s: chosen.s, e: chosen.e },
+      reverse: eejIsForward ? { seq: revSeq, s: chosen.s, e: chosen.e } : { seq: revSeq, s: ev.s, e: ev.e },
+      ampLen: chosen.ampLen, eej: eejIsForward ? "forward" : "reverse", cond,
+    } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ev?.s, ev?.e, chosen?.id, fwdSeq, revSeq, eejIsForward, mrna, cond]);
 
   return (
     <div className="pp">

@@ -21,7 +21,10 @@ import PanVariantTab from "./components/PanVariantTab";
 import Summary from "./components/Summary";
 import Method from "./components/Method";
 import Guide from "./components/Guide";
-import CustomJunctionResult, { EMPTY_ARMS, type Arms } from "./components/CustomJunction";
+import CustomResult, { type CustomRun } from "./components/CustomResult";
+import { emptyCustomInput } from "./components/CustomTranscripts";
+import { parseCustomInput, type CustomInput } from "./lib/customInput";
+import { analyzeCustom } from "./lib/customAmplify";
 import { DEFAULT_MODE, type Mode } from "./components/Hero";
 import LoadingState from "./components/LoadingState";
 import TranscriptFilter from "./components/TranscriptFilter";
@@ -43,6 +46,17 @@ interface Query { gene?: string; transcript?: string; exclude?: string[] }
 
 const HISTORY_KEY = "tmj.history";
 const GENE_HISTORY_KEY = "tmj.gene_history";
+/** The custom-sequence transcripts, kept across reloads: a paste of several kilobases is
+ *  not something to lose to a refresh, and it cannot live in the URL. */
+const CUSTOM_KEY = "tmj.custom";
+function loadCustom(): CustomInput {
+  try {
+    const c = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "null") as CustomInput | null;
+    if (c && Array.isArray(c.transcripts) && c.transcripts.length && typeof c.targetId === "string"
+        && (c.objective === "specific" || c.objective === "shared")) return c;
+  } catch { /* ignore */ }
+  return emptyCustomInput();
+}
 function loadStored(key: string): string[] {
   try { return JSON.parse(localStorage.getItem(key) || "[]").slice(0, 3); }
   catch { return []; }
@@ -85,12 +99,29 @@ export default function App() {
   // so leaving it returns to exactly where the user was.
   const [showMethod, setShowMethod] = useState(initial.page === "method");
   const [showGuide, setShowGuide] = useState(initial.page === "guide");
-  // What the hero is asking for. "sequence" is a self-contained mode: the arms replace the
-  // search bar and the designer below replaces the analysis, with no NCBI lookup involved.
+  // What the hero is asking for. "sequence" is a self-contained mode: pasted transcripts
+  // replace the search bar and their comparison replaces the analysis, with no NCBI lookup.
   const [mode, setMode] = useState<Mode>(
     initial.page === "sequence" ? "sequence" : initial.page === "home" ? initial.mode : DEFAULT_MODE);
-  const [arms, setArms] = useState<Arms>(
-    initial.page === "sequence" ? { five: initial.five, three: initial.three } : EMPTY_ARMS);
+  const [custom, setCustom] = useState<CustomInput>(loadCustom);
+  const [customRun, setCustomRun] = useState<(CustomRun & { input: CustomInput }) | null>(null);
+  const [comparing, setComparing] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => { try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom)); } catch { /* ignore */ } }, 300);
+    return () => clearTimeout(t);
+  }, [custom]);
+  /** Run the comparison on the transcripts as they are now. A tick later, so the button can
+   *  show it is working: aligning several kilobases takes a noticeable moment. */
+  function runCustom() {
+    const input = custom;
+    setComparing(true);
+    window.setTimeout(() => {
+      const parsed = parseCustomInput(input);
+      setCustomRun({ input, parsed, result: analyzeCustom(parsed) });
+      setComparing(false);
+    }, 30);
+  }
+  const customStale = !!customRun && JSON.stringify(customRun.input) !== JSON.stringify(custom);
 
   /**
    * Which analysis the UI is currently showing. Switching transcripts starts a new
@@ -120,14 +151,14 @@ export default function App() {
   // The URL is derived from state after every render, so it can never disagree with the
   // page. What a transition controls is only whether it makes a history entry: a search, a
   // page, a reset PUSH (the back button returns to the previous view); everything in place
-  // — a tab, an isoform re-target, typing arms, the canonical name arriving — REPLACES the
+  // — a tab, an isoform re-target, the canonical name arriving — REPLACES the
   // current entry, so back never has to step through twenty isoform clicks.
   const navHow = useRef<"push" | "replace">("replace");
   const push = () => { navHow.current = "push"; };
 
   const route: Route = showGuide ? { page: "guide" }
     : showMethod ? { page: "method" }
-    : mode === "sequence" ? { page: "sequence", five: arms.five, three: arms.three }
+    : mode === "sequence" ? { page: "sequence" }
     : { page: "home", mode, gene: query.gene, transcript: query.transcript, tab,
         ...(species !== "human" ? { species } : {}),
         ...(query.transcript && query.exclude?.length ? { exclude: query.exclude } : {}) };
@@ -138,8 +169,8 @@ export default function App() {
     const how = navHow.current;
     navHow.current = "replace";
     if (how === "push") { writeRoute(routeRef.current, "push"); return; }
-    // Replaces coalesce: a keystroke in the arms or a canonical name landing right after a
-    // push should not each hit history (Safari rate-limits it).
+    // Replaces coalesce: a tab switch or a canonical name landing right after a push should
+    // not each hit history (Safari rate-limits it).
     const t = setTimeout(() => writeRoute(routeRef.current, "replace"), 150);
     return () => clearTimeout(t);
   }, [url]);
@@ -166,7 +197,6 @@ export default function App() {
     if (r.page === "method" || r.page === "guide") return;   // the result underneath stays
     if (r.page === "sequence") {
       setMode("sequence");
-      setArms({ five: r.five, three: r.three });
       return;
     }
     const sp = r.species ?? DEFAULT_SPECIES;
@@ -391,9 +421,12 @@ export default function App() {
             onSearch={(acc) => run(acc)} onGeneSearch={(sym, sp) => geneSearch(sym, sp)}
             loading={loading} history={history} geneHistory={geneRefs}
             species={species} onSpecies={setSpecies}
-            mode={mode} onMode={changeMode} arms={arms} onArms={setArms} />
+            mode={mode} onMode={changeMode}
+            custom={custom} onCustom={setCustom} onCompare={runCustom} comparing={comparing} />
           <main className="wrap">
-            {mode === "sequence" && <CustomJunctionResult arms={arms} />}
+            {mode === "sequence" && (
+              <CustomResult run={customRun} stale={customStale} busy={comparing} onCompare={runCustom} />
+            )}
             {mode !== "sequence" && <>
             {loading && <LoadingState pct={progress.pct} detail={progress.detail} />}
             {!loading && error && <div className="error-box"><b>{error.code}.</b> {error.message}</div>}

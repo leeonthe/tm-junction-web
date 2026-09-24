@@ -11,11 +11,11 @@
 //   /?g=CFH&t=NM_000186.4               the same, reached from the picker (keeps "All variants")
 //   /?t=NM_000186.4&tab=amplify         a result tab other than Summary
 //   /?t=NM_002046.7&x=NR_152150.2       the same analysis with transcripts excluded (comma list)
-//   /sequence?five=…&three=…            the custom-sequence designer, arms included
+//   /sequence                           the custom-sequence mode (pasted transcripts)
 //   /method, /guide                     the two documents
 //
-// Arms go in the URL because they are short (a few tens of bases each), so a custom design
-// is as shareable as a transcript one. Anything unknown parses as the landing page.
+// Pasted transcripts stay out of the URL — kilobases do not fit in an address — so the
+// custom mode is a page, not a shareable state. Anything unknown parses as the landing page.
 
 import { isSpecies, typedSymbol, type SpeciesSlug } from "./species";
 import { pageMeta } from "../seo";
@@ -30,7 +30,7 @@ export type SearchMode = "gene" | "accession";
 export type Route =
   | { page: "method" }
   | { page: "guide" }
-  | { page: "sequence"; five: string; three: string }
+  | { page: "sequence" }
   | { page: "home"; mode: SearchMode; gene?: string; transcript?: string; tab: Tab;
       /** Whose gene. Absent means human, so every link made before species support still
        *  says what it said. A transcript names its own species; this is the search box's. */
@@ -54,7 +54,7 @@ export function parseRoute(pathname: string, search: string): Route {
   const q = new URLSearchParams(search);
   if (path === "/method") return { page: "method" };
   if (path === "/guide") return { page: "guide" };
-  if (path === "/sequence") return { page: "sequence", five: q.get("five") ?? "", three: q.get("three") ?? "" };
+  if (path === "/sequence") return { page: "sequence" };
 
   const sp = q.get("sp")?.trim().toLowerCase();
   const species = isSpecies(sp) && sp !== "human" ? sp : undefined;
@@ -80,12 +80,7 @@ export function routeUrl(r: Route): string {
   switch (r.page) {
     case "method": return "/method";
     case "guide": return "/guide";
-    case "sequence": {
-      const q = new URLSearchParams();
-      if (r.five) q.set("five", r.five);
-      if (r.three) q.set("three", r.three);
-      return withQuery("/sequence", q);
-    }
+    case "sequence": return "/sequence";
     case "home": {
       const q = new URLSearchParams();
       if (r.gene) q.set("g", r.gene);

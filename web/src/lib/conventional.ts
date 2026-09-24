@@ -46,6 +46,21 @@ export interface PairOligo {
   clamp: boolean;
 }
 
+/**
+ * The complete pair a designer currently shows, reported upward so a page can check it
+ * against other transcripts (the Custom sequence mode's amplification prediction). Oligos
+ * are as ordered, 5′→3′; sites are 0-based half-open on the sense strand. `eej` says which
+ * primer, if any, spans a junction.
+ */
+export interface ChosenPair {
+  forward: { seq: string; s: number; e: number };
+  reverse: { seq: string; s: number; e: number };
+  ampLen: number;
+  eej: "forward" | "reverse" | "both" | null;
+  /** The reaction conditions the pair was designed under. */
+  cond: TmConditions;
+}
+
 export interface PairOption {
   id: string;
   forward: PairOligo;

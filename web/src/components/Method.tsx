@@ -8,6 +8,7 @@ import {
 import { fixed, molarStr, numStr, rounded, signed } from "../lib/format";
 import { QC } from "../lib/qc";
 import { ArrowRight } from "./icons";
+import { MAX_SNAP } from "../lib/customAlign";
 
 /** The oligo the new formula was validated against — see the worked example below. */
 // A real GAPDH oligo, chosen for cross-checkability: our duplex-form value for this
@@ -487,6 +488,47 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
         <p className="mth-note">
           Transcript sequences, exon coordinates, and the isoform set come from NCBI RefSeq via
           the Datasets v2 API, for the assembly shown with each result.
+        </p>
+      </section>
+
+      <section className="card mth-card">
+        <p className="card-label">6 · Custom sequences: the same verdict, without a genome</p>
+        <p>
+          The Custom sequence mode takes transcripts pasted exon by exon and nothing else — no
+          accession, no coordinates. The specificity test of § 1 needs none: it is a question
+          about sequence, and it is run on the pasted sequences exactly as it is run on RefSeq
+          ones, with the target's own exon boundaries deciding whether a unique window lies
+          inside an exon or across a splice. The three tiers, the exon-pair and the
+          junction-combination rescues follow the same order.
+        </p>
+        <p>
+          What the genome supplies in the RefSeq flow — that two transcripts' exons are the
+          same exon because they sit at the same place — is derived here from the nucleotides.
+          Exon numbers are never compared: exon 2 of one variant may be exon 3 of another, or
+          half of it. Instead every stretch the target shares with a comparison transcript is
+          found as an exact match, the matches are chained in order, and the pasted boundaries
+          are laid over the result. The target is thereby cut into <b>segments</b>, each shared
+          by a definite set of transcripts; a comparison exon is then described by the segments
+          it covers — identical to a target exon, within it, spanning two of them — and a
+          junction is shared with a transcript when the window centred on the splice occurs in it.
+        </p>
+        <p className="mth-note">
+          Two things the sequence cannot settle are settled by the pasted boundaries, or said.
+          An exact match runs as far as the bases agree, and across two different splices they
+          often agree for a base or a few more — so a block that overhangs a boundary both
+          transcripts declare by up to {MAX_SNAP} nt is snapped back to it, and an overlap
+          between two chained blocks is split at a declared boundary inside it. Beyond that
+          the metadata is not consulted: a block that runs far past a boundary is a shared
+          junction, which is what it looks like. And a block whose sequence occurs twice — a
+          repeat, a duplicated exon — is assigned by order and flagged as ambiguous, because
+          sequence similarity alone does not settle which copy is which.
+        </p>
+        <p className="mth-note">
+          A chosen pair is finally located in every supplied transcript, both sites once and in
+          order, and each product compared with the target's — so a transcript that gives the
+          same band is named as co-amplified, with its size, rather than the pair being called
+          non-specific; and each primer's closest match elsewhere is reported with its mismatch
+          count, the 3′ ones separately, since a site missed by one base may still prime.
         </p>
       </section>
 

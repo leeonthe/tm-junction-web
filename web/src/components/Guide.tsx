@@ -200,8 +200,8 @@ export default function Guide({ onBack, onMethod, backLabel }: {
           accession (NM or NR, e.g. NM_002046.7) — it goes straight to analysis, and needs no
           species: an accession belongs to exactly one organism, so the tool reads it off
           the record. <b>Custom sequence</b> skips
-          NCBI entirely: paste the two sides of a junction and design against your own
-          sequence.
+          NCBI entirely: paste your own transcripts, exon by exon, and the tool compares them
+          and designs against them (§ 6).
         </p>
         <p className="mth-note">
           Capitalization is NCBI's to decide, not yours to remember: symbols are matched
@@ -323,7 +323,46 @@ export default function Guide({ onBack, onMethod, backLabel }: {
       </section>
 
       <section className="card mth-card">
-        <p className="card-label">6 · Before you order</p>
+        <p className="card-label">6 · Your own transcripts</p>
+        <p>
+          <b>Custom sequence</b> works with no RefSeq record at all. Paste one transcript per row,
+          its exons in order and 5′→3′, with the boundaries marked either as one label per exon
+          (<span className="mono">Exon 1: …</span>, the sequence may wrap over lines) or as one
+          line with <span className="mono">|</span> at every boundary; a paste with neither is one
+          exon. Choose the <b>target</b>, tick the transcripts it must be told apart from — or,
+          under <b>Shared amplification</b>, the ones it must be amplified together with — and press{" "}
+          <b>Compare &amp; design</b>. <b>Load example</b> fills the rows with every GAPDH
+          transcript, so the result can be set beside the RefSeq flow's.
+        </p>
+        <p>
+          The transcripts are compared by <b>sequence, never by exon number</b>: exon 2 of one
+          variant may be exon 3 of another, or half of it. Every stretch the target shares with
+          another transcript is found, the stretches are put in order, and your boundaries are
+          laid over them — the block map draws each transcript in its own coordinates, the same
+          colour on two rows meaning the same sequence, hatched where a row has sequence the
+          others lack, a red boundary where the target has a junction nobody else has. Below it
+          each exon of each transcript is described in those terms (identical to a target exon,
+          within it, spanning two of them, not in the target), and a note says when a repeat
+          makes the correspondence ambiguous. The verdict, the designers and the primer QC are
+          then the same as for a RefSeq transcript, and the input check lists anything wrong
+          with the paste — an ambiguous base, an empty exon, a duplicated one — before design.
+        </p>
+        <p>
+          Whatever pair is on screen is checked against <b>every transcript you supplied</b>,
+          ticked or not: which give a product, of what size, and whether it is the same product
+          as the target's. A transcript that gives the identical amplicon is named as
+          co-amplified rather than the pair being called non-specific; one that gives another
+          size is a second band. Each primer's closest match elsewhere is shown with its
+          mismatches, the 3′ ones separately, since a site missed by one base may still prime.
+          And when no single pair can isolate the target, the page says why — which junction or
+          exon every candidate shares with which transcript, and which transcripts any pair
+          would necessarily amplify — so that "no unique primer" reads as a fact about the
+          transcripts, not as a failure of the search.
+        </p>
+      </section>
+
+      <section className="card mth-card">
+        <p className="card-label">7 · Before you order</p>
         <p>
           Every amplicon here spans at least two exons, so a product off contaminating
           genomic DNA either fails or runs visibly longer on a gel. The one exception is a{" "}
