@@ -484,3 +484,37 @@ export function largestUnshared(target: CustomTranscript, map: SegmentMap, order
   }
   return best;
 }
+
+/**
+ * Exon boundaries for a target pasted without any, read off the transcripts it shares
+ * sequence with — only where the evidence is a splice, never a mere change of sequence:
+ *
+ *   (a) a comparison's exon boundary falling strictly INSIDE a stretch it shares with the
+ *       target: both carry the same join, and the comparison says it is a splice;
+ *   (b) a point where the target joins two stretches that are SEPARATE in a comparison —
+ *       an exon the target skips, or an acceptor/donor it shifts — with the comparison's
+ *       own boundary at either edge of what the target left out.
+ *
+ * A stretch's edge on its own is not a boundary: where the target simply diverges (extra
+ * 5′ sequence, a variant), or where a comparison splices INTO the middle of a stretch the
+ * target carries whole, the target has no junction there, and a junction primer designed
+ * across it would prime genomic DNA. Returns the ends 0-based exclusive, the last being the
+ * transcript's length — one entry when nothing could be inferred.
+ */
+export function inferBoundaries(target: CustomTranscript, comps: readonly CustomTranscript[], map: SegmentMap): number[] {
+  const n = target.seq.length;
+  const ends = new Set<number>();
+  for (const c of comps) {
+    const blocks = map.chains[c.id].blocks;
+    const splices = new Set(c.exonEnds.slice(0, -1));          // the transcript's end is not a splice
+    for (const b of blocks)
+      for (const e of splices) if (e > b.bStart && e < b.bStart + b.len) ends.add(b.aStart + (e - b.bStart));
+    for (let i = 0; i + 1 < blocks.length; i++) {
+      const b1 = blocks[i], b2 = blocks[i + 1];
+      const p = b1.aStart + b1.len;
+      const gapInComp = b2.bStart > b1.bStart + b1.len;
+      if (b2.aStart === p && gapInComp && (splices.has(b1.bStart + b1.len) || splices.has(b2.bStart))) ends.add(p);
+    }
+  }
+  return [...ends].filter((e) => e > 0 && e < n).sort((x, y) => x - y).concat(n);
+}

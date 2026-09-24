@@ -14,9 +14,9 @@
 // banner and cDNA view serve both flows: one calculation, two sources of transcripts.
 
 import type { Exon, Junction, Tier, TranscriptVerdict, UniqueRegion } from "./types";
-import type { CustomTranscript, ParsedInput } from "./customInput";
+import { withBoundaries, type CustomTranscript, type Issue, type ParsedInput } from "./customInput";
 import {
-  buildSegmentMap, exonHeldBy, exonRelations, largestUnshared,
+  buildSegmentMap, exonHeldBy, exonRelations, inferBoundaries, largestUnshared,
   type ExonRelation, type SegmentMap,
 } from "./customAlign";
 import { gcPercent } from "./tm";
@@ -321,17 +321,36 @@ export interface CustomAnalysis {
   verdict: TranscriptVerdict;
   relations: ExonRelation[];
   explanation: Explanation;
+  /** What the comparison had to decide for itself — inferred boundaries, say. */
+  notes: Issue[];
 }
 
 export function analyzeCustom(parsed: ParsedInput, k = DEFAULT_K): CustomAnalysis | null {
   if (!parsed.target || !parsed.ready) return null;
-  const target = parsed.target, comparisons = parsed.comparisons;
-  const map = buildSegmentMap(target, comparisons);
+  let target = parsed.target;
+  const comparisons = parsed.comparisons;
+  let map = buildSegmentMap(target, comparisons);
+  const notes: Issue[] = [];
+  // A target pasted without boundaries takes them from the transcripts it shares sequence
+  // with, where they splice — then the map is rebuilt with those boundaries declared.
+  if (target.format === "single" && comparisons.length) {
+    const ends = inferBoundaries(target, comparisons, map);
+    if (ends.length > 1) {
+      target = withBoundaries(target, ends, true);
+      map = buildSegmentMap(target, comparisons);
+      const lens = target.exons.map((e) => e.length.toLocaleString("en-US"));
+      notes.push({ level: "info", where: target.name, code: "inferred",
+        text: `No exon boundaries were given, so ${ends.length - 1} were inferred from where the compared transcripts splice: `
+          + `exons of ${lens.slice(0, -1).join(", ")} and ${lens[lens.length - 1]} nt. A splice none of them shares cannot be `
+          + `inferred — type | or give the positions to set the boundaries yourself.` });
+    }
+  }
   const amp = amplifiability(target, comparisons, map, k);
   return {
     k, target, comparisons, others: parsed.others, objective: parsed.objective, map, amp,
     verdict: toVerdict(target, amp),
     relations: exonRelations(comparisons, map),
     explanation: explain(target, comparisons, map, amp, k),
+    notes,
   };
 }

@@ -19,7 +19,7 @@ import type { SpeciesSlug } from "./species";
 
 export type IssueLevel = "error" | "warning" | "info";
 /** One finding of the input QC. Errors stop the design; warnings and information do not. */
-export interface Issue { level: IssueLevel; text: string; where?: string; code?: "no-boundaries" }
+export interface Issue { level: IssueLevel; text: string; where?: string; code?: "no-boundaries" | "inferred" }
 
 export type Objective = "specific" | "shared";
 
@@ -92,6 +92,9 @@ export interface CustomTranscript {
   exonEnds: number[];
   /** How the boundaries were read. */
   format: "labelled" | "delimited" | "single";
+  /** The boundaries were not given: they were inferred from the transcripts it was compared
+   *  with (customAlign.inferBoundaries). */
+  inferred?: boolean;
   issues: Issue[];
   /** No errors: the transcript can be designed against. */
   ok: boolean;
@@ -498,4 +501,12 @@ export function applyBoundaries(text: string, ends: number[]): string {
   let from = 0;
   for (const e of ends) { exons.push(`Exon ${exons.length + 1}: ${seq.slice(from, e)}`); from = e; }
   return [...head, ...exons].join("\n");
+}
+
+/** The same transcript with its boundaries replaced (0-based exclusive exon ends, the last = its length). */
+export function withBoundaries(t: CustomTranscript, ends: readonly number[], inferred = false): CustomTranscript {
+  const exons: string[] = [];
+  let from = 0;
+  for (const e of ends) { exons.push(t.seq.slice(from, e)); from = e; }
+  return { ...t, exons, exonEnds: [...ends], inferred, issues: t.issues.filter((i) => i.code !== "no-boundaries") };
 }

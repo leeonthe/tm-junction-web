@@ -335,7 +335,10 @@ export default function Guide({ onBack, onMethod, backLabel }: {
           go; or, if you know where the exons are, give their ends, their ranges or their
           lengths under the box (<i>89, 141, 241</i> — or <i>1-89, 90-141</i> — or <i>89, 52,
           100</i>), see the exons it makes, and press <b>Split</b> — nobody should have to count
-          to 89. A paste with no boundaries is one exon. Choose the <b>target</b>, tick the
+          to 89. A paste with no boundaries is one exon — unless it is the target and there are
+          transcripts to compare it with: then its exons are read off where those transcripts
+          splice inside the sequence they share, and the page says which boundaries it inferred
+          (a splice none of them shares cannot be, so type it yourself). Choose the <b>target</b>, tick the
           transcripts it must be told apart from — or, under <b>Shared amplification</b>, the
           ones it must be amplified together with — and press <b>Compare &amp; design</b>. With
           no other rows the design simply runs on the target: a pair anywhere on it, or a

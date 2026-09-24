@@ -128,6 +128,27 @@ describe("analyzeCustom", () => {
     expect(a.verdict.accession).toBe("Transcript A");
   });
 
+  it("infers the boundaries of a target pasted without any, and says so", () => {
+    const m = F.transcripts.find((t) => t.accession === "NM_002046.7")!.exons;
+    const seq = "CCTGCCGCCGCGCCCCCGGTTTCTATAAATTGAGCCCGCAGCCTCCCGCTTC" + m.slice(0, 5).join("") + m[5].slice(12) + m.slice(6).join("");
+    const parsed = parseCustomInput({
+      transcripts: [{ id: "a", name: "A", text: seq, include: true },
+        ...F.transcripts.map((t) => ({ id: t.accession, name: t.accession, text: t.exons.join("|"), include: true }))],
+      targetId: "a", objective: "specific",
+    });
+    const a = analyzeCustom(parsed)!;
+    expect(a.target.inferred).toBe(true);
+    expect(a.target.exons.map((e) => e.length)).toEqual([105, 52, 100, 107, 91, 104, 82, 413, 271]);
+    expect(a.verdict.exons).toHaveLength(9);
+    expect(a.notes[0]).toMatchObject({ level: "info", code: "inferred" });
+    expect(a.notes[0].text).toMatch(/8 were inferred/);
+    // The 5′ extension is a unique region of exon 1, and the shifted exon-6 acceptor is the
+    // target's own junction — both are real primer sites now that the exons are known.
+    expect(a.verdict.tier).toBe("CONVENTIONAL");
+    expect(a.verdict.unique_regions[0].exon_order).toBe(1);
+    expect(a.verdict.unique_junctions).toContainEqual(expect.objectContaining({ donor_order: 5, acceptor_order: 6 }));
+  });
+
   it("with nothing to compare against, every window is unique", () => {
     const parsed = parseCustomInput({ transcripts: [{ id: "x", name: "", text: F.transcripts[0].exons.join("|"), include: true }], targetId: "x", objective: "specific" });
     const a = analyzeCustom(parsed)!;

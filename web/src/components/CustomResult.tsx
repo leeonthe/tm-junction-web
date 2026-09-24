@@ -49,7 +49,7 @@ export default function CustomResult({ run, stale, busy, onCompare }: {
     );
   }
   const { parsed, result } = run;
-  const issues: Issue[] = [...parsed.issues, ...parsed.transcripts.flatMap((t) => t.issues)];
+  const issues: Issue[] = [...parsed.issues, ...parsed.transcripts.flatMap((t) => t.issues), ...(result?.notes ?? [])];
   return (
     <>
       {stale && (
@@ -124,6 +124,11 @@ function ResultBody({ a }: { a: CustomAnalysis }) {
         <span className="acc">{a.target.name}</span>
         <div className="gene-chips">
           <span className="gchip">{specific ? "transcript-specific" : "shared amplification"}</span>
+          {a.target.inferred && (
+            <span className="gchip" title="No exon boundaries were given; these were read off where the compared transcripts splice — see the Input check">
+              <b>{a.target.exons.length}</b> exons inferred
+            </span>
+          )}
           <span className="gchip"><b>{a.comparisons.length}</b> {specific ? "to avoid" : "to amplify with it"}</span>
           {a.others.length > 0 && <span className="gchip"><b>{a.others.length}</b> not compared</span>}
           <span className="gchip">{a.k}-nt windows</span>

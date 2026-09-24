@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildSegmentMap, chainMatches, exonHeldBy, exonRelations, largestUnshared, loneColumn, maximalMatches,
+  buildSegmentMap, chainMatches, exonHeldBy, exonRelations, inferBoundaries, largestUnshared, loneColumn, maximalMatches,
 } from "./customAlign";
 import fx from "./__fixtures__/gapdh_custom.json";
 import { parseTranscript, type CustomTranscript } from "./customInput";
@@ -251,5 +251,45 @@ describe("stretches the target lacks are aligned against each other", () => {
     // and variant 4 keeps the rest of its intron as a column of its own
     const own746 = m.pieces["NM_001289746.2"].filter((p) => p.segment === null).map((p) => [m.columns[p.column].length, m.columns[p.column].carriers.length]);
     expect(own746).toEqual([[92, 2], [148, 1]]);
+  });
+});
+
+describe("inferBoundaries — a target pasted without any", () => {
+  const one = (id: string, seq: string) => mk(id, [seq]);
+  const infer = (t: CustomTranscript, comps: CustomTranscript[]) => inferBoundaries(t, comps, buildSegmentMap(t, comps));
+
+  it("takes a comparison's splices that fall inside what the two share", () => {
+    const T = one("T", X1 + X2 + X3 + X4 + X5);
+    expect(infer(T, [A])).toEqual([120, 210, 280, 390, 540]);
+  });
+
+  it("does not invent a junction where the target merely carries more than the comparison", () => {
+    // B skips X3. From B alone, the target's X2|X3 and X3|X4 edges could be splices or a
+    // retained intron — nothing says which, so neither is inferred; the shared splices are.
+    const T = one("T", X1 + X2 + X3 + X4 + X5);
+    expect(infer(T, [B])).toEqual([120, 390, 540]);
+  });
+
+  it("takes the junction of an exon the target skips, from the comparison that has the exon", () => {
+    const T = one("T", X1 + X2 + X4 + X5);                     // skips X3
+    expect(infer(T, [A])).toEqual([120, 210, 320, 470]);
+  });
+
+  it("leaves a mere sequence difference alone", () => {
+    const T = one("T", CAS + X1 + X2 + X4 + X5);              // extra 5′ sequence, then skips X3
+    expect(infer(T, [A])).toEqual([40 + 120, 40 + 210, 40 + 320, 40 + 470]);   // no boundary at 40
+    expect(infer(one("T", X1 + X2), [one("U", X1 + X2)])).toEqual([210]);      // nothing to infer from
+  });
+
+  it("GAPDH: the user's paste — MANE with a 5′ extension and 12 nt less of exon 6 — gets MANE's nine exons", () => {
+    interface Fx { transcripts: { accession: string; exons: string[] }[] }
+    const ts = (fx as Fx).transcripts;
+    const refseq = ts.map((t) => mk(t.accession, t.exons));
+    const m = ts.find((t) => t.accession === "NM_002046.7")!.exons;
+    const seq = "CCTGCCGCCGCGCCCCCGGTTTCTATAAATTGAGCCCGCAGCCTCCCGCTTC" + m.slice(0, 5).join("") + m[5].slice(12) + m.slice(6).join("");
+    expect(seq).toHaveLength(1325);
+    // The extension is not a splice (no comparison splices there); the shifted acceptor of
+    // exon 6 is (MANE's exon-5 end sits at the edge of what the target left out).
+    expect(infer(one("A", seq), refseq)).toEqual([105, 157, 257, 364, 455, 559, 641, 1054, 1325]);
   });
 });
