@@ -346,9 +346,10 @@ export default function Guide({ onBack, onMethod, backLabel }: {
           The transcripts are compared by <b>sequence, never by exon number</b>: exon 2 of one
           variant may be exon 3 of another, or half of it. Every stretch the target shares with
           another transcript is found, the stretches are put in order, and your boundaries are
-          laid over them — the block map draws each transcript in its own coordinates, the same
-          colour on two rows meaning the same sequence, hatched where a row has sequence the
-          others lack, a red boundary where the target has a junction nobody else has. Below it
+          laid over them — the block map then draws every transcript on one axis of columns,
+          one column per stretch, the same label in the same place being the same sequence,
+          so a skipped exon reads as a gap and an alternative exon as a hatched column only its
+          row fills; a red boundary marks a junction of the target nobody else has. Below it
           each exon of each transcript is described in those terms (identical to a target exon,
           within it, spanning two of them, not in the target), and a note says when a repeat
           makes the correspondence ambiguous. The verdict, the designers and the primer QC are

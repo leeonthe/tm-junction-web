@@ -184,8 +184,10 @@ export function chainMatches(
 
 /** One stretch of the target with one identity: the transcripts that share it, whole. */
 export interface Segment {
-  /** 0-based; the segment is named X{index+1}. */
+  /** 0-based position along the target. */
   index: number;
+  /** Its name on the map — the label of its column (see Column), "X" + position on the axis. */
+  label: string;
   /** Target mRNA, 0-based half-open. */
   start: number;
   end: number;
@@ -202,7 +204,28 @@ export interface CompPiece {
   end: number;
   /** Segment index it corresponds to, or null for sequence the target does not have. */
   segment: number | null;
+  /** The column it occupies on the shared axis. */
+  column: number;
   ambiguous: boolean;
+}
+
+/**
+ * One column of the shared axis every transcript is drawn on: a stretch of sequence, with
+ * the same label wherever it occurs. A target segment is a column; a stretch the target
+ * lacks is a column too, placed before the target segment that follows it in the transcript
+ * carrying it — so an exon skipped by the target, or an alternative first exon, has a name
+ * and a place, and identical stretches in two transcripts share both.
+ */
+export interface Column {
+  index: number;
+  /** "X" + 1-based position on the axis. */
+  label: string;
+  /** nt. */
+  length: number;
+  /** The target segment this is, or null for a stretch the target does not have. */
+  segment: number | null;
+  /** Comparison ids carrying it — a target segment's sharedWith, or an insert's owners. */
+  carriers: string[];
 }
 
 export interface SegmentMap {
@@ -211,6 +234,8 @@ export interface SegmentMap {
   chains: Record<string, Chain>;
   /** Per comparison id: its sequence, piece by piece, in its own coordinates. */
   pieces: Record<string, CompPiece[]>;
+  /** The shared axis, left to right. */
+  columns: Column[];
 }
 
 /**
@@ -246,26 +271,63 @@ export function buildSegmentMap(target: CustomTranscript, comps: readonly Custom
       const blk = chains[c.id].blocks.find((b) => b.aStart <= start && b.aStart + b.len >= end);
       if (blk) { sharedWith.push(c.id); ambiguous ||= blk.ambiguous; }
     }
-    segments.push({ index: segments.length, start, end, exon: exonAt(start), sharedWith, ambiguous });
+    segments.push({ index: segments.length, label: "", start, end, exon: exonAt(start), sharedWith, ambiguous });
   }
   const pieces: Record<string, CompPiece[]> = {};
   for (const c of comps) {
     const out: CompPiece[] = [];
     let pos = 0;
     for (const b of chains[c.id].blocks) {
-      if (b.bStart > pos) out.push({ start: pos, end: b.bStart, segment: null, ambiguous: false });
+      if (b.bStart > pos) out.push({ start: pos, end: b.bStart, segment: null, column: -1, ambiguous: false });
       for (const s of segments) {
         if (s.start >= b.aStart && s.end <= b.aStart + b.len) {
           const off = s.start - b.aStart;
-          out.push({ start: b.bStart + off, end: b.bStart + off + (s.end - s.start), segment: s.index, ambiguous: b.ambiguous });
+          out.push({ start: b.bStart + off, end: b.bStart + off + (s.end - s.start), segment: s.index, column: -1, ambiguous: b.ambiguous });
         }
       }
       pos = b.bStart + b.len;
     }
-    if (pos < c.seq.length) out.push({ start: pos, end: c.seq.length, segment: null, ambiguous: false });
+    if (pos < c.seq.length) out.push({ start: pos, end: c.seq.length, segment: null, column: -1, ambiguous: false });
     pieces[c.id] = out;
   }
-  return { segments, chains, pieces };
+
+  // The shared axis. A stretch the target lacks goes before the target segment that follows
+  // it in the transcript carrying it (the end, if none follows); two transcripts carrying the
+  // identical stretch at the same place share the column.
+  const inserts = new Map<number, { seq: string; carriers: string[]; at: [string, number][] }[]>();
+  for (const c of comps) {
+    const ps = pieces[c.id];
+    ps.forEach((p, pi) => {
+      if (p.segment != null) return;
+      let next = segments.length;
+      for (let j = pi + 1; j < ps.length; j++) { const sj = ps[j].segment; if (sj != null) { next = sj; break; } }
+      const seq = c.seq.slice(p.start, p.end);
+      let list = inserts.get(next);
+      if (!list) inserts.set(next, list = []);
+      let entry = list.find((e) => e.seq === seq);
+      if (!entry) list.push(entry = { seq, carriers: [], at: [] });
+      if (!entry.carriers.includes(c.id)) entry.carriers.push(c.id);
+      entry.at.push([c.id, pi]);
+    });
+  }
+  const columns: Column[] = [];
+  const colOfSegment: number[] = [];
+  for (let b = 0; b <= segments.length; b++) {
+    for (const e of inserts.get(b) ?? []) {
+      const index = columns.length;
+      columns.push({ index, label: `X${index + 1}`, length: e.seq.length, segment: null, carriers: e.carriers });
+      for (const [id, pi] of e.at) pieces[id][pi].column = index;
+    }
+    if (b < segments.length) {
+      const seg = segments[b];
+      const index = columns.length;
+      colOfSegment[b] = index;
+      seg.label = `X${index + 1}`;
+      columns.push({ index, label: seg.label, length: seg.end - seg.start, segment: b, carriers: seg.sharedWith });
+    }
+  }
+  for (const c of comps) for (const p of pieces[c.id]) if (p.segment != null) p.column = colOfSegment[p.segment];
+  return { segments, chains, pieces, columns };
 }
 
 /** 1-based exon of `t` holding 0-based position `p`. */

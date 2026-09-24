@@ -117,6 +117,32 @@ describe("buildSegmentMap", () => {
     const own = pieces.find((p) => p.segment === null)!;
     expect([own.start, own.end]).toEqual([120, 160]);
   });
+
+  it("puts every stretch on one axis: the target's segments, and what the target lacks, labelled in order", () => {
+    const E = mk("E", [X1, CAS, X2, X4]);
+    const m = buildSegmentMap(A, [E]);
+    // Target segments: X1 | X2 | X3(own) | X4 | X5(own); E's cassette sits before X2 → column 2.
+    expect(m.columns.map((c) => [c.label, c.length, c.segment])).toEqual([
+      ["X1", 120, 0], ["X2", 40, null], ["X3", 90, 1], ["X4", 70, 2], ["X5", 110, 3], ["X6", 150, 4]]);
+    expect(m.segments.map((s) => s.label)).toEqual(["X1", "X3", "X4", "X5", "X6"]);
+    expect(m.pieces.E.map((p) => [p.column, p.end - p.start])).toEqual([[0, 120], [1, 40], [2, 90], [4, 110]]);
+    expect(m.columns[1].carriers).toEqual(["E"]);
+  });
+
+  it("gives the identical stretch in two transcripts one column, and a different one its own", () => {
+    const E = mk("E", [X1, CAS, X2, X4]);
+    const F = mk("F", [X1, CAS, X2, X4, X5]);
+    const G = mk("G", [X1, cap(synth(40, 13), "T", "A"), X2, X4]);   // another cassette
+    const m = buildSegmentMap(A, [E, F, G]);
+    const inserts = m.columns.filter((c) => c.segment === null);
+    expect(inserts.map((c) => [c.label, c.carriers])).toEqual([["X2", ["E", "F"]], ["X3", ["G"]]]);
+    expect(m.pieces.E[1].column).toBe(m.pieces.F[1].column);
+    expect(m.pieces.G[1].column).not.toBe(m.pieces.E[1].column);
+    // A stretch after the last shared block goes at the end of the axis.
+    const H = mk("H", [X1, X2, cap(synth(60, 17), "T", "A")]);
+    const m2 = buildSegmentMap(A, [H]);
+    expect(m2.columns[m2.columns.length - 1]).toMatchObject({ segment: null, length: 60, carriers: ["H"] });
+  });
 });
 
 describe("exonRelations", () => {

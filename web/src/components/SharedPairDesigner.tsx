@@ -205,7 +205,7 @@ export default function SharedPairDesigner({ a, onPair }: {
                       · GC {o.forward.gc.toFixed(0)}% / {o.reverse.gc.toFixed(0)}%
                       {" "}· {o.forward.len} / {o.reverse.len} nt
                       {" "}· amplicon <b>{o.cov.size} bp</b>
-                      {" "}· X{o.span.fwd.index + 1} → X{o.span.rev.index + 1}
+                      {" "}· {o.span.fwd.label} → {o.span.rev.label}
                       {" "}· covers <b>{o.cov.covered.length}/{all.length}</b>
                       {o.extra.length > 0 && <span className="pp-extra"> · also {o.extra.map(nameOf).join(", ")}</span>}
                       {qcOn && <QcTag failures={pairFailures(o)} criteria={qcCriteriaText(rule)} />}

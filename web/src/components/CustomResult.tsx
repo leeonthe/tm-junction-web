@@ -205,7 +205,7 @@ function InfeasibleCard({ a, nameOf }: { a: CustomAnalysis; nameOf: (id: string)
       <span key={e.order}>exon {e.order} {e.holders.length ? `is carried whole by ${names(e.holders)}` : "is made of stretches each shared with some transcript"}; </span>)}</>);
   for (const o of ex.onlyDistinguishing.filter((x) => !ex.identical.includes(x.comp) && !subset.includes(x.comp)))
     lines.push(<>The only stretches distinguishing {a.target.name} from <b>{nameOf(o.comp)}</b>{" "}
-      ({o.segments.map((i) => `X${i + 1}`).join(", ")}) are also present in <b>{names(o.others)}</b> — a site
+      ({o.segments.map((i) => a.map.segments[i].label).join(", ")}) are also present in <b>{names(o.others)}</b> — a site
       that excludes {nameOf(o.comp)} amplifies {o.others.length === 1 ? "that one" : "those"}.</>);
   const unavoidable = [...new Set([...ex.identical, ...ex.supersets])];
   return (
@@ -265,26 +265,31 @@ function CorrespondenceCard({ a, products, nameOf }: {
   const targetExonLen = (order: number) => a.target.exons[order - 1]?.length ?? 0;
   const byComp = new Map<string, ExonRelation[]>();
   for (const r of a.relations) { const l = byComp.get(r.comp); if (l) l.push(r); else byComp.set(r.comp, [r]); }
-  const shown = a.map.segments.filter((s) => s.sharedWith.length).slice(0, 8);
+  const cols = a.map.columns;
+  const shared = (c: typeof cols[number]) => c.segment != null ? c.carriers.length > 0 : false;
+  const shown = cols.slice(0, 12);
   return (
     <section className="card">
       <div className="card-head">
         <div>
           <h3 className="card-title">How the transcripts correspond</h3>
           <p className="sub">
-            Aligned by sequence, each row in its own coordinates; the same colour on two rows is the same sequence.
-            Exon labels are yours and mean nothing across rows.
+            Aligned by sequence on one axis: each column is one stretch, and a row shows the columns it
+            has — the same label in the same place is the same sequence. Hatched columns belong to
+            one row only. Exon labels are yours and mean nothing across rows.
           </p>
         </div>
         <div className="legend legend-2row">
           <div className="legend-row">
-            {shown.map((s) => (
-              <span key={s.index} className="lg"><span className="sw" style={{ background: blockColor(s.index) }} />X{s.index + 1}</span>
+            {shown.map((c) => (
+              <span key={c.index} className="lg">
+                <span className={`sw ${shared(c) ? "" : "bm-own-sw"}`} style={shared(c) ? { background: blockColor(c.index) } : undefined} />{c.label}
+              </span>
             ))}
-            {a.map.segments.filter((s) => s.sharedWith.length).length > shown.length && <span className="lg">…</span>}
+            {cols.length > shown.length && <span className="lg">… {cols.length} columns</span>}
           </div>
           <div className="legend-row">
-            <span className="lg"><span className="sw bm-own-sw" />not shared</span>
+            <span className="lg"><span className="sw bm-own-sw" />in one row only</span>
             <span className="lg"><span className="bm-tick" />exon boundary</span>
             <span className="lg"><span className="bm-tick specific" />target-specific junction</span>
             {products && <span className="lg"><span className="sw" style={{ background: "var(--pan-amp)", opacity: .5 }} />product</span>}
