@@ -18,6 +18,7 @@
 // is as shareable as a transcript one. Anything unknown parses as the landing page.
 
 import { isSpecies, typedSymbol, type SpeciesSlug } from "./species";
+import { pageMeta } from "../seo";
 
 export type Tab = "summary" | "pan" | "amplify" | "gene";
 export const TABS: readonly Tab[] = ["summary", "pan", "amplify", "gene"];
@@ -105,15 +106,17 @@ function withQuery(path: string, q: URLSearchParams): string {
 
 const APP_NAME = "Exon Junction Primer";
 
-/** What the tab and the browser's history entry are called. */
+/** What the tab and the browser's history entry are called. The three pages a search
+ *  engine indexes keep the title their static HTML carries (src/seo.ts), so the title a
+ *  visitor sees is the one they clicked on in the results. */
 export function routeTitle(r: Route): string {
   switch (r.page) {
-    case "method": return `Method · ${APP_NAME}`;
-    case "guide": return `How to use · ${APP_NAME}`;
+    case "method": return pageMeta("/method").title;
+    case "guide": return pageMeta("/guide").title;
     case "sequence": return `Custom sequence · ${APP_NAME}`;
     case "home": {
       const what = r.transcript ?? r.gene;   // the symbol already reads as its species
-      return what ? `${what} · ${APP_NAME}` : `${APP_NAME} — isoform-specific RT-PCR primers`;
+      return what ? `${what} · ${APP_NAME}` : pageMeta("/").title;
     }
   }
 }

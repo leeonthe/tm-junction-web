@@ -95,6 +95,8 @@ describe("route addresses", () => {
     expect(routeTitle({ page: "home", mode: "gene", gene: "CFH", tab: "summary" })).toMatch(/^CFH · /);
     expect(routeTitle({ page: "home", mode: "gene", gene: "CFH", transcript: "NM_000186.4", tab: "gene" }))
       .toMatch(/^NM_000186\.4 · /);
-    expect(routeTitle({ page: "method" })).toMatch(/^Method · /);
+    // The indexed pages keep their static HTML title (src/seo.ts) once the app mounts.
+    expect(routeTitle({ page: "method" })).toMatch(/^Method — how the Tm-guided exon junction rule/);
+    expect(routeTitle({ page: "guide" })).toMatch(/^How to use Exon Junction Primer/);
   });
 });
