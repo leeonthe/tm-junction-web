@@ -20,7 +20,8 @@ const LEGEND = [
 // from every tier default (both themes) so a pick can't create a near-duplicate.
 const SPARES = ["#16A34A", "#0D9488", "#F97316", "#EC4899", "#7C3AED", "#B45309"];
 
-// "What is this" hover text for the target-site legend entries (shown as a title on the ⓘ marker).
+// "What is this" hover text for the three design markers — on the key under the graph, where
+// each marker is named beside the mark it explains (the legend above the graph names tiers only).
 const HINTS: Record<string, string> = {
   "--amp-pair": "Primer target site — the exon region to put your primer(s): an EEJ-independent "
     + "exon pair, or a junction+exon combo's discriminating exon region. Only sequence that "
@@ -161,7 +162,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
   const keyItem = (token: string, label: string, glyph: React.ReactNode) => (
     <span className="g-key" key={token}>
       <button type="button" className="g-key-btn"
-        aria-label={`Change ${label} color`}
+        aria-label={`Change ${label} color`} title={HINTS[token]}
         aria-expanded={openToken === `key:${token}`}
         onClick={() => openPalette(`key:${token}`)}>
         {glyph} {label}
@@ -181,10 +182,6 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
         onClick={() => openPalette(`legend:${token}`)}
       />
       {label}
-      {HINTS[token] && (
-        <span className="lg-info" title={HINTS[token]} tabIndex={0}
-          role="img" aria-label={HINTS[token]}>i</span>
-      )}
       {openToken === `legend:${token}` && palette(token, label)}
     </span>
   );
@@ -198,11 +195,10 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
           </h3>
           <p className="sub">{gene.assembly} · colored by amplification tier</p>
         </div>
-        {/* Two rows: the three tiers on top, the three design markers (with ⓘ hints) below. */}
-        <div className="legend legend-2row" ref={legendRef}>
-          <div className="legend-row">{LEGEND.slice(0, 3).map(legendItem)}</div>
-          <div className="legend-row">{LEGEND.slice(3).map(legendItem)}</div>
-        </div>
+        {/* The three tiers only. The three design markers are named — and recoloured — in the
+            key under the graph, beside the marks themselves; a second row here said the same
+            thing twice. */}
+        <div className="legend" ref={legendRef}>{LEGEND.slice(0, 3).map(legendItem)}</div>
       </div>
       <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} mrna={result.target_mrna} excluded={result.excluded} />
       {/* A key, not a paragraph: each marker gets the short name of what it means, drawn in
