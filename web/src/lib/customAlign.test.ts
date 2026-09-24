@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildSegmentMap, chainMatches, exonHeldBy, exonRelations, largestUnshared, maximalMatches,
+  buildSegmentMap, chainMatches, exonHeldBy, exonRelations, largestUnshared, loneColumn, maximalMatches,
 } from "./customAlign";
+import fx from "./__fixtures__/gapdh_custom.json";
 import { parseTranscript, type CustomTranscript } from "./customInput";
 
 /**
@@ -181,5 +182,74 @@ describe("exonHeldBy / largestUnshared", () => {
     expect(largestUnshared(A, map, 2, ["C"])).toEqual([180, 210]);
     expect(largestUnshared(A, map, 3, ["B", "C", "D"])).toBeNull();
     expect(largestUnshared(A, map, 1, [])).toEqual([0, 120]);
+  });
+});
+
+describe("stretches the target lacks are aligned against each other", () => {
+  const Y = cap(synth(40, 21), "G", "T"), Z = cap(synth(60, 22), "A", "G"), W = cap(synth(50, 23), "T", "C");
+  const T = mk("T", [X1, X4]);                       // the target has neither Y nor Z
+  const B = mk("B", [X1, Y, X4]);
+  const C = mk("C", [X1, Y + Z, X4]);                // Y then more
+  const colsOf = (m: ReturnType<typeof buildSegmentMap>, id: string) =>
+    m.pieces[id].map((p) => [m.columns[p.column].label, p.end - p.start, m.columns[p.column].carriers.join("+")]);
+
+  it("gives the part two rows share one column, and each remainder its own", () => {
+    const m = buildSegmentMap(T, [B, C]);
+    expect(m.columns.map((c) => [c.length, c.segment, c.carriers.join("+")])).toEqual([
+      [120, 0, "B+C"], [40, null, "C+B"], [60, null, "C"], [110, 1, "B+C"]]);
+    expect(colsOf(m, "B")).toEqual([["X1", 120, "B+C"], ["X2", 40, "C+B"], ["X4", 110, "B+C"]]);
+    expect(colsOf(m, "C")).toEqual([["X1", 120, "B+C"], ["X2", 40, "C+B"], ["X3", 60, "C"], ["X4", 110, "B+C"]]);
+    expect(m.columns.map(loneColumn)).toEqual([false, false, true, false]);
+  });
+
+  it("works for a shared tail too, and keeps the pieces a partition of each sequence", () => {
+    const C2 = mk("C2", [X1, Z + Y, X4]);
+    const m = buildSegmentMap(T, [B, C2]);
+    expect(m.columns.map((c) => [c.length, c.carriers.join("+")])).toEqual([[120, "B+C2"], [60, "C2"], [40, "C2+B"], [110, "B+C2"]]);
+    for (const id of ["B", "C2"]) {
+      const ps = m.pieces[id];
+      expect(ps[0].start).toBe(0);
+      expect(ps[ps.length - 1].end).toBe((id === "B" ? B : C2).seq.length);
+      for (let i = 1; i < ps.length; i++) expect(ps[i].start).toBe(ps[i - 1].end);
+    }
+  });
+
+  it("aligns three rows, the remainders laid out in turn", () => {
+    const D = mk("D", [X1, Y + W, X4]);
+    const m = buildSegmentMap(T, [B, C, D]);
+    const shared = m.columns.find((c) => c.segment === null && c.carriers.length === 3)!;
+    expect(shared.length).toBe(40);
+    expect(m.columns.filter((c) => c.segment === null).map((c) => [c.length, c.carriers.join("+")]))
+      .toEqual([[40, "C+B+D"], [60, "C"], [50, "D"]]);
+  });
+
+  it("keeps an identical stretch one column however short, and lets a longer one carry it", () => {
+    const short = "GCTCATTTGCAG";                                   // 12 nt: below what the chainer can match
+    const E = mk("E", [X1, short, X4]), F = mk("F", [X1, short, X4]), G = mk("G", [X1, short, X4]);
+    const m = buildSegmentMap(T, [E, F, G]);
+    expect(m.columns.filter((c) => c.segment === null).map((c) => [c.length, c.carriers.join("+")])).toEqual([[12, "E+F+G"]]);
+    // Two rows with the identical long stretch and one with more: one shared column, one remainder.
+    const H = mk("H", [X1, Y, X4]);
+    const m2 = buildSegmentMap(T, [B, H, C]);
+    expect(m2.columns.filter((c) => c.segment === null).map((c) => [c.length, c.carriers.join("+")])).toEqual([[40, "C+B+H"], [60, "C"]]);
+  });
+
+  it("GAPDH: a pasted single-exon transcript beside the RefSeq set puts variant 3's exon-1 tail in the same column as variant 4's retained intron", () => {
+    // The user's report (2026-09-24): the 92 nt that end NM_001289745.3's exon 1 also begin the
+    // stretch NM_001289746.2 keeps — both absent from a target that is MANE plus a 5′ extension.
+    interface Fx { transcripts: { accession: string; exons: string[] }[] }
+    const refseq = (fx as Fx).transcripts.map((t) => mk(t.accession, t.exons));
+    const mane = (fx as Fx).transcripts.find((t) => t.accession === "NM_002046.7")!.exons.join("");
+    const target = mk("A", ["CCTGCCGCCGCGCCCCCGGTTTCTATAAATTGAGCCCGCAGCCTCCCGCTTCG" + mane]);
+    const m = buildSegmentMap(target, refseq);
+    const own745 = m.pieces["NM_001289745.3"].filter((p) => p.segment === null);
+    expect(own745).toHaveLength(1);
+    const col = m.columns[own745[0].column];
+    expect(col.length).toBe(92);
+    expect(col.carriers).toContain("NM_001289746.2");
+    expect(loneColumn(col)).toBe(false);
+    // and variant 4 keeps the rest of its intron as a column of its own
+    const own746 = m.pieces["NM_001289746.2"].filter((p) => p.segment === null).map((p) => [m.columns[p.column].length, m.columns[p.column].carriers.length]);
+    expect(own746).toEqual([[92, 2], [148, 1]]);
   });
 });

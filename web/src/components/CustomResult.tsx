@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { CustomAnalysis } from "../lib/customAmplify";
 import type { Issue, ParsedInput } from "../lib/customInput";
-import type { ExonRelation } from "../lib/customAlign";
+import { loneColumn, type ExonRelation } from "../lib/customAlign";
 import type { ChosenPair } from "../lib/conventional";
 import type { TranscriptVerdict } from "../lib/types";
 import { amplifies, type Product } from "../lib/panvariant";
@@ -266,7 +266,7 @@ function CorrespondenceCard({ a, products, nameOf }: {
   const byComp = new Map<string, ExonRelation[]>();
   for (const r of a.relations) { const l = byComp.get(r.comp); if (l) l.push(r); else byComp.set(r.comp, [r]); }
   const cols = a.map.columns;
-  const shared = (c: typeof cols[number]) => c.segment != null ? c.carriers.length > 0 : false;
+  const shared = (c: typeof cols[number]) => !loneColumn(c);
   const shown = cols.slice(0, 12);
   return (
     <section className="card">
@@ -275,8 +275,8 @@ function CorrespondenceCard({ a, products, nameOf }: {
           <h3 className="card-title">How the transcripts correspond</h3>
           <p className="sub">
             Aligned by sequence on one axis: each column is one stretch, and a row shows the columns it
-            has — the same label in the same place is the same sequence. Hatched columns belong to
-            one row only. Exon labels are yours and mean nothing across rows.
+            has — the same label in the same place is the same sequence, whether or not the target has
+            it. Hatched columns belong to one row only. Exon labels are yours and mean nothing across rows.
           </p>
         </div>
         <div className="legend legend-2row">

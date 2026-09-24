@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CustomAnalysis } from "../lib/customAmplify";
-import type { CompPiece } from "../lib/customAlign";
+import { loneColumn, type CompPiece } from "../lib/customAlign";
 import type { Product } from "../lib/panvariant";
 
 /** Colours a column cycles through — --blk-0 … --blk-7 in app.css. */
@@ -69,10 +69,11 @@ export default function BlockMapGraph({ a, products, solo = false }: {
           const isTarget = ri === 0;
           const cy = top + ri * rowH + rowH / 2;
           // Every row as pieces in its own coordinates, each on its column.
+          // `own`: hatched — the column is held by this row and no other.
           const pieces: (CompPiece & { own: boolean; label: string })[] = isTarget
             ? a.map.segments.map((s) => ({ start: s.start, end: s.end, segment: s.index, column: colOfSegment.get(s.index)!,
                 ambiguous: s.ambiguous, own: !solo && !s.sharedWith.length, label: s.label }))
-            : a.map.pieces[t.id].map((p) => ({ ...p, own: p.segment == null, label: cols[p.column].label }));
+            : a.map.pieces[t.id].map((p) => ({ ...p, own: loneColumn(cols[p.column]), label: cols[p.column].label }));
           /** Axis x of a position of this transcript (0-based; `end` true for a piece's end). */
           const posX = (p: number, end = false) => {
             const pc = pieces.find((q) => (end ? q.start < p && p <= q.end : q.start <= p && p < q.end))
@@ -112,7 +113,9 @@ export default function BlockMapGraph({ a, products, solo = false }: {
                 const col = cols[p.column];
                 const who = col.segment != null
                   ? (col.carriers.length ? `shared with ${col.carriers.map(nameOf).join(", ")}` : `only in ${a.target.name}`)
-                  : `not in ${a.target.name} · in ${col.carriers.map(nameOf).join(", ")}`;
+                  : col.carriers.length > 1
+                    ? `not in ${a.target.name} · shared by ${col.carriers.map(nameOf).join(", ")}`
+                    : `only in ${t.name}`;
                 const title = solo
                   ? `exon ${a.map.segments[p.segment!]?.exon} · ${p.start + 1}–${p.end} (${p.end - p.start} nt)`
                   : `${p.label} · ${t.name} ${p.start + 1}–${p.end} (${p.end - p.start} nt) · ${who}${p.ambiguous ? " · ambiguous" : ""}`;
@@ -157,7 +160,7 @@ export default function BlockMapGraph({ a, products, solo = false }: {
         <line x1={padL} y1={height - 20} x2={W - padR} y2={height - 20} stroke="var(--border-2)" />
         {cols.map((c) => c.length * scale >= 18 && (
           <text key={c.index} x={colX[c.index] + (c.length * scale) / 2} y={height - 7} textAnchor="middle"
-            fontSize={9.5} fontFamily="var(--mono)" fill={c.segment != null && c.carriers.length ? "var(--muted)" : "var(--faint)"}>
+            fontSize={9.5} fontFamily="var(--mono)" fill={loneColumn(c) ? "var(--faint)" : "var(--muted)"}>
             {solo ? `e${(a.map.segments[c.segment ?? 0]?.exon ?? 1)}` : c.label}
           </text>
         ))}

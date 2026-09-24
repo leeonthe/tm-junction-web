@@ -224,7 +224,8 @@ export interface Column {
   length: number;
   /** The target segment this is, or null for a stretch the target does not have. */
   segment: number | null;
-  /** Comparison ids carrying it — a target segment's sharedWith, or an insert's owners. */
+  /** Comparison ids carrying it — a target segment's sharedWith, or the transcripts holding a
+   *  stretch the target lacks (several, when they share it). */
   carriers: string[];
 }
 
@@ -292,31 +293,36 @@ export function buildSegmentMap(target: CustomTranscript, comps: readonly Custom
   }
 
   // The shared axis. A stretch the target lacks goes before the target segment that follows
-  // it in the transcript carrying it (the end, if none follows); two transcripts carrying the
-  // identical stretch at the same place share the column.
-  const inserts = new Map<number, { seq: string; carriers: string[]; at: [string, number][] }[]>();
+  // it in the transcript carrying it (the end, if none follows). Stretches that fall in the same
+  // gap are aligned against EACH OTHER (layoutGap), so an exon two comparisons carry — or the
+  // part of it they both carry — is one column, and only what each has alone stays its own.
+  const gaps = new Map<number, GapItem[]>();
   for (const c of comps) {
     const ps = pieces[c.id];
     ps.forEach((p, pi) => {
       if (p.segment != null) return;
       let next = segments.length;
       for (let j = pi + 1; j < ps.length; j++) { const sj = ps[j].segment; if (sj != null) { next = sj; break; } }
-      const seq = c.seq.slice(p.start, p.end);
-      let list = inserts.get(next);
-      if (!list) inserts.set(next, list = []);
-      let entry = list.find((e) => e.seq === seq);
-      if (!entry) list.push(entry = { seq, carriers: [], at: [] });
-      if (!entry.carriers.includes(c.id)) entry.carriers.push(c.id);
-      entry.at.push([c.id, pi]);
+      let list = gaps.get(next);
+      if (!list) gaps.set(next, list = []);
+      list.push({ comp: c.id, start: p.start, end: p.end });
     });
   }
+  const seqOf = new Map(comps.map((c) => [c.id, c.seq]));
   const columns: Column[] = [];
   const colOfSegment: number[] = [];
+  const gapPieces = new Map<string, CompPiece[]>();
   for (let b = 0; b <= segments.length; b++) {
-    for (const e of inserts.get(b) ?? []) {
+    for (const gc of layoutGap(gaps.get(b) ?? [], (id) => seqOf.get(id) ?? "")) {
       const index = columns.length;
-      columns.push({ index, label: `X${index + 1}`, length: e.seq.length, segment: null, carriers: e.carriers });
-      for (const [id, pi] of e.at) pieces[id][pi].column = index;
+      const carriers: string[] = [];
+      for (const part of gc.parts) if (!carriers.includes(part.comp)) carriers.push(part.comp);
+      columns.push({ index, label: `X${index + 1}`, length: gc.length, segment: null, carriers });
+      for (const part of gc.parts) {
+        let list = gapPieces.get(part.comp);
+        if (!list) gapPieces.set(part.comp, list = []);
+        list.push({ start: part.start, end: part.end, segment: null, column: index, ambiguous: part.ambiguous });
+      }
     }
     if (b < segments.length) {
       const seg = segments[b];
@@ -326,9 +332,81 @@ export function buildSegmentMap(target: CustomTranscript, comps: readonly Custom
       columns.push({ index, label: seg.label, length: seg.end - seg.start, segment: b, carriers: seg.sharedWith });
     }
   }
-  for (const c of comps) for (const p of pieces[c.id]) if (p.segment != null) p.column = colOfSegment[p.segment];
+  // Each comparison's pieces again: the shared ones on their segment's column, the stretches the
+  // target lacks as the sub-pieces the gap alignment cut them into.
+  for (const c of comps) {
+    const shared = pieces[c.id].filter((p) => p.segment != null)
+      .map((p) => ({ ...p, column: colOfSegment[p.segment as number] }));
+    pieces[c.id] = [...shared, ...(gapPieces.get(c.id) ?? [])].sort((x, y) => x.start - y.start);
+  }
   return { segments, chains, pieces, columns };
 }
+
+/** A stretch of one transcript the target lacks, in that transcript's coordinates. */
+interface GapItem { comp: string; start: number; end: number }
+/** A column of a gap before it has a place on the axis: its length, and the stretch of each
+ *  transcript that holds it. */
+interface GapColumn { length: number; parts: { comp: string; start: number; end: number; ambiguous: boolean }[] }
+
+/**
+ * Columns for the stretches that share one gap of the target — the same construction as the
+ * target's own map, with the longest stretch as the local reference: every other stretch is
+ * chained against it, the reference is cut wherever a block starts or ends, each cut is a
+ * column carried by the reference and by whoever matches it there, and whatever an other
+ * stretch has that the reference does not is laid out the same way, recursively, before the
+ * reference cut it precedes. Two alternative exons that share a start, or an exon inside a
+ * retained intron, therefore share a column for the part they share and part ways after it.
+ */
+export function layoutGap(items: readonly GapItem[], seqOf: (id: string) => string): GapColumn[] {
+  if (!items.length) return [];
+  // Identical stretches are one unit whatever their length — the chainer cannot see a match
+  // shorter than MIN_BLOCK, and a 12-nt stretch six rows share is still one column.
+  const units: { seq: string; members: GapItem[] }[] = [];
+  for (const it of items) {
+    const seq = seqOf(it.comp).slice(it.start, it.end);
+    const u = units.find((x) => x.seq === seq);
+    if (u) u.members.push(it); else units.push({ seq, members: [it] });
+  }
+  let ref = units[0];
+  for (const u of units) if (u.seq.length > ref.seq.length) ref = u;
+  const refSeq = ref.seq;
+  const n = refSeq.length;
+  const others = units.filter((u) => u !== ref).map((u) => ({ u, ch: chainMatches(refSeq, u.seq) }));
+  const cuts = new Set<number>([0, n]);
+  for (const { ch } of others) for (const b of ch.blocks) { cuts.add(b.aStart); cuts.add(b.aStart + b.len); }
+  const pts = [...cuts].sort((x, y) => x - y);
+  const segs: [number, number][] = [];
+  for (let i = 0; i + 1 < pts.length; i++) if (pts[i + 1] > pts[i]) segs.push([pts[i], pts[i + 1]]);
+  const segCols: GapColumn[] = segs.map(([s, e]) => ({
+    length: e - s, parts: ref.members.map((m) => ({ comp: m.comp, start: m.start + s, end: m.start + e, ambiguous: false })) }));
+  const segAt = (aPos: number) => { const k = segs.findIndex(([s]) => s >= aPos); return k < 0 ? segs.length : k; };
+  const inserts = new Map<number, GapItem[]>();
+  const insert = (k: number, g: GapItem) => { let l = inserts.get(k); if (!l) inserts.set(k, l = []); l.push(g); };
+  for (const { u, ch } of others) {
+    let pos = 0;                                       // offset into the unit's stretch
+    for (const b of ch.blocks) {
+      if (b.bStart > pos) for (const m of u.members) insert(segAt(b.aStart), { comp: m.comp, start: m.start + pos, end: m.start + b.bStart });
+      segs.forEach(([s, e], k) => {
+        if (s >= b.aStart && e <= b.aStart + b.len) {
+          const off = s - b.aStart;
+          for (const m of u.members)
+            segCols[k].parts.push({ comp: m.comp, start: m.start + b.bStart + off, end: m.start + b.bStart + off + (e - s), ambiguous: b.ambiguous });
+        }
+      });
+      pos = b.bStart + b.len;
+    }
+    if (pos < u.seq.length) for (const m of u.members) insert(segs.length, { comp: m.comp, start: m.start + pos, end: m.end });
+  }
+  const out: GapColumn[] = [];
+  for (let k = 0; k <= segs.length; k++) {
+    out.push(...layoutGap(inserts.get(k) ?? [], seqOf));
+    if (k < segs.length) out.push(segCols[k]);
+  }
+  return out;
+}
+
+/** Does only one row hold this column — the target alone, or one comparison alone? */
+export const loneColumn = (c: Column) => c.segment != null ? c.carriers.length === 0 : c.carriers.length <= 1;
 
 /** 1-based exon of `t` holding 0-based position `p`. */
 export function exonOf(t: { exonEnds: number[] }, p: number): number {
