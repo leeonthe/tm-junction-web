@@ -67,6 +67,9 @@ export default function AmplificationPrediction({ a, pair }: {
   if (!target.product) {
     tone = "bad";
     head = <>The pair does not amplify {a.target.name} as located here ({reasonText(target.reason)}).</>;
+  } else if (all.length === 1) {
+    head = <>A <b>{size} bp</b> product on {a.target.name}. No other transcript was supplied, so there was
+      nothing to check it against — add existing or custom transcripts above to see what else it would amplify.</>;
   } else if (a.objective === "specific") {
     if (identical.length) {
       tone = "bad";

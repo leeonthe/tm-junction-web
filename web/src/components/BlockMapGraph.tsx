@@ -17,10 +17,12 @@ export const blockColor = (i: number) => `var(--blk-${i % PALETTE})`;
  * to align the rows on, and a pasted exon's number means nothing across rows, so the
  * correspondence is carried by colour instead of by position.
  */
-export default function BlockMapGraph({ a, products }: {
+export default function BlockMapGraph({ a, products, solo = false }: {
   a: CustomAnalysis;
   /** The chosen pair's product on each transcript, painted over its row. */
   products?: ReadonlyMap<string, Product> | null;
+  /** No comparison rows: the target's exons are coloured in turn rather than hatched as unshared. */
+  solo?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const MIN_W = 640;
@@ -61,7 +63,8 @@ export default function BlockMapGraph({ a, products }: {
           const isTarget = ri === 0;
           const cy = top + ri * rowH + rowH / 2;
           const pieces = isTarget
-            ? a.map.segments.map((s) => ({ start: s.start, end: s.end, segment: s.sharedWith.length ? s.index : null, ambiguous: s.ambiguous, own: !s.sharedWith.length, index: s.index }))
+            ? a.map.segments.map((s) => ({ start: s.start, end: s.end, segment: s.sharedWith.length ? s.index : null, ambiguous: s.ambiguous,
+                own: !solo && !s.sharedWith.length, index: solo ? s.exon - 1 : s.index }))
             : a.map.pieces[t.id].map((p) => ({ ...p, own: p.segment == null, index: p.segment ?? -1 }));
           const product = products?.get(t.id) ?? null;
           return (
@@ -95,11 +98,12 @@ export default function BlockMapGraph({ a, products }: {
                       strokeWidth={p.ambiguous ? 1.5 : 0.8} strokeDasharray={p.ambiguous ? "3 2" : undefined}>
                       <title>{p.own
                         ? `${t.name} ${p.start + 1}–${p.end} (${p.end - p.start} nt) · ${isTarget ? "in no other transcript" : `not in ${a.target.name}`}`
+                        : solo ? `exon ${p.index + 1} · ${p.start + 1}–${p.end} (${p.end - p.start} nt)`
                         : isTarget ? segTitle(p.index)
                         : `X${p.index + 1} · ${t.name} ${p.start + 1}–${p.end} (${p.end - p.start} nt) · = ${a.target.name} ${a.map.segments[p.index].start + 1}–${a.map.segments[p.index].end}${p.ambiguous ? " · ambiguous" : ""}`}
                       </title>
                     </rect>
-                    {!p.own && pw >= 26 && (
+                    {!p.own && !solo && pw >= 26 && (
                       <text x={px + pw / 2} y={cy + 3.5} textAnchor="middle" fontSize={9} fontWeight={600}
                         fill="var(--ink)" pointerEvents="none">X{p.index + 1}</text>
                     )}

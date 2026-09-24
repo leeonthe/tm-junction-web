@@ -54,8 +54,12 @@ Some details that matter in practice:
 - NCBI's variant designation ("transcript variant 5") is shown under each accession.
 
 - **Custom sequence** mode needs no RefSeq record at all: paste one or more transcripts
-  with their exon boundaries (`Exon 1: …` labels or `|` between exons), pick the target and
-  the transcripts to avoid — or, for a total-expression assay, to amplify together. The
+  with their exon boundaries (`|` between exons, relabelled as `Exon 1:`, `Exon 2:` as you
+  type, or exon ends / ranges / lengths given as numbers and split for you), pick the target
+  and the transcripts to avoid — or, for a total-expression assay, to amplify together. A
+  row can also name an *existing* RefSeq gene or accession, checked at NCBI and compared
+  without its sequence ever being shown; with no other rows the design runs on the target
+  alone. The
   transcripts are aligned to each other by sequence, never by exon number, into shared and
   unique blocks with the pasted boundaries laid over them; the same verdict, designers and
   QC then apply, and every supplied transcript is checked for the chosen pair — a transcript

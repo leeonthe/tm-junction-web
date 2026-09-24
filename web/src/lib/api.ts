@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ApiError, GeneLookupResponse } from "./types";
+import type { AnalyzeResponse, ApiError, GeneInfo, GeneLookupResponse } from "./types";
 import { apiBase } from "./apiBase";
 import { updateThresholds, type StructureTm } from "./qc";
 import { speciesOf, type SpeciesSlug } from "./species";
@@ -241,4 +241,42 @@ export async function analyze(accession: string): Promise<AnalyzeResponse> {
     throw new AnalyzeError(err.error ?? "ERROR", err.message ?? "Analysis failed.");
   }
   return data as AnalyzeResponse;
+}
+
+// Existing RefSeq transcripts for the Custom sequence mode, exon by exon. An "existing" row
+// names a gene or an accession; the engine answers with each transcript's exon sequences in
+// transcript order (never shown — the row only has to prove the name is real), and the
+// browser compares them like any pasted transcript.
+export interface CustomTranscriptRef {
+  accession: string; variant: string | null; is_mane: boolean;
+  same_sequence_accessions: string[]; exons: string[]; structure_ok: boolean;
+}
+export type CustomTranscriptsFetch =
+  | { status: "ok"; gene: GeneInfo; transcripts: CustomTranscriptRef[] }
+  | { status: "unsupported" }
+  | { status: "error"; code: string; message: string };
+
+export async function fetchCustomTranscripts(
+  q: { acc: string } | { gene: string; species: SpeciesSlug }, signal?: AbortSignal,
+): Promise<CustomTranscriptsFetch> {
+  const qs = "acc" in q
+    ? `acc=${encodeURIComponent(q.acc.trim())}`
+    : `gene=${encodeURIComponent(q.gene.trim())}${speciesParam(q.species, "&")}`;
+  let res: Response;
+  try {
+    res = await fetch(`${await apiBase()}/custom_transcripts?${qs}`, { signal });
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    return { status: "error", code: "NETWORK", message: "Can't reach the engine. Is the Python backend running?" };
+  }
+  const body = await res.json().catch(() => null) as (Partial<ApiError> & { gene?: GeneInfo; transcripts?: CustomTranscriptRef[] }) | null;
+  if (res.status === 404 && body?.error !== "NOT_FOUND" && body?.error !== "NOT_PLACED")
+    return { status: "unsupported" };          // an engine older than this route
+  if (!res.ok || !body || body.error)
+    return { status: "error", code: body?.error ?? "ERROR", message: body?.message ?? `The engine answered ${res.status}.` };
+  // Same guard as lookupGene: an engine that ignored `species` would answer with the human gene.
+  if ("gene" in q && (body.gene?.species ?? "human") !== q.species)
+    return { status: "error", code: "ENGINE_OUT_OF_DATE",
+      message: `The engine that answered looked “${q.gene.trim()}” up as a ${speciesOf(body.gene?.species ?? "human").common.toLowerCase()} gene.` };
+  return { status: "ok", gene: body.gene as GeneInfo, transcripts: body.transcripts ?? [] };
 }

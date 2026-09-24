@@ -22,6 +22,7 @@ FEATURES = [
     "multi_species",               # species= on /gene and /suggest_genes; accessions of any supported species
     "single_exon_pairs",           # a one-exon transcript gets a pair inside its exon (flag SAME_EXON)
     "transcript_exclusion",        # exclude= on /analyze: design against the transcripts the user keeps
+    "custom_transcripts",          # GET /custom_transcripts — existing RefSeq transcripts, exon by exon, for the Custom sequence mode
 ]
 
 
@@ -241,6 +242,27 @@ class GeneLookupResponse(BaseModel):
     amplifiability classification. A pick-your-transcript step ahead of /analyze."""
     gene: GeneInfo
     transcripts: list[GeneTranscriptOut]
+
+
+class CustomTranscriptOut(BaseModel):
+    """One existing RefSeq transcript as the Custom sequence mode takes it: its exon
+    sequences in transcript (5'->3') order. That mode aligns by sequence and never reads a
+    coordinate, so the exons themselves are the whole of what it needs — and the one thing
+    the browser cannot get from the record on its own."""
+    accession: str
+    variant: str | None = None
+    is_mane: bool = False
+    # Accessions folded into this one: byte-identical sequence and structure, one molecule.
+    same_sequence_accessions: list[str] = []
+    exons: list[str] = []
+    # False when NCBI's exon lengths do not add up to the record's sequence; `exons` is then
+    # the whole sequence as one piece, and the client says so.
+    structure_ok: bool = True
+
+
+class CustomTranscriptsResponse(BaseModel):
+    gene: GeneInfo
+    transcripts: list[CustomTranscriptOut]
 
 
 class ErrorResponse(BaseModel):

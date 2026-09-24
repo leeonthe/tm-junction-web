@@ -158,7 +158,8 @@ export default function Hero({
 
         {seqMode ? (
           <div className="search-wrap seq">
-            <CustomTranscriptsInput input={custom} onChange={onCustom} onCompare={onCompare} busy={comparing} />
+            <CustomTranscriptsInput input={custom} onChange={onCustom} onCompare={onCompare} busy={comparing}
+              defaultSpecies={species} />
           </div>
         ) : (
         <div className="search-wrap">

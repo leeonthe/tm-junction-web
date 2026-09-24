@@ -12,8 +12,8 @@ from pydantic import BaseModel
 
 from . import ncbi, primers
 from . import species as species_mod
-from .analyze import AnalysisError, analyze, analyze_events, lookup_gene
-from .models import FEATURES, AnalyzeResponse, GeneLookupResponse
+from .analyze import AnalysisError, analyze, analyze_events, custom_transcripts, lookup_gene
+from .models import FEATURES, AnalyzeResponse, CustomTranscriptsResponse, GeneLookupResponse
 
 app = FastAPI(title="TmJunction Engine", version="0.1.0")
 
@@ -180,6 +180,24 @@ def gene_lookup(symbol: str, species: str | None = None):
     except AnalysisError as e:
         status = 404 if e.code in ("NOT_FOUND", "NOT_PLACED") else 400
         return JSONResponse(status_code=status, content={"error": e.code, "message": e.message})
+    except ncbi.RateLimited:
+        return JSONResponse(status_code=503, content=_RATE_LIMIT,
+                            headers={"Retry-After": "5"})
+
+
+@app.get("/custom_transcripts", response_model=CustomTranscriptsResponse)
+def custom_transcripts_endpoint(acc: str | None = None, gene: str | None = None, species: str | None = None):
+    """Existing RefSeq transcripts, exon by exon, for the Custom sequence mode: `acc` names one
+    transcript, `gene` (+ `species`) every curated transcript of a gene. See
+    analyze.custom_transcripts. An unknown name is a 404 that names itself (NOT_FOUND), so
+    the browser can tell it from an engine without this route."""
+    try:
+        return custom_transcripts(acc, gene, species)
+    except AnalysisError as e:
+        status = 404 if e.code in ("NOT_FOUND", "NOT_PLACED") else 400
+        return JSONResponse(status_code=status, content={"error": e.code, "message": e.message})
+    except ncbi.NotFound as e:
+        return JSONResponse(status_code=404, content={"error": "NOT_FOUND", "message": str(e)})
     except ncbi.RateLimited:
         return JSONResponse(status_code=503, content=_RATE_LIMIT,
                             headers={"Retry-After": "5"})

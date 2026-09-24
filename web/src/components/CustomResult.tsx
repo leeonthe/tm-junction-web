@@ -3,6 +3,7 @@ import type { CustomAnalysis } from "../lib/customAmplify";
 import type { Issue, ParsedInput } from "../lib/customInput";
 import type { ExonRelation } from "../lib/customAlign";
 import type { ChosenPair } from "../lib/conventional";
+import type { TranscriptVerdict } from "../lib/types";
 import { amplifies, type Product } from "../lib/panvariant";
 import VerdictBanner from "./VerdictBanner";
 import ConventionalDesigner from "./ConventionalDesigner";
@@ -98,6 +99,14 @@ function IssuesCard({ issues }: { issues: Issue[] }) {
 function ResultBody({ a }: { a: CustomAnalysis }) {
   const [pair, setPair] = useState<ChosenPair | null>(null);
   const specific = a.objective === "specific";
+  // Nothing to compare against: the design runs on the target alone — a pair anywhere on
+  // it, or, if asked, a Tm-guided EEJ primer across a junction of the user's choosing.
+  const solo = a.comparisons.length === 0;
+  const [soloJx, setSoloJx] = useState<number>(0);   // 0 = primer pair; n = junction after exon n
+  const soloVerdict = useMemo<TranscriptVerdict>(() => soloJx
+    ? { ...a.verdict, tier: "NEEDS_EEJ", needs_eej: true, unique_regions: [], amplify_exon_pair: null, combo_junctions: null,
+        recommended_junction: { donor_order: soloJx, acceptor_order: soloJx + 1, label: `exon ${soloJx}–exon ${soloJx + 1}` } }
+    : a.verdict, [a.verdict, soloJx]);
   const all = useMemo(() => [a.target, ...a.comparisons, ...a.others], [a]);
   // The pair's product on every transcript, for the block map.
   const products = useMemo(() => {
@@ -121,15 +130,41 @@ function ResultBody({ a }: { a: CustomAnalysis }) {
         </div>
       </div>
 
-      {specific && <VerdictBanner v={a.verdict} />}
+      {solo ? (
+        <section className="card ct-solo">
+          <div className="card-head">
+            <div>
+              <p className="card-label" style={{ margin: 0 }}>No comparison — designing on {a.target.name} alone</p>
+              <p className="sub">
+                No other transcript was supplied, so nothing is excluded and every site counts. Pick a primer
+                pair anywhere on it, or a Tm-guided junction primer across one of its splices.
+              </p>
+            </div>
+            {a.target.exons.length > 1 && (
+              <label className="ct-solo-pick">
+                Design
+                <select value={soloJx} onChange={(e) => setSoloJx(Number(e.target.value))} aria-label="What to design">
+                  <option value={0}>a primer pair (EEJ-independent)</option>
+                  {a.target.exons.slice(0, -1).map((_, i) => (
+                    <option key={i + 1} value={i + 1}>an EEJ primer across exon {i + 1}–{i + 2}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        </section>
+      ) : specific && <VerdictBanner v={a.verdict} />}
 
-      {infeasible && <InfeasibleCard a={a} nameOf={nameOf} />}
+      {infeasible && !solo && <InfeasibleCard a={a} nameOf={nameOf} />}
 
-      {specific ? (
+      {solo ? (
+        soloJx
+          ? <JunctionDesigner key={`jx-${soloJx}`} mrna={a.target.seq} verdict={soloVerdict} onPair={setPair} />
+          : <ConventionalDesigner key="pair" mrna={a.target.seq} verdict={a.verdict} k={a.k} solo onPair={setPair} />
+      ) : specific ? (
         <>
           {a.verdict.tier === "CONVENTIONAL" && (
-            <ConventionalDesigner mrna={a.target.seq} verdict={a.verdict} k={a.k}
-              solo={a.comparisons.length === 0} onPair={setPair} />
+            <ConventionalDesigner mrna={a.target.seq} verdict={a.verdict} k={a.k} onPair={setPair} />
           )}
           <JunctionDesigner mrna={a.target.seq} verdict={a.verdict} onPair={setPair} />
         </>
@@ -213,6 +248,19 @@ export function relationText(r: ExonRelation, targetExonLen: (order: number) => 
 function CorrespondenceCard({ a, products, nameOf }: {
   a: CustomAnalysis; products: ReadonlyMap<string, Product> | null; nameOf: (id: string) => string;
 }) {
+  if (a.comparisons.length === 0) {
+    return (
+      <section className="card">
+        <div className="card-head">
+          <div>
+            <h3 className="card-title">Exon layout of {a.target.name}</h3>
+            <p className="sub">{a.target.exons.length} exon{a.target.exons.length === 1 ? "" : "s"} · {a.target.seq.length.toLocaleString("en-US")} nt{products && " · the chosen pair's product painted over it"}</p>
+          </div>
+        </div>
+        <BlockMapGraph a={a} products={products} solo />
+      </section>
+    );
+  }
   const ambiguous = a.comparisons.filter((c) => a.map.chains[c.id].ambiguous);
   const targetExonLen = (order: number) => a.target.exons[order - 1]?.length ?? 0;
   const byComp = new Map<string, ExonRelation[]>();

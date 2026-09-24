@@ -10,7 +10,7 @@
 // same-origin copy takes over only when the configured one is provably behind it.
 
 /** One capability this build of the page requires; every current engine build ships all. */
-export const REQUIRED_FEATURE = "multi_species";
+export const REQUIRED_FEATURE = "custom_transcripts";
 
 export const CONFIGURED_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";

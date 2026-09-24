@@ -487,7 +487,9 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
         <p className="card-label">5 · Data</p>
         <p className="mth-note">
           Transcript sequences, exon coordinates, and the isoform set come from NCBI RefSeq via
-          the Datasets v2 API, for the assembly shown with each result.
+          the Datasets v2 API, for the assembly shown with each result. An <b>existing</b> row of
+          the Custom sequence mode draws on the same records: the engine returns the transcript's
+          exon sequences in transcript order, and nothing else about it is used.
         </p>
       </section>
 

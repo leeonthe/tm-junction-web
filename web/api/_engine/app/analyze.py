@@ -10,7 +10,8 @@ from . import ncbi, overlap, panvariant, primers
 from . import species as species_mod
 from .amplify import AmplifyResult, analyze_amplifiability, cumulative_exon_ends
 from .models import (
-    FEATURES, AnalyzeResponse, ExcludedTranscript, Exon, GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
+    FEATURES, AnalyzeResponse, CustomTranscriptOut, CustomTranscriptsResponse, ExcludedTranscript, Exon,
+    GeneExonOut, GeneInfo, GeneLookupResponse, GeneSummary,
     GeneTranscriptOut, JunctionOut, PanVariantOut, PrimerDesignOut, PrimerOut,
     TranscriptVerdict, UniqueRegionOut,
 )
@@ -391,6 +392,67 @@ def _gene_of(accession: str) -> tuple[ncbi.GeneTranscripts, str]:
         except Exception:
             return gene, accession          # offline or unknown: the first answer stands
     raise AssertionError("unreachable")
+
+
+def custom_transcripts(accession: str | None = None, symbol: str | None = None,
+                       species: str | None = None) -> CustomTranscriptsResponse:
+    """Existing RefSeq transcripts, exon by exon, for the Custom sequence mode's comparison.
+
+    An accession gives that one transcript; a gene symbol (with a species, human by default)
+    every curated transcript of the gene, one per distinct molecule as /analyze counts them.
+    Each arrives as its exon sequences in transcript order: the mode aligns by sequence and
+    never looks at a coordinate, so this is all it needs, and the browser cannot derive it
+    from the records itself. The sequence is NOT shown to the user — the row only has to
+    prove the transcript exists — so the payload is the exons and the names.
+    """
+    if accession:
+        acc = accession.strip().upper()
+        if not ncbi.is_valid_refseq(acc):
+            raise AnalysisError("NOT_NM", f"{accession.strip()} is not an NM or NR RefSeq accession.")
+        try:
+            gene, target = _gene_of(acc)
+        except ncbi.NotFound:
+            raise AnalysisError("NOT_FOUND", f"No RefSeq transcript found for {acc}.")
+        chosen = [t for t in gene.transcripts if t["accession"] == target]
+        if not chosen:
+            if acc.split(".")[0] in {a.split(".")[0] for a in gene.unplaced}:
+                raise _no_transcripts(gene)
+            raise AnalysisError("NOT_FOUND", f"{acc} is not a curated RefSeq transcript of "
+                                             f"{gene.species.common.lower()} {gene.symbol}.")
+        target_acc: str | None = target
+    else:
+        name = (symbol or "").strip()
+        if not name:
+            raise AnalysisError("BAD_REQUEST", "Enter a gene symbol or a RefSeq accession.")
+        try:
+            sp = species_mod.get(species)
+        except species_mod.UnknownSpecies as e:
+            raise AnalysisError("BAD_SPECIES", str(e))
+        try:
+            gene = ncbi.refseq_transcripts(ncbi.get_product_report(name, sp), sp)
+        except ncbi.NotFound:
+            raise AnalysisError("NOT_FOUND", f"No {sp.common.lower()} ({sp.scientific}) gene found "
+                                             f"for “{name}”.")
+        chosen = gene.transcripts
+        if not chosen:
+            raise _no_transcripts(gene)
+        target_acc = None
+    ncbi.fill_variants(chosen)
+    accs = {t["accession"]: t for t in chosen}
+    seqs = ncbi.get_sequences(list(accs))
+    reps, same = _same_sequence_groups(accs, seqs, target_acc)
+    out: list[CustomTranscriptOut] = []
+    for a in reps:
+        t, seq = accs[a], seqs[a]
+        cum = cumulative_exon_ends(t["exons"])
+        ok = bool(cum) and cum[-1] == len(seq)
+        exons = [seq[(cum[i - 1] if i else 0):cum[i]] for i in range(len(cum))] if ok else [seq]
+        out.append(CustomTranscriptOut(
+            accession=a, variant=t.get("variant"), is_mane=bool(t.get("is_mane")),
+            same_sequence_accessions=same.get(a, []), exons=exons, structure_ok=ok))
+    # MANE first, then as the gene lists them — the order the picker uses.
+    out.sort(key=lambda x: (not x.is_mane, list(accs).index(x.accession)))
+    return CustomTranscriptsResponse(gene=_gene_info(gene), transcripts=out)
 
 
 def analyze(accession: str, k: int = 20, exclude: list[str] | None = None) -> AnalyzeResponse:

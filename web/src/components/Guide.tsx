@@ -325,14 +325,22 @@ export default function Guide({ onBack, onMethod, backLabel }: {
       <section className="card mth-card">
         <p className="card-label">6 · Your own transcripts</p>
         <p>
-          <b>Custom sequence</b> works with no RefSeq record at all. Paste one transcript per row,
-          its exons in order and 5′→3′, with the boundaries marked either as one label per exon
-          (<span className="mono">Exon 1: …</span>, the sequence may wrap over lines) or as one
-          line with <span className="mono">|</span> at every boundary; a paste with neither is one
-          exon. Choose the <b>target</b>, tick the transcripts it must be told apart from — or,
-          under <b>Shared amplification</b>, the ones it must be amplified together with — and press{" "}
-          <b>Compare &amp; design</b>. <b>Load example</b> fills the rows with every GAPDH
-          transcript, so the result can be set beside the RefSeq flow's.
+          <b>Custom sequence</b> works with no RefSeq record at all. Each row is either a{" "}
+          <b>custom</b> sequence — one you paste, newly found or taken from another database such
+          as Ensembl — or an <b>existing</b> one: type a RefSeq gene symbol (every transcript of
+          the gene) or an accession (that transcript), and the row checks it exists at NCBI and
+          marks itself valid; its sequence is never shown, only compared. For a pasted sequence,
+          type <span className="mono">|</span> at each exon boundary and the box relabels itself
+          as <span className="mono">Exon 1:</span>, <span className="mono">Exon 2:</span> … as you
+          go; or, if you know where the exons are, give their ends, their ranges or their
+          lengths under the box (<i>89, 141, 241</i> — or <i>1-89, 90-141</i> — or <i>89, 52,
+          100</i>), see the exons it makes, and press <b>Split</b> — nobody should have to count
+          to 89. A paste with no boundaries is one exon. Choose the <b>target</b>, tick the
+          transcripts it must be told apart from — or, under <b>Shared amplification</b>, the
+          ones it must be amplified together with — and press <b>Compare &amp; design</b>. With
+          no other rows the design simply runs on the target: a pair anywhere on it, or a
+          Tm-guided junction primer across a splice you pick. <b>Load example</b> fills the rows
+          with every GAPDH transcript, so the result can be set beside the RefSeq flow's.
         </p>
         <p>
           The transcripts are compared by <b>sequence, never by exon number</b>: exon 2 of one
