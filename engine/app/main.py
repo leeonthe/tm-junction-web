@@ -1,4 +1,4 @@
-"""FastAPI app — the TmJunction engine HTTP surface."""
+"""FastAPI app — the TransPrimer engine HTTP surface."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from . import species as species_mod
 from .analyze import AnalysisError, analyze, analyze_events, custom_transcripts, lookup_gene
 from .models import FEATURES, AnalyzeResponse, CustomTranscriptsResponse, GeneLookupResponse
 
-app = FastAPI(title="TmJunction Engine", version="0.1.0")
+app = FastAPI(title="TransPrimer Engine", version="0.1.0")
 
 # CORS — allow the web frontend origin(s). Configure via TMJ_CORS_ORIGINS:
 #   "*"                     -> allow any origin (fine here: no credentials/cookies)

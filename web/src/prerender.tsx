@@ -43,7 +43,7 @@ function Landing() {
           <p>
             Most genes produce several transcript variants, and for many variants there is no
             stretch of exonic sequence that belongs to that variant alone — an ordinary primer
-            pair amplifies the siblings too. Exon Junction Primer tells you, for any curated
+            pair amplifies the siblings too. {SITE_NAME} tells you, for any curated
             RefSeq transcript (NM mRNA or NR non-coding RNA), whether it can be amplified
             distinctly from every other isoform of its gene, and designs the primers: a
             conventional pair where a unique exonic region exists, or a <b>Tm-guided exon–exon

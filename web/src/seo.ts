@@ -8,7 +8,7 @@
 // titles, descriptions and headings, rather than stuffed anywhere.
 
 export const SITE_URL = "https://tm-junction-web.vercel.app";
-export const SITE_NAME = "Exon Junction Primer";
+export const SITE_NAME = "TransPrimer";
 
 export const PAPER = {
   title: "Tm-guided exon–exon junction RT-PCR enables specific detection of RNA variants "
@@ -24,7 +24,7 @@ export interface PageMeta {
 export const PAGES: PageMeta[] = [
   {
     path: "/",
-    title: "Exon Junction Primer — Tm-guided exon–exon junction (EEJ) primer design for isoform-specific RT-PCR and qPCR",
+    title: "TransPrimer — Tm-guided exon–exon junction (EEJ) primer design for isoform-specific RT-PCR and qPCR",
     description: "Free web tool for transcript-specific primer design. Enter a gene or RefSeq "
       + "accession (human, mouse, rat, fruit fly, yeast, zebrafish): it classifies every isoform, "
       + "finds the unique exon or exon–exon junction, and designs Tm-guided junction (EEJ) primers "
@@ -32,7 +32,7 @@ export const PAGES: PageMeta[] = [
   },
   {
     path: "/guide",
-    title: "How to use Exon Junction Primer — exon–exon junction primer design, step by step",
+    title: "How to use TransPrimer — exon–exon junction primer design, step by step",
     description: "Search a gene, pick a transcript, read the verdict (EEJ-independent, EEJ-dependent, "
       + "infeasible), and design Tm-guided exon junction primers or whole-transcript pairs. "
       + "Explains the exon graph, the junction designer and the primer QC.",
@@ -57,7 +57,7 @@ export const structuredData = () => JSON.stringify({
       "@type": "WebApplication",
       "@id": `${SITE_URL}/#app`,
       name: SITE_NAME,
-      alternateName: ["Tm Junction", "TmJunction", "EEJ primer designer"],
+      alternateName: ["Exon Junction Primer", "Tm Junction", "TmJunction", "EEJ primer designer"],
       url: SITE_URL,
       applicationCategory: "Bioinformatics",
       applicationSubCategory: "Primer design",

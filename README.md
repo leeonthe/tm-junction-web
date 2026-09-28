@@ -1,4 +1,4 @@
-# Exon Junction Primer
+# TransPrimer
 
 Primer design tool for transcript-specific PCR/qPCR.
 
