@@ -1,4 +1,4 @@
-# Deploying Transprimer
+# Deploying TransPrimer
 
 Two services: the Python **engine** on **Render**, the React **web** app on **Vercel**.
 Both auto-deploy on push to `main`.

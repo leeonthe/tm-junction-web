@@ -1,4 +1,4 @@
-# Transprimer Web (React + Vite + TypeScript)
+# TransPrimer Web (React + Vite + TypeScript)
 
 The frontend: a single-page tool that calls the Python engine and renders the verdict,
 Tm-guided primers, an exon-track graph, and the per-isoform table — in the Figma design
