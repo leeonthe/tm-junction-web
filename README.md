@@ -1,4 +1,4 @@
-# TransPrimer
+# Transprimer
 
 Primer design tool for transcript-specific PCR/qPCR.
 

@@ -31,7 +31,7 @@ for (const page of PAGES) {
     `<meta name="description" content="${esc(page.description)}" />`,
     `<link rel="canonical" href="${url}" />`,
     `<meta property="og:type" content="website" />`,
-    `<meta property="og:site_name" content="TransPrimer" />`,
+    `<meta property="og:site_name" content="Transprimer" />`,
     `<meta property="og:title" content="${esc(page.title)}" />`,
     `<meta property="og:description" content="${esc(page.description)}" />`,
     `<meta property="og:url" content="${url}" />`,

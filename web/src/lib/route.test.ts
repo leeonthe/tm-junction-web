@@ -92,12 +92,12 @@ describe("route addresses", () => {
   });
 
   it("names the history entry after what it shows", () => {
-    expect(routeTitle(HOME)).toMatch(/^TransPrimer/);
+    expect(routeTitle(HOME)).toMatch(/^Transprimer/);
     expect(routeTitle({ page: "home", mode: "gene", gene: "CFH", tab: "summary" })).toMatch(/^CFH · /);
     expect(routeTitle({ page: "home", mode: "gene", gene: "CFH", transcript: "NM_000186.4", tab: "gene" }))
       .toMatch(/^NM_000186\.4 · /);
     // The indexed pages keep their static HTML title (src/seo.ts) once the app mounts.
     expect(routeTitle({ page: "method" })).toMatch(/^Method — how the Tm-guided exon junction rule/);
-    expect(routeTitle({ page: "guide" })).toMatch(/^How to use TransPrimer/);
+    expect(routeTitle({ page: "guide" })).toMatch(/^How to use Transprimer/);
   });
 });

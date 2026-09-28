@@ -41,9 +41,9 @@ export default function Nav({ onHome, onGuide, guideOn, onMethod, methodOn }: {
     <nav aria-label="Main">
       <div className="wrap nav-in">
         <button className="brand" type="button" onClick={onHome}
-          aria-label="TransPrimer — start a new search">
+          aria-label="Transprimer — start a new search">
           <Mark />
-          <span className="brand-name">TransPrimer</span>
+          <span className="brand-name">Transprimer</span>
         </button>
 
         <div className="nav-links">

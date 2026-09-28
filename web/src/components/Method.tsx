@@ -54,7 +54,7 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
 
       <header className="mth-head">
         <p className="card-label" style={{ margin: 0 }}>Method</p>
-        <h1>How TransPrimer decides, designs, and computes Tm</h1>
+        <h1>How Transprimer decides, designs, and computes Tm</h1>
         <p className="mth-lede">
           Every verdict on this site is sequence-based: the target mRNA is compared against the
           other curated RefSeq isoforms of the same gene — <b>NM</b> mRNAs and <b>NR</b>{" "}

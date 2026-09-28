@@ -124,7 +124,7 @@ export default function Hero({
     <header className="hero">
       <div className="wrap hero-in">
         <span className="eyebrow"><b />Tm-guided exon–exon junction RT-PCR</span>
-        <h1>TransPrimer</h1>
+        <h1>Transprimer</h1>
         {/* Three lines, always, and broken in the same place. Left to wrap on its own the
             sentence came out two lines for human and three for every other species — each
             breaking somewhere different ("to analyze." alone on a line for rat) — so the

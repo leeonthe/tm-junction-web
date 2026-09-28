@@ -99,7 +99,7 @@ function withQuery(path: string, q: URLSearchParams): string {
   return s ? `${path}?${s}` : path;
 }
 
-const APP_NAME = "TransPrimer";
+const APP_NAME = "Transprimer";
 
 /** What the tab and the browser's history entry are called. The three pages a search
  *  engine indexes keep the title their static HTML carries (src/seo.ts), so the title a

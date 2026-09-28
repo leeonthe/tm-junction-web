@@ -1,4 +1,4 @@
-# TransPrimer Engine (Python / FastAPI)
+# Transprimer Engine (Python / FastAPI)
 
 The scientific core: resolve a RefSeq **NM/NR** accession (or a species + gene symbol —
 human, mouse, rat, fruit fly, baker's yeast, zebrafish; see `app/species.py`) → gene →

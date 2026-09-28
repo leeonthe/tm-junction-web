@@ -1,1 +1,1 @@
-"""TransPrimer engine — isoform-specific RT-PCR primer design."""
+"""Transprimer engine — isoform-specific RT-PCR primer design."""

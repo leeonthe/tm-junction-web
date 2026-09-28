@@ -1,4 +1,4 @@
-# Render Blueprint — deploys the TransPrimer Python engine (FastAPI).
+# Render Blueprint — deploys the Transprimer Python engine (FastAPI).
 # Use: render.com → New + → Blueprint → connect this repo. Render reads this file.
 # primer3-py installs from a prebuilt wheel, so no compiler/Docker is needed.
 services:
