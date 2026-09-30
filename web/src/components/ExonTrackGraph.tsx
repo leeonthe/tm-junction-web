@@ -63,10 +63,13 @@ export function bracketSpanPx(
  * Hovering an exon / marker shows a primer-design-relevant card.
  */
 export default function ExonTrackGraph({
-  transcripts, targetAccession, primerExon, chromosome = "", strand = "", mrna = "", excluded = [],
+  transcripts, targetAccession, primerExon, chromosome = "", strand = "", mrna = "", excluded = [], onSelect,
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
+  /** Re-target the analysis: clicking a row's accession designs for that transcript instead.
+   *  The graph is where a reader compares isoforms, so it is where the switch lives. */
+  onSelect?: (accession: string) => void;
   /** Transcripts set aside from the comparison: drawn beneath the rest, dimmed and unpainted. */
   excluded?: ExcludedTranscript[];
   primerExon?: number | null;
@@ -218,8 +221,23 @@ export default function ExonTrackGraph({
                 <rect x={8} y={top + i * rowH + 2} width={W - 16} height={rowH - 4} rx={10}
                   fill="var(--brand-tint)" stroke="color-mix(in srgb,var(--brand) 30%,transparent)" />
               )}
+              {/* The accession is the switch: click it to design for that transcript. The
+                  target's own label stays plain — there is nothing to switch to. A pan that
+                  ends on the label is not a click, same guard as the exons. */}
               <text x={20} y={same.length ? cy : cy + 4} fontFamily="var(--mono)" fontSize={12.5}
-                fontWeight={isTarget ? 700 : 500} fill={isTarget ? "var(--ink)" : "var(--text)"}>
+                fontWeight={isTarget ? 700 : 500} fill={isTarget ? "var(--ink)" : "var(--text)"}
+                className={onSelect && !isTarget ? "etg-acc" : undefined}
+                role={onSelect && !isTarget ? "button" : undefined}
+                tabIndex={onSelect && !isTarget ? 0 : undefined}
+                onClick={onSelect && !isTarget ? (ev) => {
+                  if (drag.current.moved) return;
+                  ev.stopPropagation();
+                  onSelect(t.accession);
+                } : undefined}
+                onKeyDown={onSelect && !isTarget ? (ev) => {
+                  if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onSelect(t.accession); }
+                } : undefined}>
+                {onSelect && !isTarget && <title>Design primers for {t.accession} instead</title>}
                 {t.accession}
               </text>
               {/* The accessions folded into this row: identical mRNA and identical exon
@@ -457,7 +475,7 @@ function ExonSequence({ exon, t, isTarget, mrna }: {
     return (
       <div className="et-seq-none">
         Sequence is available for the analyzed transcript. Click{" "}
-        <span className="mono">{t.accession}</span> in the table below to switch to it.
+        <span className="mono">{t.accession}</span> in the graph to switch to it.
       </div>
     );
   }

@@ -36,13 +36,13 @@ export default function Summary({
       <JunctionDesigner mrna={result.target_mrna} verdict={result.target_verdict} />
       <GeneOverview result={result} />
       {filter}
-      <GraphCard result={result} />
+      <GraphCard result={result} onSelect={onSelect} />
       <section className="card">
         <div className="card-head">
           <h3 className="card-title">Per-isoform verdict</h3>
-          <span className="hint">Click an isoform to design its primers ↑</span>
+          <span className="hint">Click an accession in the exon structure graph to design for it ↑</span>
         </div>
-        <VerdictTable transcripts={result.transcripts} targetAccession={result.target_accession} onSelect={onSelect}
+        <VerdictTable transcripts={result.transcripts} targetAccession={result.target_accession}
           excluded={result.excluded} onInclude={onInclude} />
       </section>
     </div>

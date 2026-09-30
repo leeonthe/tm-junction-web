@@ -21,13 +21,13 @@ export default function GeneClassification({
     <>
       <GeneOverview result={result} />
       {filter}
-      <GraphCard result={result} />
+      <GraphCard result={result} onSelect={onSelect} />
       <section className="card">
         <div className="card-head">
           <h3 className="card-title">Per-isoform verdict</h3>
-          <span className="hint">Click an isoform to see its primers ↗</span>
+          <span className="hint">Click an accession in the exon structure graph to see its primers ↑</span>
         </div>
-        <VerdictTable transcripts={result.transcripts} targetAccession={result.target_accession} onSelect={onSelect}
+        <VerdictTable transcripts={result.transcripts} targetAccession={result.target_accession}
           excluded={result.excluded} onInclude={onInclude} />
       </section>
     </>

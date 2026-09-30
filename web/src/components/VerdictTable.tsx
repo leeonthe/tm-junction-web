@@ -2,12 +2,13 @@ import type { ExcludedTranscript, TranscriptVerdict } from "../lib/types";
 import { tierChipClass, tierColorVar, tierLabel } from "../lib/tier";
 import { foldedEntry, isNoncoding, variantLabel } from "../lib/format";
 
+/** The per-isoform verdict table. It reports; switching the target is the exon structure
+ *  graph's job (click an accession there), so nothing here is clickable but Include. */
 export default function VerdictTable({
-  transcripts, targetAccession, onSelect, excluded = [], onInclude,
+  transcripts, targetAccession, excluded = [], onInclude,
 }: {
   transcripts: TranscriptVerdict[];
   targetAccession: string;
-  onSelect?: (accession: string) => void;
   /** Transcripts set aside from the comparison: listed after the verdicts, dimmed, with a way back. */
   excluded?: ExcludedTranscript[];
   onInclude?: (accession: string) => void;
@@ -26,17 +27,9 @@ export default function VerdictTable({
           {transcripts.map((t) => {
             const isTarget = t.accession === targetAccession;
             return (
-              <tr key={t.accession}
-                className={`${isTarget ? "is-target" : ""} ${onSelect ? "clickable" : ""}`}
-                onClick={onSelect ? () => onSelect(t.accession) : undefined}>
+              <tr key={t.accession} className={isTarget ? "is-target" : undefined}>
                 <td>
-                  {onSelect ? (
-                    <button className="tacc-btn" onClick={(e) => { e.stopPropagation(); onSelect(t.accession); }}>
-                      {t.accession}
-                    </button>
-                  ) : (
-                    <span className="tacc">{t.accession}</span>
-                  )}
+                  <span className="tacc">{t.accession}</span>
                   {t.is_mane && <span className="badge-mane">MANE</span>}
                   {isNoncoding(t.accession) && (
                     <span className="badge-nr" title="NR_ — a curated non-coding RNA of this gene, compared alongside its mRNAs">non-coding</span>

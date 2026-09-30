@@ -70,7 +70,11 @@ export function buildCells(
   return cells;
 }
 
-export default function GraphCard({ result }: { result: AnalyzeResponse }) {
+export default function GraphCard({ result, onSelect }: {
+  result: AnalyzeResponse;
+  /** Clicking an accession in the graph re-targets the analysis to that transcript. */
+  onSelect?: (accession: string) => void;
+}) {
   const { gene, transcripts, target_accession, meta, primer_design } = result;
   const k = Number(meta.k) || 20;
   // exon that holds the target's conventional forward primer (for the "★ primer here" badge)
@@ -200,7 +204,7 @@ export default function GraphCard({ result }: { result: AnalyzeResponse }) {
             thing twice. */}
         <div className="legend" ref={legendRef}>{LEGEND.slice(0, 3).map(legendItem)}</div>
       </div>
-      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} mrna={result.target_mrna} excluded={result.excluded} />
+      <ExonTrackGraph transcripts={transcripts} targetAccession={target_accession} primerExon={primerExon} chromosome={gene.chromosome} strand={gene.strand} mrna={result.target_mrna} excluded={result.excluded} onSelect={onSelect} />
       {/* A key, not a paragraph: each marker gets the short name of what it means, drawn in
           the same ink it uses on the track. The long explanation of WHY a bracket marks a
           range rather than a spot lives in the marker's own hover text on the graph. */}
