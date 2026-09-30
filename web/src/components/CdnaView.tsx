@@ -10,12 +10,16 @@ export interface PrimerSpan { tx_start: number; length: number }
  * marked. Window defaults to the amplicon and can be expanded / shrunk.
  */
 export default function CdnaView({
-  mrna, forward, reverse, verdict,
+  mrna, forward, reverse, verdict, junctions,
 }: {
   mrna: string;
   forward: PrimerSpan | null;
   reverse: PrimerSpan | null;
   verdict: TranscriptVerdict;
+  /** The junctions to mark, as [donor, acceptor] exon orders. Defaults to the verdict's
+   *  recommended junction; a two-junction combo passes both of its junctions, since the
+   *  verdict recommends neither alone. */
+  junctions?: [number, number][];
 }) {
   const exons = verdict.exons;
   const junction = verdict.recommended_junction;
@@ -39,21 +43,26 @@ export default function CdnaView({
     return arr;
   }, [exons, mrna.length]);
 
-  // 0-based mRNA index at which the recommended junction sits (after the donor exon)
-  const junctionIdx = useMemo(() => {
-    if (!junction) return -1;
-    const donor = exons.find((e) => e.order === junction.donor_order);
-    // the marker is a left-border on the FIRST acceptor base (donor.tx_end + 1, 1-based),
-    // so the red line sits exactly between the two exons (…GG|C…, not …G|GC…).
-    return donor ? donor.tx_end + 1 : -1;
-  }, [junction, exons]);
+  // 1-based mRNA positions at which the marked junctions sit (after each donor exon)
+  const junctionIdxs = useMemo(() => {
+    const pairs: [number, number][] = junctions
+      ?? (junction ? [[junction.donor_order, junction.acceptor_order]] : []);
+    const out = new Set<number>();
+    for (const [dOrder] of pairs) {
+      const donor = exons.find((e) => e.order === dOrder);
+      // the marker is a left-border on the FIRST acceptor base (donor.tx_end + 1, 1-based),
+      // so the red line sits exactly between the two exons (…GG|C…, not …G|GC…).
+      if (donor) out.add(donor.tx_end + 1);
+    }
+    return out;
+  }, [junction, junctions, exons]);
 
   const bases = [];
   for (let i = winStart; i < winEnd; i++) {
     const ex = exonAt[i + 1];                       // exonAt is 1-based
     const inF = i >= fStart && i < fEnd;
     const inR = i >= rStart && i < rEnd;
-    const cls = `b${inF ? " f" : ""}${inR ? " r" : ""}${i + 1 === junctionIdx ? " jx" : ""}`;
+    const cls = `b${inF ? " f" : ""}${inR ? " r" : ""}${junctionIdxs.has(i + 1) ? " jx" : ""}`;
     bases.push(
       <span key={i} className={cls} style={{ color: `var(--exon-${((ex < 0 ? 0 : ex) % 5)})` }}>{mrna[i]}</span>
     );
@@ -84,7 +93,7 @@ export default function CdnaView({
       <div className="cdna-legend">
         {forward && <span className="lg"><span className="hl f" />Forward primer <span className="dir">5′→3′</span></span>}
         {reverse && <span className="lg"><span className="hl r" />Reverse primer <span className="dir">3′←5′</span></span>}
-        {junctionIdx >= 0 && <span className="lg"><span className="jx-mark" />exon–exon junction</span>}
+        {junctionIdxs.size > 0 && <span className="lg"><span className="jx-mark" />exon–exon junction</span>}
         <span className="lg-sep" />
         {involvedExons.map((ei) => (
           <span key={ei} className="lg"><span className="sw" style={{ background: `var(--exon-${ei % 5})` }} />exon {ei + 1}</span>

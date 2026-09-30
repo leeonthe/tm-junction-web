@@ -19,7 +19,7 @@ import Info from "./Info";
 import GdnaCaveat from "./GdnaCaveat";
 
 /**
- * Whole-transcript amplification, as a designer — one pair for the GENE, steered.
+ * Multiple-transcript amplification, as a designer — one pair for the GENE, steered.
  *
  * Everywhere else the user is isolating ONE transcript. Here they are measuring the gene:
  * total expression, every variant in one band. The engine's ranked pairs did that with no
@@ -290,7 +290,7 @@ export default function PanVariantDesigner({ result, seqs, filter }: {
       <div className="jd-row">
         <section className="card elevated jd">
           <DesignerHead
-            label="Whole-transcript amplification"
+            label="Multiple-transcript amplification"
             badges={<>
               <span className="jd-badge neutral">
                 {options.length} {options.length === 1 ? "pair" : "pairs"}

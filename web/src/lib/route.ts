@@ -9,7 +9,7 @@
 //   /?g=Gapdh&sp=mouse                  the same, in another species (sp absent = human)
 //   /?t=NM_000186.4                     one transcript's analysis (accession search)
 //   /?g=CFH&t=NM_000186.4               the same, reached from the picker (keeps "All variants")
-//   /?t=NM_000186.4&tab=amplify         a result tab other than Summary
+//   /?t=NM_000186.4&tab=pan             a result tab other than the first (transcript-specific)
 //   /?t=NM_002046.7&x=NR_152150.2       the same analysis with transcripts excluded (comma list)
 //   /sequence                           the custom-sequence mode (pasted transcripts)
 //   /method, /guide                     the two documents
@@ -20,8 +20,11 @@
 import { isSpecies, typedSymbol, type SpeciesSlug } from "./species";
 import { pageMeta } from "../seo";
 
-export type Tab = "summary" | "pan" | "amplify" | "gene";
-export const TABS: readonly Tab[] = ["summary", "pan", "amplify", "gene"];
+// "summary" is the Transcript-specific amplification tab (its original name, kept so old
+// links resolve); "pan" is Multiple-transcript amplification. The former "amplify" tab was
+// folded into "summary", so an old ?tab=amplify link lands there like any unknown tab.
+export type Tab = "summary" | "pan" | "gene";
+export const TABS: readonly Tab[] = ["summary", "pan", "gene"];
 const isTab = (s: string | null): s is Tab => TABS.includes(s as Tab);
 
 /** Which search box the hero shows. "sequence" is a page of its own, not a search mode. */

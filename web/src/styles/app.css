@@ -357,7 +357,6 @@ tr.is-excluded td:first-child{opacity:1}
 tr.is-excluded .tacc{color:var(--faint);text-decoration:line-through}
 .badge-nr{font-size:10.5px;font-weight:600;color:var(--hard);background:var(--hard-tint);
   padding:2px 7px;border-radius:5px;margin-left:7px}
-.annot{font-size:11.5px;color:var(--faint)}
 .stat-note{margin-top:10px;font-size:12.5px;color:var(--muted)}
 .stat-note b{color:var(--ink);font-weight:600}
 /* An engine older than this page answers every request and silently omits what it does

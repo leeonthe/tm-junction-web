@@ -20,7 +20,7 @@ export default function VerdictTable({
     <div className="scroll-x">
       <table>
         <thead>
-          <tr><th>Transcript</th><th>Tier</th><th>Mechanism</th><th>Primer location</th><th>Structural note</th></tr>
+          <tr><th>Transcript</th><th>Tier</th><th>Mechanism</th><th>Primer location</th></tr>
         </thead>
         <tbody>
           {transcripts.map((t) => {
@@ -76,7 +76,6 @@ export default function VerdictTable({
                     )}
                   </>;
                 })()}</td>
-                <td><span className="annot">{t.coord_non_unique ? "coord. non-unique" : "unique"}</span></td>
               </tr>
             );
           })}
@@ -98,7 +97,6 @@ export default function VerdictTable({
                 against, not credited, no verdict.
                 {onInclude && <> <button type="button" className="linkish" onClick={() => onInclude(e.accession)}>Include</button></>}
               </td>
-              <td><span className="annot">—</span></td>
             </tr>
           ))}
         </tbody>

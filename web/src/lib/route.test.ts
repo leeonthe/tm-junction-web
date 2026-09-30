@@ -16,7 +16,7 @@ describe("route round trip", () => {
     { page: "home", mode: "accession", tab: "summary" },
     { page: "home", mode: "gene", gene: "CFH", tab: "summary" },
     { page: "home", mode: "accession", transcript: "NM_000186.4", tab: "summary" },
-    { page: "home", mode: "accession", transcript: "NM_000186.4", tab: "amplify" },
+    { page: "home", mode: "accession", transcript: "NM_000186.4", tab: "pan" },
     { page: "home", mode: "gene", gene: "CFH", transcript: "NM_000186.4", tab: "gene" },
     // the box the user switched to survives, even when the search implies the other one
     { page: "home", mode: "accession", gene: "CFH", transcript: "NM_000186.4", tab: "pan" },
@@ -42,8 +42,8 @@ describe("route addresses", () => {
     expect(routeUrl(HOME)).toBe("/");
     expect(routeUrl({ page: "home", mode: "accession", tab: "summary" })).toBe("/?mode=accession");
     expect(routeUrl({ page: "home", mode: "gene", gene: "CFH", tab: "summary" })).toBe("/?g=CFH");
-    expect(routeUrl({ page: "home", mode: "accession", transcript: "NM_000186.4", tab: "amplify" }))
-      .toBe("/?t=NM_000186.4&tab=amplify");
+    expect(routeUrl({ page: "home", mode: "accession", transcript: "NM_000186.4", tab: "pan" }))
+      .toBe("/?t=NM_000186.4&tab=pan");
     expect(routeUrl({ page: "home", mode: "gene", gene: "CFH", transcript: "NM_000186.4", tab: "summary" }))
       .toBe("/?g=CFH&t=NM_000186.4");
     expect(routeUrl({ page: "sequence" })).toBe("/sequence");
@@ -73,8 +73,13 @@ describe("route addresses", () => {
 
   it("does not carry a tab without a transcript to show it on", () => {
     // A tab means nothing on the picker or the landing page; the URL stays clean.
-    expect(parse("/?g=CFH&tab=amplify")).toEqual({ page: "home", mode: "gene", gene: "CFH", tab: "summary" });
+    expect(parse("/?g=CFH&tab=pan")).toEqual({ page: "home", mode: "gene", gene: "CFH", tab: "summary" });
     expect(parse("/?tab=gene")).toEqual(HOME);
+  });
+
+  it("lands an old ?tab=amplify link on the transcript-specific tab it was folded into", () => {
+    expect(parse("/?t=NM_000186.4&tab=amplify"))
+      .toEqual({ page: "home", mode: "accession", transcript: "NM_000186.4", tab: "summary" });
   });
 
   it("normalises what people paste", () => {

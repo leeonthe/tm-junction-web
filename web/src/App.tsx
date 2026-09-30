@@ -10,12 +10,7 @@ import {
 import Nav from "./components/Nav";
 import Hero from "./components/Hero";
 import GeneTranscriptPicker from "./components/GeneTranscriptPicker";
-import VerdictBanner from "./components/VerdictBanner";
 import EngineVersionNotice from "./components/EngineVersionNotice";
-import PrimerCard from "./components/PrimerCard";
-import ConventionalDesigner from "./components/ConventionalDesigner";
-import JunctionDesigner from "./components/JunctionDesigner";
-import TargetTrackCard from "./components/TargetTrackCard";
 import GeneClassification from "./components/GeneClassification";
 import PanVariantTab from "./components/PanVariantTab";
 import Summary from "./components/Summary";
@@ -336,7 +331,7 @@ export default function App() {
     }
   }
 
-  // Re-target in place, staying on the current tab (Summary/Amplify sibling picks).
+  // Re-target in place, staying on the current tab (sibling picks on any tab).
   const selectIsoform = (accession: string) => run(accession, { keepTab: true, soft: true });
   // Change which transcripts the comparison includes: the same analysis, re-run in place.
   const setExclusion = (exclude: string[]) => {
@@ -344,7 +339,7 @@ export default function App() {
     if (t) run(t, { keepTab: true, soft: true, exclude });
   };
   // From the Gene tab: re-target and hand off to the Transcript-specific amplification tab to show its primers.
-  const inspectIsoform = (accession: string) => { run(accession, { keepTab: true, soft: true }); setTab("amplify"); };
+  const inspectIsoform = (accession: string) => { run(accession, { keepTab: true, soft: true }); setTab("summary"); };
 
   // From a result back to its gene's variant picker.
   function backToVariants() {
@@ -455,7 +450,7 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
   backToVariants?: () => void;
   onExclude: (exclude: string[]) => void;
 }) {
-  const { gene, target_accession, target_verdict, primer_design, summary } = result;
+  const { gene, target_accession, target_verdict, summary } = result;
   const excludedNow = (result.meta?.excluded as string[] | undefined) ?? [];
   /** Bring one transcript back into the comparison — from a dimmed row — with the accessions
    *  that are the same molecule, which the engine excluded alongside it. */
@@ -497,38 +492,14 @@ function Result({ result, tab, setTab, busy, onSelect, onInspect, backToVariants
       <EngineVersionNotice result={result} />
 
       <div className="tabs">
-        <button className={`tab ${tab === "summary" ? "on" : ""}`} onClick={() => setTab("summary")}>Summary</button>
-        <button className={`tab ${tab === "pan" ? "on" : ""}`} onClick={() => setTab("pan")}>Whole-transcript amplification</button>
-        <button className={`tab ${tab === "amplify" ? "on" : ""}`} onClick={() => setTab("amplify")}>Transcript-specific amplification</button>
+        <button className={`tab ${tab === "summary" ? "on" : ""}`} onClick={() => setTab("summary")}>Transcript-specific amplification</button>
+        <button className={`tab ${tab === "pan" ? "on" : ""}`} onClick={() => setTab("pan")}>Multiple-transcript amplification</button>
         <button className={`tab ${tab === "gene" ? "on" : ""}`} onClick={() => setTab("gene")}>Gene classification</button>
       </div>
 
       {tab === "summary" && <Summary result={result} busy={busy} onSelect={onSelect} onInclude={onInclude} filter={filter} />}
 
       {tab === "pan" && <PanVariantTab result={result} busy={busy} filter={filter} />}
-
-      {tab === "amplify" && (
-        <div className={busy ? "busy" : undefined} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-          <VerdictBanner v={target_verdict} />
-          {/* The transcript's own exon track comes first: it shows WHERE the unique region and
-              the primer sit, which is the context for reading the primer cards below it. */}
-          {filter}
-          <TargetTrackCard result={result} onExplore={() => setTab("gene")} onSelect={onSelect} />
-          {/* Show DESIGNED PRIMERS only for a real conventional primer design, or the hard-case
-              note. EEJ variants use the Tm designer; combo/7c cases show their info in the verdict. */}
-          {/* Only the hard-case note now — see Summary.tsx. */}
-          {target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION" && (
-            <PrimerCard design={primer_design} mrna={result.target_mrna} verdict={target_verdict} />
-          )}
-          {/* The engine's pick is one QC'd pair; this is where the user re-searches it with
-              their own product size and Tm range, and picks from alternatives. */}
-          {target_verdict.tier === "CONVENTIONAL" && (
-            <ConventionalDesigner mrna={result.target_mrna} verdict={target_verdict}
-              k={Number(result.meta.k) || 20} solo={result.transcripts.length === 1} />
-          )}
-          <JunctionDesigner mrna={result.target_mrna} verdict={target_verdict} />
-        </div>
-      )}
 
       {tab === "gene" && <GeneClassification result={result} onSelect={onInspect} onInclude={onInclude} filter={filter} />}
 

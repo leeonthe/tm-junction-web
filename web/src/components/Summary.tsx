@@ -7,7 +7,7 @@ import GeneOverview from "./GeneOverview";
 import GraphCard from "./GraphCard";
 import VerdictTable from "./VerdictTable";
 
-/** Summary tab — everything in one place: the target's answer + the whole-gene map. */
+/** Transcript-specific amplification tab (route "summary") — everything in one place: the target's answer + the whole-gene map. */
 export default function Summary({
   result, busy, onSelect, onInclude, filter,
 }: {
@@ -28,7 +28,7 @@ export default function Summary({
       {result.target_verdict.tier === "NO_SINGLE_UNIQUE_JUNCTION" && (
         <PrimerCard design={result.primer_design} mrna={result.target_mrna} verdict={result.target_verdict} />
       )}
-      {/* Summary is the everything view, so the tunable pair list belongs here too. */}
+      {/* This is the everything view, so the tunable pair list belongs here too. */}
       {result.target_verdict.tier === "CONVENTIONAL" && (
         <ConventionalDesigner mrna={result.target_mrna} verdict={result.target_verdict}
           k={Number(result.meta.k) || 20} solo={result.transcripts.length === 1} />

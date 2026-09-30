@@ -151,6 +151,11 @@ export default function JunctionDesigner({ mrna, verdict, onPair }: {
   const fwdOligo = combo && evs[0] ? orderedOligo(evs[0], false) : null;
   const revOligo = combo && evs[1] ? orderedOligo(evs[1], true) : null;
   const [copied, setCopied] = useState(false);
+  // The pair's cDNA view lives with the pair, not in either box: a single junction shows
+  // its EEJ primer beside its partner, so a combo shows its two EEJ primers together.
+  const [showCdna, setShowCdna] = useState(false);
+  const span = (ev: WindowEval | null | undefined) =>
+    ev ? { tx_start: ev.s, length: ev.e - ev.s } : null;
   function copyPair() {
     if (!fwdOligo || !revOligo) return;
     navigator.clipboard?.writeText(`forward\t${fwdOligo}\nreverse\t${revOligo}`);
@@ -216,6 +221,12 @@ export default function JunctionDesigner({ mrna, verdict, onPair }: {
             {ampLen != null && (
               <span className="jd-badge neutral">amplicon {ampLen} bp</span>
             )}
+            {(evs[0] || evs[1]) && (
+              <button className="btn btn-ghost jd-full" style={{ marginLeft: "auto" }}
+                onClick={() => setShowCdna((v) => !v)}>
+                {showCdna ? "Hide cDNA view" : "Full cDNA view"}
+              </button>
+            )}
           </div>
           <p className="sub jd-intro">
             Both primers run in one tube, so they share one buffer and Tm window.
@@ -241,6 +252,13 @@ export default function JunctionDesigner({ mrna, verdict, onPair }: {
                 <Copy /> {copied ? "✓ Copied" : "Copy pair"}
               </button>
             </div>
+          )}
+          {/* Both selections in place on the mRNA, with both junctions marked — the same
+              view the single-junction partner panel offers for its EEJ + partner pair. */}
+          {showCdna && (evs[0] || evs[1]) && (
+            <CdnaView mrna={mrna} verdict={verdict}
+              forward={span(evs[0])} reverse={span(evs[1])}
+              junctions={designs.map((d) => [d.donor.order, d.acceptor.order])} />
           )}
         </section>
       )}

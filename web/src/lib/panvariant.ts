@@ -1,4 +1,4 @@
-// Whole-transcript amplification, designed in the browser — one pair for the GENE.
+// Multiple-transcript amplification, designed in the browser — one pair for the GENE.
 //
 // The engine ships a ranked set of pairs for this (panvariant.py) and the reasons behind
 // them. What it cannot do without a round trip is let the user steer: a different product
