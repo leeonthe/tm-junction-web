@@ -53,6 +53,14 @@ export default function TranscriptFilter({ result, busy, onChange }: {
           a variant you do not expect in the sample. The transcript being analyzed stays in.
           Accessions with the identical sequence are one transcript and move together.</Info>
       </p>
+      {/* Said in the open, not only behind the info toggle: what the chips are for and that
+          a click is all it takes. The details (nothing avoids it, nothing is credited with
+          it, identical sequences move together) stay in the Info. */}
+      <p className="tf-sub">
+        Click a transcript to exclude it from the comparison — to amplify only the transcripts
+        you want, or to leave out a variant you do not expect in the sample. Click again to
+        bring it back.
+      </p>
       <div className="tf-row" role="group">
         {rows.map((r) => {
           const isTarget = r.acc === target_accession;
