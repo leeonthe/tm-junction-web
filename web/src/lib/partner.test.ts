@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AMP_CEIL, AMP_FLOOR, DEFAULT_DTM_MAX, DTM_MAX_CEIL, DTM_MAX_FLOOR, MAX_OPTIONS,
-  PARTNER_LEN_MAX, PARTNER_LEN_MIN, ampCeil, feasibleAmplicons, findPartnerOptions, revComp,
+  MIN_END_SPACING, PARTNER_LEN_MAX, PARTNER_LEN_MIN, ampCeil, feasibleAmplicons,
+  findPartnerOptions, revComp, type PartnerOption,
 } from "./partner";
 import { DEFAULT_CONDITIONS, tm } from "./tm";
 
@@ -291,14 +292,24 @@ describe("ΔTm tolerance cap", () => {
    * tight enough to empty the downstream side made the search fall back upstream and flip
    * the EEJ primer from forward to reverse — changing which oligo the user must order.
    * Room decides the side now, so the cap can only ever remove options from a fixed side.
+   *
+   * A looser cap does not literally keep every option, because the five slots are
+   * competitive: a newly admitted candidate can outscore the old winner at the same 3′ end,
+   * or take a slot that pushes a neighbour outside MIN_END_SPACING. What the cap must never
+   * do is drop a placement outright — every option the tight cap found is either still
+   * offered or displaced by a wide-cap option within MIN_END_SPACING of its 3′ end.
    */
-  it("a looser cap keeps every option a tighter cap found", () => {
+  it("a looser cap only ever displaces an option, never drops a placement", () => {
+    const endOf = (o: PartnerOption) => (o.role === "reverse" ? o.s : o.e - 1);
     for (const [lo, hi] of [[150, 160], [150, 175], [150, 250], [200, 215]] as const) {
       const tight = run({ dTmMax: 0.5, ampMin: lo, ampMax: hi });
       const wide = run({ dTmMax: 8, ampMin: lo, ampMax: hi });
       const wideIds = wide.options.map((o) => o.id);
-      const lost = tight.options.map((o) => o.id).filter((id) => !wideIds.includes(id));
-      expect({ win: `${lo}-${hi}`, lost }).toEqual({ win: `${lo}-${hi}`, lost: [] });
+      const dropped = tight.options
+        .filter((o) => !wideIds.includes(o.id))
+        .filter((o) => !wide.options.some((w) => Math.abs(endOf(w) - endOf(o)) < MIN_END_SPACING))
+        .map((o) => o.id);
+      expect({ win: `${lo}-${hi}`, dropped }).toEqual({ win: `${lo}-${hi}`, dropped: [] });
       expect(tight.options.length).toBeLessThanOrEqual(wide.options.length);
     }
   });

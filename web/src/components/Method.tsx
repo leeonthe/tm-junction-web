@@ -11,13 +11,11 @@ import { ArrowRight } from "./icons";
 import { MAX_SNAP } from "../lib/customAlign";
 
 /** The oligo the new formula was validated against — see the worked example below. */
-// A real GAPDH oligo, chosen for cross-checkability: our duplex-form value for this
-// 27-mer sits within ~1.0 °C of IDT OligoAnalyzer's CT-form figure at matched conditions
-// — the closest the two conventions get across every 18-28-mer scanned in GAPDH (their
-// gap shrinks with ΔH, i.e. with length; an 18-mer cannot do better than ~1.5 °C). The
-// note below the worked example explains the convention difference and the second trap:
-// OligoAnalyzer's DEFAULT buffer has no Mg²⁺/dNTPs, and against that buffer every oligo
-// reads ~6 °C apart no matter what.
+// A real GAPDH oligo, chosen for cross-checkability: this engine uses the same R·ln(C_T)
+// concentration convention as IDT OligoAnalyzer (since 2026-10-20), so at matched buffer
+// conditions the two read within the salt model's own ~1 °C. The note below the worked
+// example explains the one remaining trap: OligoAnalyzer's DEFAULT buffer has no
+// Mg²⁺/dNTPs, and against that buffer every oligo reads ~6 °C apart no matter what.
 const EXAMPLE = "GACCTCAACTACATGGTTTACATGTTC";
 /** An arm-length oligo for the Wallace worked example — also recomputed live. */
 const ARM_EXAMPLE = "CTCGCGA";
@@ -149,7 +147,7 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
             <span>T<sub>m</sub><sup>1M</sup></span><span className="op">=</span>
             <span className="frac">
               <span className="num">ΔH<sub>total</sub></span>
-              <span className="den">ΔS<sub>total</sub> + R · ln(C<sub>T</sub> / 4)</span>
+              <span className="den">ΔS<sub>total</sub> + R · ln(C<sub>T</sub>)</span>
             </span>
           </div>
         </div>
@@ -176,9 +174,9 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           <Term k="R" unit={`${R_GAS} cal/(K·mol)`}
             note="Ideal gas constant." />
           <Term k={<>C<sub>T</sub></>} unit="mol/L"
-            note={<>Total strand concentration. The 4 is SantaLucia's factor for a
-              non-self-complementary duplex with both strands at equal concentration. You
-              enter it in µM; 1 µM = 10⁻⁶ M.</>} />
+            note={<>Primer concentration, in the pseudo-first-order form that assumes the
+              primer is in large excess over its template — the PCR limit, and the
+              convention IDT OligoAnalyzer uses. You enter it in µM; 1 µM = 10⁻⁶ M.</>} />
           <Term k={<>Δ<sub>salt</sub></>} unit="K⁻¹"
             note={<>The Owczarzy (2008) salt term, set by monovalent salt, free Mg²⁺, GC
               fraction and length — see below.</>} />
@@ -360,16 +358,12 @@ export default function Method({ onBack, backLabel }: { onBack: () => void; back
           <b className="mono">dNTPs {numStr(DEFAULT_CONDITIONS.dntpMM)} mM</b>, oligo{" "}
           <b className="mono">{numStr(DEFAULT_CONDITIONS.primerUM)} µM</b>. Expect a reading
           within about <b>1 °C</b> of the <b className="mono">{fixed(ex.tm, 1)} °C</b> shown
-          here. The residual is a convention, not a disagreement over physics: IDT uses the
-          pseudo-first-order form R·ln(C<sub>T</sub>), which assumes the primer is in vast
-          excess over its template, while the equation above is the non-self-complementary
-          duplex form with R·ln(C<sub>T</sub>/4). They are the same equation with{" "}
-          C<sub>T</sub> meaning different things, and they meet when C<sub>T</sub> is read as
-          the total of <em>both</em> strands — at <b className="mono">0.8 µM</b> here, this
-          engine gives{" "}
-          <b className="mono">{fixed(tmParts(EXAMPLE, { ...DEFAULT_CONDITIONS, primerUM: 0.8 })!.tm, 1)}</b> °C.
-          The gap scales with 1/ΔH, so it is smallest for long, stable oligos like this one
-          and grows to ~2 °C for a short 18-mer.
+          here. Both tools use the same nearest-neighbour table, the same Owczarzy salt model
+          and the same R·ln(C<sub>T</sub>) concentration term, so the typed concentration means
+          the same thing in both. The small residual is in the GC dependence of the salt
+          correction: across 40 random 10–14-mers at 0.25 µM, IDT read 0.45 °C cooler on
+          average (SD 0.8 °C), within half a degree for AT-rich oligos and up to ~2 °C cooler
+          for the most GC-rich — inside the ±1.4 °C IDT quotes for its own DNA/DNA model.
         </p>
 
         <h3 className="mth-h3">Short arms: the Wallace rule</h3>

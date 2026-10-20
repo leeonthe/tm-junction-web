@@ -48,7 +48,7 @@ export const PARTNER_LEN_MIN = 18;
 export const PARTNER_LEN_MAX = 28;
 /** How many options to surface, and how far apart their 3′ ends must sit, nt. */
 export const MAX_OPTIONS = 5;
-const MIN_END_SPACING = 6;
+export const MIN_END_SPACING = 6;
 /**
  * How far the partner's Tm may sit from the EEJ primer's, °C — a HARD cap: a candidate
  * outside ±dTmMax is discarded, never ranked. Both primers anneal in the same cycle, so

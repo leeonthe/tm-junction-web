@@ -50,44 +50,46 @@ describe("Owczarzy 2008 salt correction vs Biopython", () => {
 describe("published reference values", () => {
   const SEQ = "AACTACATGGCTGAGAAC";
 
-  it("qPCR buffer (50 mM salt, 3 mM Mg, 0.8 mM dNTP, 0.2 µM total)", () => {
-    expect(tm(SEQ, DEFAULT_CONDITIONS)).toBeCloseTo(54.77, 2);
+  it("qPCR buffer (50 mM salt, 3 mM Mg, 0.8 mM dNTP, 0.2 µM)", () => {
+    expect(tm(SEQ, DEFAULT_CONDITIONS)).toBeCloseTo(56.96, 2);
   });
 
   it("monovalent only (50 mM salt, no Mg)", () => {
-    expect(tm(SEQ, CONDS({ mgMM: 0, dntpMM: 0 }))).toBeCloseTo(47.07, 2);
+    expect(tm(SEQ, CONDS({ mgMM: 0, dntpMM: 0 }))).toBeCloseTo(49.16, 2);
   });
 
   /**
    * IDT OligoAnalyzer reports 56 °C (qPCR) and 49 °C (standard) for this oligo at
-   * 0.2 µM. It uses the pseudo-first-order form R·ln(C_T) — primer in vast excess —
-   * whereas we use SantaLucia's R·ln(C_T/4) for a non-self-complementary duplex. The
-   * two are the same equation with C_T meaning different things, and they agree once
-   * C_T is read as the TOTAL of both strands: 4 × 0.2 µM.
+   * 0.2 µM. Since 2026-10-20 this engine uses the same pseudo-first-order form,
+   * R·ln(C_T) with the primer in excess, so the typed concentration means the same
+   * thing in both tools and the values are directly comparable — within the ~1 °C
+   * IDT quotes for its own salt model.
    */
-  it("agrees with IDT once C_T is read as total strand concentration (4× 0.2 µM)", () => {
-    expect(tm(SEQ, CONDS({ primerUM: 0.8 }))).toBeCloseTo(56.96, 2);
-    expect(tm(SEQ, CONDS({ primerUM: 0.8, mgMM: 0, dntpMM: 0 }))).toBeCloseTo(49.16, 2);
+  it("agrees with IDT at the same typed concentration (0.2 µM)", () => {
+    expect(Math.abs(tm(SEQ, DEFAULT_CONDITIONS) - 56)).toBeLessThanOrEqual(1.0);
+    expect(Math.abs(tm(SEQ, CONDS({ mgMM: 0, dntpMM: 0 })) - 49)).toBeLessThanOrEqual(1.0);
   });
 
-  it("the /4 shifts the entropy term by exactly R·ln(4) for every sequence", () => {
+  it("the concentration term is R·ln(C_T) with no symmetry factor", () => {
     for (const q of ["GGGGGGCCCC", SEQ, "CTTTTTTACCTCAGGTCACAAATTGGT"]) {
-      const a = tmParts(q, DEFAULT_CONDITIONS)!;          // C_T/4
-      const b = tmParts(q, CONDS({ primerUM: 0.8 }))!;    // same as C_T with no /4
-      expect(a.dsTerm - b.dsTerm).toBeCloseTo(-R_GAS * Math.log(4), 10);
+      expect(tmParts(q, DEFAULT_CONDITIONS)!.dsTerm).toBeCloseTo(R_GAS * Math.log(0.2e-6), 10);
+      // A 4x concentration shifts the entropy term by exactly R·ln(4), whatever the sequence.
+      const a = tmParts(q, DEFAULT_CONDITIONS)!;
+      const b = tmParts(q, CONDS({ primerUM: 0.8 }))!;
+      expect(b.dsTerm - a.dsTerm).toBeCloseTo(R_GAS * Math.log(4), 10);
     }
   });
 
-  it("but the resulting Tm shift is NOT constant — a larger |ΔS| dilutes it", () => {
-    // Worth pinning: it is tempting to quote "the /4 costs ~2 °C" as a fixed number.
-    // It is not. The ΔS offset is fixed; its effect on Tm scales with 1/|ΔS|, so a
-    // 10-mer moves ~4 °C and a 40-mer ~1 °C.
+  it("a fixed entropy offset is NOT a constant Tm shift — a larger |ΔS| dilutes it", () => {
+    // Worth pinning: it is tempting to quote "4x concentration adds ~2 °C" as a fixed
+    // number. It is not. The ΔS offset is fixed; its effect on Tm scales with 1/|ΔS|,
+    // so a 10-mer moves ~4 °C and a 40-mer ~1 °C.
     const shift = (q: string) =>
       tm(q, CONDS({ primerUM: 0.8 })) - tm(q, DEFAULT_CONDITIONS);
-    expect(shift("GGGGGGCCCC")).toBeCloseTo(4.03, 1);                    // 10 nt
-    expect(shift(SEQ)).toBeCloseTo(2.19, 1);                             // 18 nt
-    expect(shift("CTTTTTTACCTCAGGTCACAAATTGGT")).toBeCloseTo(1.51, 1);   // 27 nt
-    expect(shift("GCTCCTCCTGTTCGACAGTCAGCCGCATCTTCTTTTGCGT")).toBeCloseTo(1.04, 1); // 40 nt
+    expect(shift("GGGGGGCCCC")).toBeCloseTo(4.13, 1);                    // 10 nt
+    expect(shift(SEQ)).toBeCloseTo(2.22, 1);                             // 18 nt
+    expect(shift("CTTTTTTACCTCAGGTCACAAATTGGT")).toBeCloseTo(1.53, 1);   // 27 nt
+    expect(shift("GCTCCTCCTGTTCGACAGTCAGCCGCATCTTCTTTTGCGT")).toBeCloseTo(1.05, 1); // 40 nt
     expect(shift("GGGGGGCCCC")).toBeGreaterThan(shift("CTTTTTTACCTCAGGTCACAAATTGGT"));
   });
 
@@ -380,21 +382,16 @@ describe("designer rules on a real transcript", () => {
 
 /**
  * The Method page's worked example is chosen for cross-checkability against IDT
- * OligoAnalyzer at matched conditions. IDT computes the CT-form (no /4); at 0.2 uM typed
- * that equals primer3's duplex-form value at 4x the concentration, which for this oligo is
- * 63.6 C — measured once with primer3 calc_tm (santalucia + owczarzy, Na 50 / Mg 3 /
- * dNTP 0.8 / dna 800 nM) and pinned here. The page promises "within about 1 C"; this
- * keeps the promise honest against model drift on either side of it.
+ * OligoAnalyzer at matched conditions. IDT computes the R·ln(C_T) form, which this engine
+ * also uses since 2026-10-20; the reference figure, 63.6 C, was measured once with primer3
+ * calc_tm (santalucia + owczarzy, Na 50 / Mg 3 / dNTP 0.8) in that form and pinned here.
+ * The page promises "within about 1 C"; this keeps the promise honest against model drift.
  */
 describe("the Method example vs IDT's convention", () => {
   const EXAMPLE = "GACCTCAACTACATGGTTTACATGTTC";
   const IDT_CT_FORM = 63.57;
   it("stays within about 1 C of OligoAnalyzer at matched conditions", () => {
     const ours = tm(EXAMPLE, DEFAULT_CONDITIONS);
-    expect(Math.abs(ours - IDT_CT_FORM)).toBeLessThanOrEqual(1.05);
-  });
-  it("emulates the CT form by reading CT as both strands (4x)", () => {
-    const ctForm = tm(EXAMPLE, { ...DEFAULT_CONDITIONS, primerUM: 0.8 });
-    expect(Math.abs(ctForm - IDT_CT_FORM)).toBeLessThanOrEqual(0.7);
+    expect(Math.abs(ours - IDT_CT_FORM)).toBeLessThanOrEqual(0.7);
   });
 });

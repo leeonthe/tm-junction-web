@@ -4,28 +4,26 @@
 // parameters) evaluated at 1 M Na⁺, then corrected to the user's actual buffer
 // with the Owczarzy (2008) mixed monovalent/divalent salt model:
 //
-//     Tm(1 M)  = ΔH_total / (ΔS_total + R·ln(C_T/4))        [Kelvin]
+//     Tm(1 M)  = ΔH_total / (ΔS_total + R·ln(C_T))          [Kelvin]
 //     1/Tm     = 1/Tm(1 M) + Δ(salt)
 //     Tm(°C)   = 1/(1/Tm) − 273.15
 //
 // ΔH_total (cal/mol) and ΔS_total (cal/(mol·K)) are the summed adjacent-doublet
 // terms plus SantaLucia's terminal-dependent initiation (a terminal G·C and a
-// terminal A·T initiate differently); R = 1.987 cal/(K·mol). C_T is the TOTAL
-// strand concentration and the /4 is SantaLucia's factor for a non-self-
-// complementary duplex whose two strands are at equal concentration.
+// terminal A·T initiate differently); R = 1.987 cal/(K·mol). C_T is the primer
+// concentration, in the pseudo-first-order form R·ln(C_T) that assumes the primer
+// is in large excess over its template — the PCR limit, and the convention IDT
+// OligoAnalyzer uses, so a Tm here reads the same as IDT's for the same typed
+// concentration (within the salt model's own ~1 °C). SantaLucia's symmetric
+// duplex form R·ln(C_T/4) was used until 2026-10-20; it read ~2–4 °C cooler.
 //
 // The salt correction Δ(salt) is applied to 1/Tm, not as an additive °C shift,
 // and is picked by the divalent/monovalent competition ratio
 // R_ratio = √[Mg²⁺]_free / [Mon⁺] — see saltCorrection() for the three regimes.
 // Free Mg²⁺ is what is left after dNTPs chelate it (K_a = 3·10⁴ M⁻¹).
 //
-// NB the /4 is what separates this from the pseudo-first-order form some primer
-// tools use, Tm = ΔH/(ΔS + R·ln[primer]), which assumes the primer is in vast
-// excess over its template. The two differ by R·ln(4) on the entropy term —
-// about 2 °C — so a Tm here reads ~2 °C cooler than IDT OligoAnalyzer for the
-// same typed concentration. They agree once C_T is read as the TOTAL of both
-// strands: for AACTACATGGCTGAGAAC in a 50 mM Na⁺ / 3 mM Mg²⁺ / 0.8 mM dNTP
-// buffer, 0.8 µM total here gives 57.0 °C, matching IDT's 56 °C at 0.2 µM.
+// Cross-check: AACTACATGGCTGAGAAC at 0.2 µM in a 50 mM Na⁺ / 3 mM Mg²⁺ /
+// 0.8 mM dNTP buffer gives 57.0 °C here; IDT OligoAnalyzer reports 56 °C.
 //
 // This applies to the WHOLE primer. Each arm is short enough that nearest-neighbour
 // stops being valid, so arms below WALLACE_MAX nt use the Wallace rule instead —
@@ -71,7 +69,7 @@ export const RATIO_MIXED_MAX = 6.0;
 export interface TmConditions {
   /** Monovalent cations [Na⁺] + [K⁺], in mM. */
   saltMM: number;
-  /** Total primer concentration C_T, in µM. */
+  /** Primer concentration C_T, in µM — the figure you would type into IDT. */
   primerUM: number;
   /** Total divalent magnesium [Mg²⁺], in mM. */
   mgMM: number;
@@ -117,12 +115,13 @@ export const primerMolar = (primerUM: number) => primerUM * 1e-6;
 export const saltMolar = (saltMM: number) => saltMM * 1e-3;
 
 /**
- * The R·ln(C_T/4) concentration term, cal/(mol·K). C_T is the total strand
- * concentration; the 4 is SantaLucia's factor for a non-self-complementary
- * duplex with both strands at equal concentration.
+ * The R·ln(C_T) concentration term, cal/(mol·K). C_T is the primer concentration;
+ * the primer is assumed to be in large excess over its template, so no symmetry
+ * factor (SantaLucia's /4 for an equimolar duplex) is applied — this is the form
+ * IDT OligoAnalyzer uses.
  */
 export function entropyTerm(primerUM: number): number {
-  return R_GAS * Math.log(primerMolar(Math.max(primerUM, PRIMER_MIN)) / 4);
+  return R_GAS * Math.log(primerMolar(Math.max(primerUM, PRIMER_MIN)));
 }
 
 /**
@@ -225,9 +224,9 @@ export interface TmParts {
   dh: number;
   /** cal/(mol·K) — summed doublet entropies + initiation. */
   ds: number;
-  /** R·ln(C_T/4), cal/(mol·K). */
+  /** R·ln(C_T), cal/(mol·K). */
   dsTerm: number;
-  /** ΔS_total + R·ln(C_T/4). */
+  /** ΔS_total + R·ln(C_T). */
   denom: number;
   /** Uncorrected melting temperature at 1 M Na⁺, °C. */
   tm1M: number;
