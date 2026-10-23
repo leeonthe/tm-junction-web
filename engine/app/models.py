@@ -122,7 +122,7 @@ class TranscriptVerdict(BaseModel):
     unique_regions: list[UniqueRegionOut] = []
     unique_junctions: list[JunctionOut] = []
     recommended_junction: JunctionOut | None = None
-    coord_non_unique: bool          # structural annotation ONLY
+    structurally_contained: bool    # structural annotation ONLY: every exon overlaps an exon of one sibling
     exons: list[Exon] = []
     # Orange target exons (1-based): a 7c conventional pair [forward, reverse], or the single
     # conventional exon of a junction+exon combo. No sibling carries the whole combination.
@@ -175,7 +175,7 @@ class GeneSummary(BaseModel):
     conventional_count: int
     needs_eej_count: int
     hard_case_count: int
-    coord_non_unique_count: int
+    structurally_contained_count: int
     excluded_count: int = 0         # transcripts set aside by the user (see AnalyzeResponse.excluded)
 
 

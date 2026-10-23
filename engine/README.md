@@ -9,7 +9,7 @@ run the **sequence (ATGC) amplifiability** test, and design **Tm-guided** primer
 ## Layout
 ```
 app/
-  overlap.py   coordinate non-unique rule + junction finder (structural / graph layer)
+  overlap.py   structural-containment rule + junction finder (structural / graph layer)
   amplify.py   ⭐ sequence sliding-window uniqueness → 3-tier verdict (authoritative)
                (also exposes unique-window positions so primer specificity is provable)
   primers.py   ⭐ primer3 QC hybrid: Tm + hairpin/dimer gates, multi-length sweep,

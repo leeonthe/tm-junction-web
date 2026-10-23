@@ -15,7 +15,7 @@ import type { TranscriptVerdict } from "../lib/types";
 const v = (over: Partial<TranscriptVerdict>): TranscriptVerdict => ({
   accession: "NM_x", is_mane: false, tier: "NEEDS_EEJ", amplifiable: true, needs_eej: true,
   unique_regions: [], unique_junctions: [], recommended_junction: null,
-  coord_non_unique: true, exons: [], amplify_exon_pair: null, combo_junctions: null,
+  structurally_contained: true, exons: [], amplify_exon_pair: null, combo_junctions: null,
   ...over,
 } as TranscriptVerdict);
 

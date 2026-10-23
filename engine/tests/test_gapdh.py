@@ -62,11 +62,11 @@ def test_an_eej_transcript_names_no_target_site_exon():
 
 
 def test_gapdh_t3_coord_vs_sequence_divergence():
-    """The whole point: coord non-unique but sequence CONVENTIONAL."""
+    """The whole point: structurally contained but sequence CONVENTIONAL."""
     r = analyze("NM_001289746.2")
     v = _by_acc(r)["NM_001289746.2"]
     assert v.tier == "CONVENTIONAL"
-    assert v.coord_non_unique is True          # structural flag disagrees, sequence wins
+    assert v.structurally_contained is True    # structural flag disagrees, sequence wins
 
 
 def _gapdh_mane_amp(include_nr: bool):
@@ -112,7 +112,7 @@ def test_gapdh_summary():
     assert r.summary.conventional_count == 2
     assert r.summary.needs_eej_count == 3     # 745, 943, and the NR (exon 6–7 junction)
     assert r.summary.hard_case_count == 1     # MANE, once the NR sibling is counted
-    assert r.summary.coord_non_unique_count == 5
+    assert r.summary.structurally_contained_count == 5
 
 
 def test_myc_stress():

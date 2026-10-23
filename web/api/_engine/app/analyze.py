@@ -267,7 +267,7 @@ def _region_tx(exons: list[tuple[int, int]], exon_order: int,
 
 def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
                     seq: str, cds: tuple[int, int] | None,
-                    amp: AmplifyResult, coord_non_unique: bool,
+                    amp: AmplifyResult, structurally_contained: bool,
                     same_sequence: list[str] | None = None,
                     variant: str | None = None,
                     same_variants: list[str | None] | None = None,
@@ -331,7 +331,7 @@ def _amp_to_verdict(acc: str, is_mane: bool, exons: list[tuple[int, int]],
         unique_regions=uniq_out,
         unique_junctions=junctions,
         recommended_junction=recommended,
-        coord_non_unique=coord_non_unique,
+        structurally_contained=structurally_contained,
         exons=_exons_out(exons, seq, cds, amp),
         amplify_exon_pair=exon_pair_out,
         combo_junctions=combo_junctions,
@@ -582,9 +582,9 @@ def analyze_events(accession: str, k: int = 20, exclude: list[str] | None = None
             t["exons"], seqs[a], [seqs[o] for o in sib_accs], k=k,
             sibling_exons=[exons_by_acc[o] for o in sib_accs])
         sib_exons = {o: exons_by_acc[o] for o in sib_accs}
-        coord_nu = bool(overlap.non_unique_partners(t["exons"], sib_exons))
+        contained = bool(overlap.containing_partners(t["exons"], sib_exons))
         verdicts.append(_amp_to_verdict(a, t["is_mane"], t["exons"], seqs[a],
-                                        t.get("cds"), amp, coord_nu,
+                                        t.get("cds"), amp, contained,
                                         same_seq.get(a, []), t.get("variant"),
                                         [accs[x].get("variant") for x in same_seq.get(a, [])],
                                         t.get("placed_via"), t.get("strand") or gene.strand))
@@ -612,7 +612,7 @@ def analyze_events(accession: str, k: int = 20, exclude: list[str] | None = None
         conventional_count=sum(v.tier == "CONVENTIONAL" for v in verdicts),
         needs_eej_count=sum(v.tier == "NEEDS_EEJ" for v in verdicts),
         hard_case_count=sum(v.tier == "NO_SINGLE_UNIQUE_JUNCTION" for v in verdicts),
-        coord_non_unique_count=sum(v.coord_non_unique for v in verdicts),
+        structurally_contained_count=sum(v.structurally_contained for v in verdicts),
     )
     verdicts.sort(key=lambda v: (v.accession != target_acc, not v.is_mane, v.accession))
 

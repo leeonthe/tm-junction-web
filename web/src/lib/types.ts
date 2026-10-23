@@ -51,7 +51,7 @@ export interface TranscriptVerdict {
   is_mane: boolean; tier: Tier;
   amplifiable: boolean; needs_eej: boolean;
   unique_regions: UniqueRegion[]; unique_junctions: Junction[];
-  recommended_junction: Junction | null; coord_non_unique: boolean;
+  recommended_junction: Junction | null; structurally_contained: boolean;
   exons: Exon[];
   amplify_exon_pair?: number[] | null;   // 7c-Blue: [forward_exon, reverse_exon] (1-based)
   combo_junctions?: number[][] | null;   // two-junction combo EEJ locations [[d1,a1],[d2,a2]]
@@ -76,7 +76,7 @@ export interface GeneSummary {
   /** Accessions folded into another's identical sequence. */
   merged_accession_count?: number;
   conventional_count: number; needs_eej_count: number;
-  hard_case_count: number; coord_non_unique_count: number;
+  hard_case_count: number; structurally_contained_count: number;
   excluded_count?: number;
 }
 /** One pair for the whole gene: total expression rather than one isoform. */

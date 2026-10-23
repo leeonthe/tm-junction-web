@@ -257,7 +257,7 @@ export function toVerdict(target: CustomTranscript, out: AmplifyOutcome): Transc
     accession: target.name, variant: null, is_mane: false,
     tier: out.tier, amplifiable: out.amplifiable, needs_eej: out.needsEej,
     unique_regions: uniq, unique_junctions: junctions, recommended_junction: recommended,
-    coord_non_unique: false, exons, amplify_exon_pair: exonPair, combo_junctions: comboJunctions,
+    structurally_contained: false, exons, amplify_exon_pair: exonPair, combo_junctions: comboJunctions,
   };
 }
 

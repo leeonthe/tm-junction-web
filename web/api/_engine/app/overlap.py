@@ -1,11 +1,11 @@
-"""Coordinate (structural) layer — the exon-overlap non-unique rule and the
-coordinate junction finder.
+"""Coordinate (structural) layer — the exon-overlap structural-containment rule and
+the coordinate junction finder.
 
 Ported from the sibling `ncbi exon` project (`ncbi_exon/parser.py`). This layer is
 the FAST STRUCTURAL PROXY used for the exon-track graph and as a cross-check. The
 authoritative amplifiability answer comes from the sequence layer (`amplify.py`).
 
-See vault: `01 Science/Non-Unique Transcript Definition.md`,
+See vault: `01 Science/Structurally Contained Transcript Definition.md`,
 `01 Science/Amplifiability and Primer Logic.md`.
 """
 
@@ -19,25 +19,26 @@ def intervals_overlap(a: Interval, b: Interval) -> bool:
     return a[0] <= b[1] and b[0] <= a[1]
 
 
-def is_non_unique_against(t_exons: list[Interval], other_exons: list[Interval]) -> bool:
-    """t is non-unique vs `other` iff EVERY exon of t overlaps >= 1 exon of other."""
+def is_structurally_contained_in(t_exons: list[Interval], other_exons: list[Interval]) -> bool:
+    """t is structurally contained in `other` iff EVERY exon of t overlaps >= 1 exon of other
+    (the term was "non-unique" until 2026-10-23)."""
     if not t_exons or not other_exons:
         return False
     return all(any(intervals_overlap(ea, eb) for eb in other_exons) for ea in t_exons)
 
 
-def non_unique_partners(
+def containing_partners(
     target_exons: list[Interval],
     siblings: dict[str, list[Interval]],
 ) -> list[str]:
-    """Return the sibling accessions that make `target` non-unique (pairwise, one-vs-one).
+    """Return the sibling accessions that structurally contain `target` (pairwise, one-vs-one).
 
     `siblings` excludes the target. Never takes the union of all siblings.
     """
     return [
         acc
         for acc, ex in siblings.items()
-        if is_non_unique_against(target_exons, ex)
+        if is_structurally_contained_in(target_exons, ex)
     ]
 
 

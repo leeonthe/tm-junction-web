@@ -82,7 +82,7 @@ const exon = (order: number, begin: number, end: number, tx_begin: number): Exon
 const tx = (accession: string, exons: Exon[]): TranscriptVerdict => ({
   accession, is_mane: false, tier: "CONVENTIONAL", amplifiable: true, needs_eej: false,
   unique_regions: [], unique_junctions: [], recommended_junction: null,
-  coord_non_unique: false, exons,
+  structurally_contained: false, exons,
 });
 const mk = (spans: number[][]) => {
   let t = 1;
