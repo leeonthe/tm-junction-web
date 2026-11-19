@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { analyzeStream, lookupGene, AnalyzeError, type Progress } from "./lib/api";
+import { isUserSearch, trackSearch } from "./lib/track";
 import type { AnalyzeResponse, GeneLookupResponse } from "./lib/types";
 import { classBreakdown, variantLabel } from "./lib/format";
 import { readRoute, routeUrl, writeRoute, type Route, type Tab } from "./lib/route";
@@ -265,6 +266,7 @@ export default function App() {
       if (!isCurrent()) return;
       setGene(g);
       setQuery({ gene: g.gene.symbol });   // canonical symbol, in NCBI's own capitalization
+      if (isUserSearch(opts)) trackSearch({ kind: "gene", query: symbol, species: sp, outcome: { ok: true, gene: g.gene.symbol } });
       if (!opts.silent) {
         const ref = encodeGeneRef({ symbol: g.gene.symbol, species: sp });
         setGeneHistory((h) => pushStored(GENE_HISTORY_KEY, ref, h));
@@ -273,6 +275,7 @@ export default function App() {
       if (!isCurrent()) return;
       const err = e as AnalyzeError;
       setError({ code: err.code ?? "ERROR", message: err.message });
+      if (isUserSearch(opts)) trackSearch({ kind: "gene", query: symbol, species: sp, outcome: { ok: false, error: err.code ?? "ERROR", message: err.message } });
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -314,6 +317,11 @@ export default function App() {
       // The accession named its own species; the search box follows it.
       if (isSpecies(r.gene.species)) setSpecies(r.gene.species);
       if (!keepTab) setTab("summary");   // a fresh search lands on the everything view
+      if (isUserSearch({ soft, silent })) trackSearch({
+        kind: "accession", query: accession,
+        species: isSpecies(r.gene.species) ? r.gene.species : undefined,
+        outcome: { ok: true, gene: r.gene.symbol },
+      });
       // recent searches (persisted, ≤3) — not for the initial demo or isoform re-targets
       if (!silent && !soft) {
         setHistory((h) => pushStored(HISTORY_KEY, r.target_accession, h));
@@ -325,6 +333,7 @@ export default function App() {
       if (!isCurrent()) return;
       const err = e as AnalyzeError;
       setError({ code: err.code ?? "ERROR", message: err.message });
+      if (isUserSearch({ soft, silent })) trackSearch({ kind: "accession", query: accession, outcome: { ok: false, error: err.code ?? "ERROR", message: err.message } });
       if (!soft) setResult(null);
     } finally {
       if (isCurrent()) soft ? setBusy(false) : setLoading(false);

@@ -13,14 +13,20 @@ Serverless constraints, handled here and in the engine itself:
     not an error;
   * every route arrives under /api (the vercel.json rewrite sends /api/* here), so the
     ASGI scope's path is stripped of that prefix before the engine app sees it.
+
+One route is not the engine's: /api/track, the usage log (see _track.py). It is answered
+here so the vendored engine stays an exact copy of ../engine.
 """
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "_engine"))
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE))
+sys.path.insert(0, str(_HERE / "_engine"))
 
 from app.main import app as engine_app  # noqa: E402  (path set up first)
+from _track import app as track_app  # noqa: E402
 
 
 async def app(scope, receive, send):
@@ -29,4 +35,7 @@ async def app(scope, receive, send):
         if path == "/api" or path.startswith("/api/"):
             path = path[len("/api"):] or "/"
             scope = {**scope, "path": path, "raw_path": path.encode()}
+        if path == "/track":
+            await track_app(scope, receive, send)
+            return
     await engine_app(scope, receive, send)

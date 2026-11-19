@@ -6,7 +6,8 @@ import {
 } from "../lib/customInput";
 import { customExample } from "../lib/customExample";
 import { fetchCustomTranscripts, suggest, suggestGenes } from "../lib/api";
-import { SPECIES, speciesOf, type SpeciesSlug } from "../lib/species";
+import { trackSearch } from "../lib/track";
+import { SPECIES, isSpecies, speciesOf, type SpeciesSlug } from "../lib/species";
 import { ArrowRight } from "./icons";
 import Info from "./Info";
 
@@ -348,13 +349,20 @@ function ExistingBody({ draft, busy, onChange, targetId, onTargetId, specific }:
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<{ text: string; soft: boolean } | null>(null);
   const resolved = isResolved(draft);
-  const latest = useRef({ q, species, onChange });
-  latest.current = { q, species, onChange };
+  const latest = useRef({ q, species, onChange, resolved });
+  latest.current = { q, species, onChange, resolved };
   const inFlight = useRef<AbortController | null>(null);
+  // The name the user last ASKED about outright (Enter, a picked suggestion, leaving the
+  // box), as opposed to one the typing pause looked up on its way to something longer.
+  const asked = useRef<string | null>(null);
+  /** The failure last sent to the usage log, so leaving the box twice does not send it twice. */
+  const loggedFailure = useRef("");
 
-  async function check() {
-    const { q, species, onChange } = latest.current;
+  async function check(explicit = false) {
+    const { q, species, onChange, resolved: alreadyResolved } = latest.current;
     if (!q) return;
+    if (explicit) asked.current = q;
+    const kind = looksLikeAccession(q) ? "accession" as const : "gene" as const;
     inFlight.current?.abort();
     const ctl = new AbortController();
     inFlight.current = ctl;
@@ -367,11 +375,27 @@ function ExistingBody({ draft, busy, onChange, targetId, onTargetId, specific }:
     setChecking(false);
     if (r.status === "unsupported") { setError({ text: "The engine that answered cannot look transcripts up yet — redeploy the backend, or paste the sequence instead.", soft: false }); return; }
     if (r.status === "error") {
+      // The usage log takes a failure only for a name the user finished: "GAP" on the way
+      // to "GAPDH" is not a search that failed.
+      const failure = `${q}|${species}|${r.code}`;
+      if (asked.current === q && loggedFailure.current !== failure) {
+        loggedFailure.current = failure;
+        trackSearch({
+          kind, query: q, species: kind === "gene" ? species : undefined,
+          outcome: { ok: false, error: r.code, message: r.message },
+        });
+      }
       setError(r.code === "NOT_FOUND" || r.code === "NOT_NM"
         ? { text: `Nothing at NCBI for “${q}”${looksLikeAccession(q) ? "" : ` in ${speciesOf(species).common.toLowerCase()}`} — keep typing, or pick a suggestion.`, soft: true }
         : { text: r.message, soft: false });
       return;
     }
+    // A row that was already resolved is being re-confirmed (Enter or a blur on a settled
+    // name), not searched for again.
+    if (!alreadyResolved) trackSearch({
+      kind, query: q, species: kind === "gene" ? species : (isSpecies(r.gene.species) ? r.gene.species : undefined),
+      outcome: { ok: true, gene: r.gene.symbol },
+    });
     onChange({ resolved: {
       query: q, species, gene: r.gene.symbol, organism: r.gene.organism ?? speciesOf(r.gene.species).scientific,
       transcripts: r.transcripts.map((t) => ({ accession: t.accession, variant: t.variant, is_mane: t.is_mane,
@@ -380,7 +404,7 @@ function ExistingBody({ draft, busy, onChange, targetId, onTargetId, specific }:
   }
   // Enter in the box or a picked suggestion asks for a check at once (see ExistingHead).
   useEffect(() => {
-    const on = (e: Event) => { if ((e as CustomEvent).detail === draft.id) check(); };
+    const on = (e: Event) => { if ((e as CustomEvent).detail === draft.id) check(true); };
     window.addEventListener("ct-check", on);
     return () => window.removeEventListener("ct-check", on);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -391,7 +415,7 @@ function ExistingBody({ draft, busy, onChange, targetId, onTargetId, specific }:
     setError(null);
     if (!q || resolved) { setChecking(false); inFlight.current?.abort(); return; }
     if (q.length < (looksLikeAccession(q) ? 5 : 2)) return;
-    const t = setTimeout(check, CHECK_AFTER_MS);
+    const t = setTimeout(() => check(), CHECK_AFTER_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, species, resolved]);
